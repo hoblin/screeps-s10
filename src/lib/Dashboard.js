@@ -75,6 +75,11 @@ export const Dashboard = {
 
     const { current, next, readyForNext } = nextStage(c);
 
+    const extCap = (CONTROLLER_STRUCTURES[STRUCTURE_EXTENSION] || {})[ctrl.level] || 0;
+    const extBuilt = c.room.find(FIND_MY_STRUCTURES, {
+      filter: (s) => s.structureType === STRUCTURE_EXTENSION,
+    }).length;
+
     return {
       stage: current.key,
       nextStage: next ? next.key : null,
@@ -83,6 +88,7 @@ export const Dashboard = {
       rclPct: ctrl.level >= 8 ? 100 : pct(ctrl.progress, ctrl.progressTotal),
       controllerTicksToDowngrade: ctrl.ticksToDowngrade,
       energy: { avail: c.room.energyAvailable, cap: c.room.energyCapacityAvailable },
+      extensions: { built: extBuilt, cap: extCap },
       sourceEnergy: sourceEnergy(c),
       pop,
       overlords,
@@ -105,7 +111,7 @@ export const Dashboard = {
         : "";
       log.info(
         `📊 ${name} [${s.stage}${nextHint}] ${rcl} | spawn ${s.energy.avail}/${s.energy.cap} | ` +
-          `src ${s.sourceEnergy} | sites ${s.sites} | pop: ${pop}`
+          `ext ${s.extensions.built}/${s.extensions.cap} | src ${s.sourceEnergy} | sites ${s.sites} | pop: ${pop}`
       );
       log.info(`   overlords: ${staffing}`);
     }
