@@ -17,7 +17,7 @@ export class Worker extends Role {
     const working = Role.updateWorkingState(creep);
 
     if (!working) {
-      Role.gatherEnergy(creep);
+      Role.gatherEnergy(creep, colony);
       return;
     }
 
