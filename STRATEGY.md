@@ -67,6 +67,12 @@ the current stage AND whether we're `READY` for the next one.
   beside it and pull from range 1 — the static-miner trick, inverted, turning the
   upgrader into a near-zero-walk static upgrader. The RCL-5 controller link later
   replaces hauler delivery to this same parking spot (link→link, zero hauling).
+- **Roads on hot paths:** the `Hatchery` (base anchor) plans roads along each
+  source↔spawn and spawn↔controller route via the shared `RoadPlanner`, after
+  extensions so the layout weaves through the final base shape. Roads halve move
+  cost (1 fatigue vs 2/10), so hauler round trips shorten and bodies need fewer
+  MOVE parts. Built below extensions, above repair; queued in waves to spare the
+  global 100-site cap.
 - **Next trigger:** Storage exists (RCL 4) → Stage 3.
 
 A `MiningSite` HiveCluster (source + container + link) is the Overmind pattern.

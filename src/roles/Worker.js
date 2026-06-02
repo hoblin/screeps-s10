@@ -27,11 +27,19 @@ export class Worker extends Role {
       }
     }
 
-    // 2. Build construction sites.
-    const site = creep.pos.findClosestByPath(FIND_MY_CONSTRUCTION_SITES);
-    if (site) {
-      if (creep.build(site) === ERR_NOT_IN_RANGE) creep.travelTo(site);
-      return;
+    // 2. Build construction sites. Roads come last (below extensions and
+    //    containers, above repair — issue #14): they're a throughput nicety,
+    //    while extensions/containers gate energy capacity, so finish the
+    //    structural sites before paving. Within a tier, build the closest.
+    const sites = creep.room.find(FIND_MY_CONSTRUCTION_SITES);
+    if (sites.length) {
+      const nonRoad = sites.filter((s) => s.structureType !== STRUCTURE_ROAD);
+      const pool = nonRoad.length ? nonRoad : sites;
+      const site = creep.pos.findClosestByPath(pool);
+      if (site) {
+        if (creep.build(site) === ERR_NOT_IN_RANGE) creep.travelTo(site);
+        return;
+      }
     }
 
     // 3. Repair damaged structures (skip walls/ramparts for now).
