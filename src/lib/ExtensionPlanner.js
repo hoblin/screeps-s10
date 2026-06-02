@@ -85,14 +85,16 @@ export const ExtensionPlanner = {
     return positions;
   },
 
-  // True if `pos` already holds something that would block an extension — any
-  // structure other than a road/rampart (which extensions may share a tile
-  // with), or any construction site.
+  // True if `pos` already holds something that would block an extension. In
+  // Screeps a rampart is the ONLY structure an extension can share a tile with;
+  // everything else — including a road — blocks it. (An extension can't sit on a
+  // road: createConstructionSite returns ERR_INVALID_TARGET, which would silently
+  // cost us a slot and could trip a false "geometry shortfall" warning once roads
+  // land on hot paths in #14.) Any construction site also blocks.
   occupied(pos) {
     return pos.look().some(
       (item) =>
         (item.type === LOOK_STRUCTURES &&
-          item.structure.structureType !== STRUCTURE_ROAD &&
           item.structure.structureType !== STRUCTURE_RAMPART) ||
         item.type === LOOK_CONSTRUCTION_SITES
     );
