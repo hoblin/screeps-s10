@@ -81,7 +81,10 @@ export const STAGES = [
   {
     key: "2b:Hauling",
     enteredWhen: (colony) => hasSourceContainer(colony),
-    provides: ["haulers (container -> spawn/extensions/controller)"],
+    provides: [
+      "haulers (container -> spawn/extensions/controller)",
+      "roads on hot paths (source <-> spawn <-> controller)",
+    ],
     // Promote to mid-game once Storage exists (RCL 4) — logistics gets a hub.
     readyForNextWhen: (colony) =>
       colony.controller.level >= 4 ||
