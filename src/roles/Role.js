@@ -66,9 +66,11 @@ export class Role {
     }
 
     // 4. Hauling is active but nothing is drainable this tick. Don't touch the
-    //    source — park beside the nearest container and wait for a hauler to
-    //    refill it (it'll be empty now, so step 2 skipped it). The energy
-    //    arrives shortly; idling adjacent means we withdraw the instant it does.
+    //    source — park beside the nearest container and wait for it to refill
+    //    (it's empty now, so step 2 skipped it). Whoever fills it depends on
+    //    which container is closest: a miner tops up a source container, a
+    //    hauler tops up the controller container. Either way energy arrives
+    //    shortly; idling adjacent means we withdraw the instant it does.
     const container = creep.pos.findClosestByPath(FIND_STRUCTURES, {
       filter: (s) =>
         s.structureType === STRUCTURE_CONTAINER || s.structureType === STRUCTURE_STORAGE,
