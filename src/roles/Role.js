@@ -13,7 +13,7 @@ export class Role {
     const m = creep.memory;
     if (m.working && creep.store[RESOURCE_ENERGY] === 0) {
       m.working = false;
-      creep.say("⛏️"); // esbuild charset:ascii emits this as \uXXXX -> safe upload, real emoji in-game
+      creep.say("⛏️");
     }
     if (!m.working && creep.store.getFreeCapacity() === 0) {
       m.working = true;
