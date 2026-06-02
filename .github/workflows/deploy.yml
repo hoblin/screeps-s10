@@ -1,6 +1,7 @@
-name: Deploy to Prod (Season 10)
+name: Deploy
 
-# master -> Screeps "default" branch (the live anniversary world code slot)
+# master -> Screeps "default" branch (the live world code slot).
+# Single branch, single deploy. Living on the edge: push to master = ship to prod.
 on:
   push:
     branches: [master]
@@ -23,9 +24,7 @@ jobs:
       - name: Build bundle
         run: npm run build
 
-      - name: Push to Screeps (prod branch)
-        uses: kskitek/screeps-pusher@v0.1
-        with:
-          branch: default
-          token: ${{ secrets.SCREEPS_TOKEN }}
-          dir: dist/
+      - name: Deploy to Screeps
+        run: npm run deploy
+        env:
+          SCREEPS_TOKEN: ${{ secrets.SCREEPS_TOKEN }}
