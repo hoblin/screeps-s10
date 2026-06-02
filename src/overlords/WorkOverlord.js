@@ -6,7 +6,7 @@ import { bodyFromTemplate } from "../lib/BodyGenerator.js";
 // then builds construction sites, then repairs, else helps upgrade.
 export class WorkOverlord extends Overlord {
   constructor(colony) {
-    super(colony, 2);
+    super(colony, { priority: 2 });
   }
 
   get role() {

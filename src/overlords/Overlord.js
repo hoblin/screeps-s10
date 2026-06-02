@@ -1,58 +1,114 @@
 // ============================================================================
-//  Overlord — base class for all goal-oriented managers.
-//  An Overlord owns ONE responsibility (mining, upgrading, building...) and:
-//   - reports how many creeps of which body it wants (init -> spawn request)
-//   - drives the creeps assigned to it each tick (run)
+//  Overlord — base class for every goal-oriented manager in the colony.
 //
-//  Subclasses override:
-//   - get role()            -> string role name its creeps carry
-//   - desiredCount()        -> how many creeps it wants
-//   - bodyFor(energy)       -> body array given available spawn energy
-//   - runCreep(creep)       -> per-creep behaviour
+//  An Overlord owns exactly ONE responsibility (mining a source, upgrading the
+//  controller, building...) and does three things:
+//    1. Declares how many creeps (and what body) it wants  -> spawn requests
+//    2. Claims the creeps that belong to it                -> assignedCreeps
+//    3. Drives those creeps every tick                     -> runCreep(creep)
 //
-//  This is the DRY backbone: shared spawn-request + iteration logic lives here.
+//  Creep ownership model (Overmind-style):
+//  -----------------------------------------------------------------------------
+//  Every creep carries TWO identity tags in memory:
+//    creep.memory.role     -> what KIND of worker it is ("miner", "hauler"...)
+//    creep.memory.overlord -> WHICH overlord instance owns it ("mine:src-abc12")
+//
+//  Matching by role alone is fine when there is one overlord per role. But for
+//  per-source mining we run MANY MiningOverlords (one per source), all using the
+//  role "miner". The `overlord` tag is what tells them apart, so each overlord
+//  only ever drives its own creeps and only spawns to fill its own quota.
+//
+//  Subclasses override the four hooks below. Everything else (spawn-request
+//  generation, per-creep iteration) is shared here — the DRY backbone.
 // ============================================================================
 export class Overlord {
-  constructor(colony, priority = 5) {
+  /**
+   * @param {Colony} colony   - the colony this overlord serves
+   * @param {object} options
+   * @param {number} options.priority    - lower number = spawned earlier
+   * @param {string} options.instanceId  - unique suffix so two overlords of the
+   *                                        same role don't fight over creeps.
+   *                                        Omit for singleton overlords (one per
+   *                                        role); the role name alone is enough.
+   */
+  constructor(colony, { priority = 5, instanceId = null } = {}) {
     this.colony = colony;
     this.room = colony.room;
-    this.priority = priority; // lower = spawned first
+    this.priority = priority;
+    this.instanceId = instanceId;
   }
 
-  // ---- to be overridden ----------------------------------------------------
+  // ---- hooks for subclasses to override ------------------------------------
+
+  /** String role name carried by this overlord's creeps. */
   get role() {
     throw new Error("Overlord subclass must define get role()");
   }
+
+  /** How many creeps this overlord wants alive. */
   desiredCount() {
     return 0;
   }
-  bodyFor(_energyAvailable) {
+
+  /** Body array to request, given the spawn energy budget available. */
+  bodyFor(_energyBudget) {
     return [WORK, CARRY, MOVE];
   }
+
+  /** Per-creep behaviour, called once per tick for each assigned creep. */
   runCreep(_creep) {}
 
-  // ---- shared machinery ----------------------------------------------------
-  get creeps() {
-    return this.colony.creepsWithRole(this.role);
+  // ---- creep ownership -----------------------------------------------------
+
+  /**
+   * A stable identity string written into each creep's memory.overlord so we
+   * can re-claim our creeps after a global reset. Singleton overlords (no
+   * instanceId) just use their role; per-instance overlords append their id.
+   */
+  get identifier() {
+    return this.instanceId ? `${this.role}:${this.instanceId}` : this.role;
   }
 
-  // Produce a spawn request if we are below desired headcount.
-  init() {
-    const have = this.creeps.length;
-    const want = this.desiredCount();
-    if (have >= want) return null;
+  /**
+   * The living creeps that belong to THIS overlord.
+   *  - Singleton overlords claim every creep of their role.
+   *  - Per-instance overlords claim only creeps tagged with their identifier.
+   */
+  get assignedCreeps() {
+    const creepsOfRole = this.colony.creepsWithRole(this.role);
+    if (!this.instanceId) return creepsOfRole;
+    return creepsOfRole.filter(
+      (creep) => creep.memory.overlord === this.identifier
+    );
+  }
 
-    const energy = this.room.energyCapacityAvailable;
+  // ---- shared machinery ----------------------------------------------------
+
+  /**
+   * Emit a spawn request when we have fewer creeps than we want.
+   * Returns null when we're already at full headcount.
+   */
+  generateSpawnRequest() {
+    const currentCount = this.assignedCreeps.length;
+    const targetCount = this.desiredCount();
+    if (currentCount >= targetCount) return null;
+
+    const energyBudget = this.room.energyCapacityAvailable;
     return {
       priority: this.priority,
       role: this.role,
-      body: this.bodyFor(energy),
-      memory: { role: this.role, colony: this.colony.name },
+      body: this.bodyFor(energyBudget),
+      memory: {
+        role: this.role,
+        colony: this.colony.name,
+        overlord: this.identifier, // stamp ownership at birth
+      },
     };
   }
 
+  /** Drive every creep this overlord owns (skipping ones still spawning). */
   run() {
-    for (const creep of this.creeps) {
+    for (const creep of this.assignedCreeps) {
       if (creep.spawning) continue;
       this.runCreep(creep);
     }

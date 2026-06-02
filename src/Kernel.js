@@ -17,6 +17,7 @@ export class Kernel {
 
   tick() {
     this.cleanupMemory();
+    this.migrateLegacyHarvesters(); // must precede buildColonies (it groups by role)
 
     // Bucket guard: if CPU bucket is low, run only the essentials.
     const lowBucket = Game.cpu.bucket < 500;
@@ -56,6 +57,29 @@ export class Kernel {
     for (const name in Memory.creeps) {
       if (!(name in Game.creeps)) {
         delete Memory.creeps[name];
+      }
+    }
+  }
+
+  // One-time migration: the Stage 2 refactor renamed the mobile "harvester"
+  // role to the static "miner" role, owned per-source by a MiningOverlord.
+  // Any harvester alive at deploy time would otherwise be orphaned (no overlord
+  // drives it) while a fresh miner spawns alongside it — a wasteful duplicate.
+  // Re-tag living harvesters as miners so the new overlords adopt them and let
+  // them live out their days under management. Safe to run every tick; it only
+  // touches creeps still carrying the legacy role.
+  migrateLegacyHarvesters() {
+    for (const name in Game.creeps) {
+      const creep = Game.creeps[name];
+      if (creep.memory.role !== "harvester") continue;
+
+      creep.memory.role = "miner";
+      // Bind it to the MiningOverlord of whichever source it was already mining
+      // (or its first source) so identifiers line up: "miner:<sourceId-suffix>".
+      const sourceId = creep.memory.sourceId;
+      if (sourceId) {
+        creep.memory.overlord = `miner:${sourceId.slice(-5)}`;
+        creep.memory.miningPos = null; // let the overlord re-stamp if needed
       }
     }
   }

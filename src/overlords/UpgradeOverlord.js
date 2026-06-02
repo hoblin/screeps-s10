@@ -5,7 +5,7 @@ import { bodyFromTemplate } from "../lib/BodyGenerator.js";
 // Keeps the room controller leveling. Scales count with available energy.
 export class UpgradeOverlord extends Overlord {
   constructor(colony) {
-    super(colony, 4);
+    super(colony, { priority: 4 });
   }
 
   get role() {

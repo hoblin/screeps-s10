@@ -29,8 +29,16 @@ export class Colony {
     this.hatchery = new Hatchery(this);
 
     // Overlords (goal managers). Order matters for spawn priority.
+    //
+    // Mining is per-source: one MiningOverlord instance per source in the room.
+    // This mirrors Overmind and means remote/outpost mining later is just
+    // "spawn more MiningOverlords" rather than a structural change.
+    const miningOverlords = this.sources.map(
+      (source) => new MiningOverlord(this, source)
+    );
+
     this.overlords = [
-      new MiningOverlord(this),
+      ...miningOverlords,
       new WorkOverlord(this),
       new UpgradeOverlord(this),
     ];
@@ -56,7 +64,7 @@ export class Colony {
     const spawnRequests = [];
     for (const overlord of this.overlords) {
       try {
-        const req = overlord.init();
+        const req = overlord.generateSpawnRequest();
         if (req) spawnRequests.push(...[].concat(req));
         overlord.run();
       } catch (err) {
