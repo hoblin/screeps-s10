@@ -1,0 +1,17 @@
+{
+  "name": "screeps-s10",
+  "version": "0.1.0",
+  "description": "Hoblin's Screeps AI — Season 10. OOP architecture inspired by Overmind, written in clean modern JS.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "lint": "echo \"(no linter yet)\""
+  },
+  "author": "hoblin",
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.21.5"
+  }
+}

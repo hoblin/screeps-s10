@@ -1,0 +1,31 @@
+name: Deploy to Prod (Season 10)
+
+# master -> Screeps "default" branch (the live anniversary world code slot)
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install deps
+        run: npm ci || npm install
+
+      - name: Build bundle
+        run: npm run build
+
+      - name: Push to Screeps (prod branch)
+        uses: kskitek/screeps-pusher@v0.1
+        with:
+          branch: default
+          token: ${{ secrets.SCREEPS_TOKEN }}
+          dir: dist/
