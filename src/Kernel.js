@@ -74,13 +74,28 @@ export class Kernel {
       if (creep.memory.role !== "harvester") continue;
 
       creep.memory.role = "miner";
-      // Bind it to the MiningOverlord of whichever source it was already mining
-      // (or its first source) so identifiers line up: "miner:<sourceId-suffix>".
-      const sourceId = creep.memory.sourceId;
-      if (sourceId) {
-        creep.memory.overlord = `miner:${sourceId.slice(-5)}`;
-        creep.memory.miningPos = null; // let the overlord re-stamp if needed
+
+      // Every migrated creep MUST end up bound to a MiningOverlord, otherwise no
+      // overlord claims it (orphan) AND it counts toward no quota (so a fresh
+      // miner spawns as a duplicate). The legacy Harvester assigned its source
+      // lazily, so a creep that hadn't run yet (or was still spawning) has no
+      // sourceId. In that case, pick the source nearest the creep so it binds
+      // to a real overlord.
+      let sourceId = creep.memory.sourceId;
+      if (!sourceId) {
+        const nearestSource = creep.pos.findClosestByRange(FIND_SOURCES);
+        sourceId = nearestSource ? nearestSource.id : null;
+        creep.memory.sourceId = sourceId;
       }
+      if (!sourceId) continue; // no sources visible at all — leave as-is
+
+      // Bind to the MiningOverlord of that source. The identifier must match
+      // MiningOverlord.identifier exactly ("miner:<full-sourceId>").
+      creep.memory.overlord = `miner:${sourceId}`;
+      // The overlord re-stamps miningPos on adopted creeps that lack it (see
+      // MiningOverlord.run), and Miner.run falls back to the source directly
+      // when miningPos is still null, so no creep ever gets stuck.
+      creep.memory.miningPos = null;
     }
   }
 }
