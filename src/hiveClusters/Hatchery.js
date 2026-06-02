@@ -115,46 +115,55 @@ export class Hatchery extends HiveCluster {
     return planned;
   }
 
-  // The { from, to } endpoint pairs for the road network, plus whether the
-  // controller endpoint is settled (so roadLayout knows if the result is safe to
-  // cache). Endpoints are discovered from room state — the source containers
-  // (where haulers load) and the controller container (where they deliver) — so
-  // roads land on the tiles creeps actually walk, with graceful fallback to the
+  // The { from, to } endpoint pairs for the road network, plus whether EVERY
+  // endpoint is settled (so roadLayout knows if the result is safe to cache).
+  // Endpoints are discovered from room state — the source containers (where
+  // haulers load) and the controller container (where they deliver) — so roads
+  // land on the tiles creeps actually walk, with graceful fallback to the
   // source/controller themselves before their containers exist.
+  //
+  // Stage 2b begins as soon as ANY one source container is finished, so a second
+  // source's container may not exist yet. We only report `final` (cache the
+  // layout) once all of them AND the controller are settled — otherwise the
+  // cached route would bake in a source.pos fallback that never updates to the
+  // real container↔spawn hot path.
   roadLegs(anchor) {
     const spawnPos = anchor.pos;
     const controllerEnd = this.controllerRoadEndpoint();
-    const legs = this.colony.sources.map((source) => ({
-      from: this.sourceRoadEndpoint(source),
-      to: spawnPos,
-    }));
+    const sourceEnds = this.colony.sources.map((s) => this.sourceRoadEndpoint(s));
+    const legs = sourceEnds.map((end) => ({ from: end.pos, to: spawnPos }));
     legs.push({ from: spawnPos, to: controllerEnd.pos });
-    return { legs, final: controllerEnd.settled };
+    const final = controllerEnd.settled && sourceEnds.every((e) => e.settled);
+    return { legs, final };
   }
 
   // Where a source leg ends: the source's container (the hauler's load tile) if
-  // it's built, else the source itself.
+  // its structure OR site exists yet, else the source itself.
   sourceRoadEndpoint(source) {
-    const container = source.pos.findInRange(FIND_STRUCTURES, 1, {
-      filter: (s) => s.structureType === STRUCTURE_CONTAINER,
-    })[0];
-    return container ? container.pos : source.pos;
+    return this.containerEndpoint(source.pos, source.pos);
   }
 
   // Where the controller leg ends: the controller container (the hauler's
   // delivery / upgrader parking tile) if its structure OR site exists yet, else
-  // the controller. `settled` is true once we've found that container so the
-  // cached route aligns to the final parking tile.
+  // the controller.
   controllerRoadEndpoint() {
     const ctrl = this.colony.controller;
+    return this.containerEndpoint(ctrl.pos, ctrl.pos);
+  }
+
+  // A road endpoint that prefers the container hugging `anchorPos` (built
+  // structure first, then its construction site) and falls back to `fallbackPos`.
+  // Returns { pos, settled }: settled flags that the container exists, so the
+  // route through this endpoint is its final hot path and safe to cache.
+  containerEndpoint(anchorPos, fallbackPos) {
     const isContainer = (s) => s.structureType === STRUCTURE_CONTAINER;
-    const built = ctrl.pos.findInRange(FIND_STRUCTURES, 1, { filter: isContainer })[0];
+    const built = anchorPos.findInRange(FIND_STRUCTURES, 1, { filter: isContainer })[0];
     if (built) return { pos: built.pos, settled: true };
-    const site = ctrl.pos.findInRange(FIND_CONSTRUCTION_SITES, 1, {
+    const site = anchorPos.findInRange(FIND_CONSTRUCTION_SITES, 1, {
       filter: isContainer,
     })[0];
     if (site) return { pos: site.pos, settled: true };
-    return { pos: ctrl.pos, settled: false };
+    return { pos: fallbackPos, settled: false };
   }
 
   get roadLayoutCache() {

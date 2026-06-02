@@ -27,15 +27,22 @@ export const RoadPlanner = {
 
   // The deduped set of tiles the roads should cover. `legs` is a list of
   // { from, to } RoomPosition pairs; each leg's shortest path contributes its
-  // tiles. Terrain type is neutralised (swampCost = plainCost) because a road
-  // makes swamp and plain equally cheap, so we want the geometrically shortest
-  // road, not one that detours around swamp. Endpoint tiles (containers, spawn)
-  // come back in the path but are filtered out at placement time by occupied().
+  // tiles. Pure geometry: terrain type is neutralised (plainCost == swampCost)
+  // because a road makes swamp and plain equally cheap, so we want the
+  // geometrically shortest road rather than one that detours around swamp; and
+  // ignoreRoads keeps the result independent of any pre-existing roads, so the
+  // plan is stable and safe to cache. Endpoint tiles (containers, spawn) come
+  // back in the path but are filtered out at placement time by occupied().
   planTiles(room, legs) {
     const tiles = new Map(); // "x,y" -> { x, y }, dedupes overlapping legs
     for (const { from, to } of legs) {
       if (!from || !to) continue;
-      const path = from.findPathTo(to, { ignoreCreeps: true, swampCost: 1 });
+      const path = from.findPathTo(to, {
+        ignoreCreeps: true,
+        ignoreRoads: true,
+        plainCost: 1,
+        swampCost: 1,
+      });
       for (const step of path) {
         tiles.set(this.key(step.x, step.y), { x: step.x, y: step.y });
       }
@@ -75,8 +82,10 @@ export const RoadPlanner = {
       const result = room.createConstructionSite(pos, STRUCTURE_ROAD);
       if (result === OK) {
         budget--;
-      } else if (result === ERR_FULL) {
-        // Global construction-site cap — no point trying more tiles this tick.
+      } else if (result === ERR_FULL || result === ERR_RCL_NOT_ENOUGH) {
+        // Global construction-site cap, or RCL too low to build roads at all —
+        // either way no further tile can succeed this tick, so stop scanning
+        // (mirrors ExtensionPlanner.ensureSites).
         log.warn(`[${room.name}] road site failed: ${result}`);
         break;
       } else if (result !== ERR_INVALID_TARGET) {
