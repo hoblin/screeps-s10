@@ -47,13 +47,13 @@ export class Upgrader extends Role {
       if (!creep.pos.inRangeTo(controllerContainer, 1)) {
         creep.travelTo(controllerContainer);
       } else if (this.reachableSpareEnergy(creep, colony)) {
-        Role.gatherEnergy(creep);
+        Role.gatherEnergy(creep, colony);
       }
       return;
     }
 
     // No controller container yet (early game): self-serve generically.
-    Role.gatherEnergy(creep);
+    Role.gatherEnergy(creep, colony);
   }
 
   // Is there non-source energy close enough that topping up from it beats idling
