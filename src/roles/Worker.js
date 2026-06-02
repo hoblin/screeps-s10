@@ -5,7 +5,8 @@ import { stageAtLeast } from "../lib/Stages.js";
 // count as "tied" and are chosen by distance, not progress. ~10 build actions'
 // worth of slack — below it the lead is too small to justify a cross-base trek;
 // above it one site has pulled clearly ahead and every worker converges on it.
-const BUILD_PROGRESS_EPSILON = BUILD_POWER * 10;
+// Read BUILD_POWER lazily (inside the function) so merely importing this module
+// doesn't depend on the Screeps global — keeps it safe to bundle/unit-test.
 
 // Worker: priority chain — fill spawn/extensions > build > repair > upgrade.
 // Once haulers are active (2b:Hauling), workers STOP filling spawn/extensions
@@ -72,10 +73,11 @@ export class Worker extends Role {
   // detours. The rule is self-reinforcing: whichever site first pulls a real
   // lead becomes the magnet that draws every worker until it completes.
   static selectBuildTarget(creep, sites) {
+    const epsilon = BUILD_POWER * 10;
     const nonRoad = sites.filter((s) => s.structureType !== STRUCTURE_ROAD);
     const pool = nonRoad.length ? nonRoad : sites;
     const maxProgress = Math.max(...pool.map((s) => s.progress));
-    const leaders = pool.filter((s) => s.progress >= maxProgress - BUILD_PROGRESS_EPSILON);
+    const leaders = pool.filter((s) => s.progress >= maxProgress - epsilon);
     return creep.pos.findClosestByPath(leaders);
   }
 }
