@@ -14,9 +14,10 @@ import { stageAtLeast } from "../lib/Stages.js";
 // targets, wasting trips and CPU. Workers then focus on build/repair/upgrade.
 //
 // Survival override (#37): the 2b hand-off assumes a hauler is alive to do the
-// filling. We run exactly one hauler, so if it dies nobody refills the spawn and
-// the colony spirals to extinction (can't afford a replacement hauler). So the
-// fill step reactivates as an emergency fallback whenever zero haulers live —
+// filling. We run a lean hauler fleet (one per source), so if they ALL die
+// nobody refills the spawn and the colony spirals to extinction (can't afford a
+// replacement hauler). So the fill step reactivates as an emergency fallback
+// whenever zero haulers live —
 // survival outranks the no-racing optimization.
 export class Worker extends Role {
   static run(creep, colony) {
