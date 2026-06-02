@@ -10,8 +10,8 @@ const options = {
   platform: "node",
   target: "node12", // Screeps runtime is an isolated V8; node12-level features are safe
   format: "cjs", // Screeps loads main.js as CommonJS (module.exports.loop)
-  charset: "ascii", // escape any non-ASCII as \uXXXX; Screeps' code-upload JSON
-                    // parser chokes on raw multibyte chars (emoji in comments etc.)
+  charset: "utf8", // keep emoji/unicode raw; the official screeps-api client
+                   // JSON-encodes the payload correctly on upload.
   logLevel: "info",
   // Screeps provides Game, Memory, etc. as globals — never bundle/treeshake them away.
   // Keep the bundle readable-ish; no minify so console errors map to real lines.
