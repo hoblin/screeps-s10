@@ -1,6 +1,7 @@
 import { Overlord } from "./Overlord.js";
 import { Miner } from "../roles/Miner.js";
 import { bodyFromTemplate } from "../lib/BodyGenerator.js";
+import { log } from "../lib/Logger.js";
 
 // ============================================================================
 //  MiningOverlord — owns the static mining of ONE source (Overmind-style:
@@ -13,7 +14,7 @@ import { bodyFromTemplate } from "../lib/BodyGenerator.js";
 //   2. Keep a container construction site / container alive on that tile.
 //   3. Spawn and drive exactly one static Miner for this source.
 //
-//  Each instance is identified by `mine:<sourceId-suffix>` so its miner is never
+//  Each instance is identified by `miner:<full-sourceId>` so its miner is never
 //  confused with another source's miner, even though they share the role
 //  "miner".
 // ============================================================================
@@ -24,8 +25,10 @@ export class MiningOverlord extends Overlord {
    */
   constructor(colony, source) {
     // Mining is top priority: no energy income means no colony at all.
-    // Use a short, stable suffix of the source id as the instance identifier.
-    super(colony, { priority: 1, instanceId: source.id.slice(-5) });
+    // Use the FULL source id as the instance identifier. It's only a memory
+    // string, so length doesn't matter, and a truncated suffix could collide
+    // between two sources that share their last few chars.
+    super(colony, { priority: 1, instanceId: source.id });
     this.source = source;
   }
 
@@ -39,10 +42,17 @@ export class MiningOverlord extends Overlord {
   }
 
   // Static miner body: as many WORK parts as we can afford (capped at 5, which
-  // exactly matches a source's 3000-energy-per-300-tick regen), plus ONE MOVE to
-  // shuffle into position. No CARRY — energy drops into the container.
+  // exactly matches a source's 3000-energy-per-300-tick regen), plus TWO MOVE.
+  // No CARRY — energy drops into the container.
+  //
+  // Why two MOVE for a creep that ultimately stands still: with 5 WORK the body
+  // generates a lot of fatigue while travelling. One MOVE crawls on plains and
+  // CANNOT cross swamp at all (it never clears 10 fatigue/step). Two MOVE lets
+  // the miner reliably reach its position over mixed terrain on the one-way
+  // trip; once parked, the extra MOVE costs nothing. Cheap insurance against
+  // the "miner stuck en route" failure mode.
   bodyFor(energyBudget) {
-    return bodyFromTemplate([WORK, MOVE], {
+    return bodyFromTemplate([WORK, MOVE, MOVE], {
       extra: [WORK],
       max: 4, // template already has 1 WORK, so up to 5 WORK total
       energy: energyBudget,
@@ -61,15 +71,17 @@ export class MiningOverlord extends Overlord {
     if (cache) {
       return new RoomPosition(cache.x, cache.y, cache.roomName);
     }
-    const computed = this.computeMiningPosition();
-    if (computed) {
+    const { position, reachedByPath } = this.computeMiningPosition();
+    // Only cache a tile we genuinely reached by path. Caching a transient
+    // pathing-failure fallback would make a temporary glitch permanent.
+    if (position && reachedByPath) {
       this.miningPositionCache = {
-        x: computed.x,
-        y: computed.y,
-        roomName: computed.roomName,
+        x: position.x,
+        y: position.y,
+        roomName: position.roomName,
       };
     }
-    return computed;
+    return position;
   }
 
   get miningPositionCache() {
@@ -84,10 +96,14 @@ export class MiningOverlord extends Overlord {
   }
 
   // Walkable source-adjacent tile nearest (by path) to a spawn.
+  // Returns { position, reachedByPath }: reachedByPath is false when no tile was
+  // pathable and we had to fall back, so the caller can avoid caching it.
   computeMiningPosition() {
     const anchor = this.colony.spawns[0] || this.colony.controller;
     const walkableNeighbours = this.walkableTilesAround(this.source.pos);
-    if (walkableNeighbours.length === 0) return null;
+    if (walkableNeighbours.length === 0) {
+      return { position: null, reachedByPath: false };
+    }
 
     let best = null;
     let bestPathLength = Infinity;
@@ -104,8 +120,11 @@ export class MiningOverlord extends Overlord {
         best = tile;
       }
     }
-    // Fall back to the first walkable tile if pathing failed for all.
-    return best || walkableNeighbours[0];
+
+    if (best) return { position: best, reachedByPath: true };
+    // No tile was pathable: fall back to the first walkable tile so a miner can
+    // still stand somewhere, but DON'T let the caller cache this guess.
+    return { position: walkableNeighbours[0], reachedByPath: false };
   }
 
   // The 8 tiles around a position that aren't walls.
@@ -147,7 +166,15 @@ export class MiningOverlord extends Overlord {
     );
     if (hasContainer || hasSite) return;
 
-    this.room.createConstructionSite(position, STRUCTURE_CONTAINER);
+    // Place the container site. ensureContainerSite early-returns once a site or
+    // container exists, so this won't spam. Log unexpected failures (e.g. the
+    // 100-site global cap) so a silently-missing container is debuggable.
+    const result = this.room.createConstructionSite(position, STRUCTURE_CONTAINER);
+    if (result !== OK) {
+      log.warn(
+        `[${this.colony.name}] container site at ${position} failed: ${result}`
+      );
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -170,10 +197,29 @@ export class MiningOverlord extends Overlord {
     Miner.run(creep, this.colony);
   }
 
-  // Called by Colony each tick (in addition to run()) so the container site is
-  // kept alive even before the miner exists.
+  // Called by Colony each tick. Keeps the container site alive even before any
+  // miner exists, re-stamps the mining position onto any creep that lacks one
+  // (e.g. creeps adopted via legacy migration), then drives the creeps.
   run() {
     this.ensureContainerSite();
+    this.stampMiningPositionOnAssignedCreeps();
     super.run();
+  }
+
+  // Make sure every creep we own knows its mining position. New miners get it at
+  // spawn time, but adopted (migrated) creeps may not — fill it in here so they
+  // can park properly instead of relying on the source-direct fallback forever.
+  stampMiningPositionOnAssignedCreeps() {
+    const position = this.miningPosition;
+    if (!position) return;
+    for (const creep of this.assignedCreeps) {
+      if (!creep.memory.miningPos) {
+        creep.memory.miningPos = {
+          x: position.x,
+          y: position.y,
+          roomName: position.roomName,
+        };
+      }
+    }
   }
 }

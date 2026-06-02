@@ -24,8 +24,17 @@ export class Miner extends Role {
 
     const miningPosition = this.resolveMiningPosition(creep);
 
+    // Fallback path: if we have no assigned mining position yet (e.g. a creep
+    // adopted by migration before the overlord re-stamped it), just mine the
+    // source directly — walk into range and harvest. This guarantees a miner is
+    // never stuck doing nothing while waiting for a position.
+    if (!miningPosition) {
+      if (creep.harvest(source) === ERR_NOT_IN_RANGE) creep.travelTo(source);
+      return;
+    }
+
     // Phase 1: walk to the mining position if we're not already standing on it.
-    if (miningPosition && !creep.pos.isEqualTo(miningPosition)) {
+    if (!creep.pos.isEqualTo(miningPosition)) {
       creep.travelTo(miningPosition);
       return;
     }

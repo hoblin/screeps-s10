@@ -11,7 +11,7 @@
 //  -----------------------------------------------------------------------------
 //  Every creep carries TWO identity tags in memory:
 //    creep.memory.role     -> what KIND of worker it is ("miner", "hauler"...)
-//    creep.memory.overlord -> WHICH overlord instance owns it ("mine:src-abc12")
+//    creep.memory.overlord -> WHICH overlord instance owns it ("miner:<sourceId>")
 //
 //  Matching by role alone is fine when there is one overlord per role. But for
 //  per-source mining we run MANY MiningOverlords (one per source), all using the
