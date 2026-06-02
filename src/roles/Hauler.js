@@ -123,14 +123,35 @@ export class Hauler extends Role {
       return;
     }
 
-    // 5. Nothing needs energy — sit by the controller as a mobile buffer.
-    if (colony.controller) creep.travelTo(colony.controller);
+    // 5. Nothing accepts energy (early game: no tower/storage, everything full).
+    //    Don't sit full forever — dump into the controller container if one
+    //    exists (even if we'd normally skip a full one we already returned
+    //    above), otherwise drop the energy on the ground near the controller so
+    //    we free up and go collect again. Energy isn't lost; upgraders/workers
+    //    pick dropped energy up.
+    const anyControllerContainer = this.controllerContainer(colony);
+    if (anyControllerContainer) {
+      if (creep.transfer(anyControllerContainer, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+        creep.travelTo(anyControllerContainer);
+      }
+      return;
+    }
+    if (colony.controller) {
+      if (creep.pos.inRangeTo(colony.controller, 3)) {
+        creep.drop(RESOURCE_ENERGY);
+      } else {
+        creep.travelTo(colony.controller);
+      }
+    }
   }
 
-  // A container near the controller (within 3) that is NOT a source container.
+  // A container hugging the controller (within 2) that is NOT a source
+  // container. Range 2 (not 3) avoids matching a distant source/storage
+  // container in compact rooms; a controller container is built right next to
+  // the controller.
   static controllerContainer(colony) {
     if (!colony.controller) return null;
-    const near = colony.controller.pos.findInRange(FIND_STRUCTURES, 3, {
+    const near = colony.controller.pos.findInRange(FIND_STRUCTURES, 2, {
       filter: (s) => s.structureType === STRUCTURE_CONTAINER,
     });
     return near.find((container) => !this.isSourceContainer(container, colony)) || null;

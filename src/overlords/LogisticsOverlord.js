@@ -24,14 +24,15 @@ export class LogisticsOverlord extends Overlord {
     return "hauler";
   }
 
-  // No haulers until the hauling stage is active. Once active, scale with the
-  // number of sources (each producing container needs draining); one hauler per
-  // source is a sane early ratio, bumped to two once we have extension capacity
-  // (longer fill routes).
+  // No haulers until the hauling stage is active. Once active, one hauler per
+  // source (each producing container needs draining). We grow throughput via
+  // bigger BODIES (more CARRY) rather than more creeps — fewer creeps means less
+  // path-contention and CPU, and a single full-size hauler comfortably keeps up
+  // with one source's 10 energy/tick over typical early distances. Revisit the
+  // ratio if telemetry shows containers backing up.
   desiredCount() {
     if (!stageAtLeast(this.colony, "2b:Hauling")) return 0;
-    const perSource = this.colony.room.energyCapacityAvailable >= 550 ? 2 : 1;
-    return this.colony.sources.length * perSource;
+    return this.colony.sources.length;
   }
 
   // Balanced CARRY/MOVE hauler so it moves at full speed on roads and half speed

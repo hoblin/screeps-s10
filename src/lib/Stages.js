@@ -64,9 +64,14 @@ export const STAGES = [
   },
   {
     key: "2:StaticMining",
+    // Mutually exclusive with 2b: we're in static-mining ONLY while no source
+    // container is finished yet. The instant one is built we move to 2b. Without
+    // the `!hasSourceContainer` guard this stage's trigger would always also be
+    // true when 2b's is, so 2:StaticMining could never display as current.
     enteredWhen: (colony) =>
-      colony.controller.level >= 2 ||
-      countStructures(colony.room, STRUCTURE_CONTAINER) > 0,
+      (colony.controller.level >= 2 ||
+        countStructures(colony.room, STRUCTURE_CONTAINER) > 0) &&
+      !hasSourceContainer(colony),
     provides: ["static miners", "source containers"],
     // Haulers become worthwhile only once a source container is FINISHED (a
     // miner is now dropping energy into it that must be moved). This is the
@@ -104,12 +109,26 @@ export const STAGES = [
   },
 ];
 
+// Per-tick memoization: currentStage is called several times per tick (Dashboard
+// + every overlord's stageAtLeast). Stage can't change mid-tick, so cache the
+// result keyed by colony name + Game.time. Cheap, and keeps CPU flat as overlord
+// count grows.
+const _stageCache = { tick: -1, byColony: {} };
+
 // The current stage = the last stage whose entry trigger is satisfied.
 export function currentStage(colony) {
+  if (_stageCache.tick !== Game.time) {
+    _stageCache.tick = Game.time;
+    _stageCache.byColony = {};
+  }
+  const cached = _stageCache.byColony[colony.name];
+  if (cached) return cached;
+
   let active = STAGES[0];
   for (const stage of STAGES) {
     if (stage.enteredWhen(colony)) active = stage;
   }
+  _stageCache.byColony[colony.name] = active;
   return active;
 }
 
