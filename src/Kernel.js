@@ -1,5 +1,6 @@
 import { Colony } from "./Colony.js";
 import { log } from "./lib/Logger.js";
+import { Dashboard } from "./lib/Dashboard.js";
 
 // ============================================================================
 //  Kernel — the top-level orchestrator (think: the Rails app object).
@@ -32,6 +33,9 @@ export class Kernel {
         log.error(`Colony ${name} crashed: ${err.stack || err}`);
       }
     }
+
+    // Telemetry: periodic status report to console (skip when CPU-starved).
+    if (!lowBucket) Dashboard.maybeReport(this.colonies);
   }
 
   // Wrap every owned room (with a spawn) in a Colony object.
