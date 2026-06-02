@@ -1,5 +1,6 @@
 import { Hatchery } from "./hiveClusters/Hatchery.js";
 import { MiningOverlord } from "./overlords/MiningOverlord.js";
+import { LogisticsOverlord } from "./overlords/LogisticsOverlord.js";
 import { UpgradeOverlord } from "./overlords/UpgradeOverlord.js";
 import { WorkOverlord } from "./overlords/WorkOverlord.js";
 import { log } from "./lib/Logger.js";
@@ -40,6 +41,7 @@ export class Colony {
     this.overlords = [
       ...miningOverlords,
       new WorkOverlord(this),
+      new LogisticsOverlord(this), // requests 0 haulers until 2b:Hauling stage
       new UpgradeOverlord(this),
     ];
   }

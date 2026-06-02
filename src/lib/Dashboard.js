@@ -13,21 +13,12 @@
 //  read always returns the latest snapshot. Pull > push for status.
 // ============================================================================
 import { log } from "./Logger.js";
+import { nextStage } from "./Stages.js";
 
 const LOG_INTERVAL = 30; // ticks between human console summaries
 
-// Infer the colony's economic stage from RCL + key structures.
-// Mirrors STRATEGY.md stages so telemetry speaks the same language as the plan.
-function stageOf(colony) {
-  const rcl = colony.controller.level;
-  const room = colony.room;
-  const has = (t) => room.find(FIND_MY_STRUCTURES, { filter: (s) => s.structureType === t }).length;
-  if (rcl >= 8) return "5:Endgame/Score";
-  if (rcl >= 6) return "4:Industry";
-  if (rcl >= 4 || has(STRUCTURE_STORAGE)) return "3:Storage&Links";
-  if (rcl >= 2 || has(STRUCTURE_CONTAINER)) return "2:StaticMining";
-  return "1:Bootstrap";
-}
+// Stage is now derived from the formal Stages state machine (single source of
+// truth shared with Colony/Overlords), not re-inferred here.
 
 const sourceEnergy = (colony) => colony.sources.reduce((a, s) => a + s.energy, 0);
 
@@ -75,12 +66,19 @@ export const Dashboard = {
     const overlords = c.overlords.map((o) => {
       let want = 0;
       try { want = o.desiredCount(); } catch { want = -1; }
-      const have = c.creepsWithRole(o.role).length;
+      // Use the overlord's OWN creeps (per-instance for miners), not every
+      // creep of the role — otherwise each per-source miner overlord would
+      // report the room-wide miner count and look over-staffed.
+      const have = o.assignedCreeps.length;
       return { role: o.role, have, want, ok: have >= want };
     });
 
+    const { current, next, readyForNext } = nextStage(c);
+
     return {
-      stage: stageOf(c),
+      stage: current.key,
+      nextStage: next ? next.key : null,
+      readyForNext,
       rcl: ctrl.level,
       rclPct: ctrl.level >= 8 ? 100 : pct(ctrl.progress, ctrl.progressTotal),
       controllerTicksToDowngrade: ctrl.ticksToDowngrade,
@@ -102,8 +100,11 @@ export const Dashboard = {
         .map((o) => `${o.role}:${o.have}/${o.want}${o.ok ? "✅" : "⚠️"}`)
         .join(" ");
       const rcl = s.rcl >= 8 ? "RCL8(cap)" : `RCL${s.rcl} ${s.rclPct}%`;
+      const nextHint = s.nextStage
+        ? ` →${s.nextStage}${s.readyForNext ? "(READY)" : ""}`
+        : "";
       log.info(
-        `📊 ${name} [${s.stage}] ${rcl} | spawn ${s.energy.avail}/${s.energy.cap} | ` +
+        `📊 ${name} [${s.stage}${nextHint}] ${rcl} | spawn ${s.energy.avail}/${s.energy.cap} | ` +
           `src ${s.sourceEnergy} | sites ${s.sites} | pop: ${pop}`
       );
       log.info(`   overlords: ${staffing}`);

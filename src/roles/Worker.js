@@ -1,6 +1,10 @@
 import { Role } from "./Role.js";
+import { stageAtLeast } from "../lib/Stages.js";
 
 // Worker: priority chain — fill spawn/extensions > build > repair > upgrade.
+// Once haulers are active (2b:Hauling), workers STOP filling spawn/extensions
+// and leave that to dedicated haulers — otherwise both race for the same
+// targets, wasting trips and CPU. Workers then focus on build/repair/upgrade.
 export class Worker extends Role {
   static run(creep, colony) {
     const working = Role.updateWorkingState(creep);
@@ -10,15 +14,17 @@ export class Worker extends Role {
       return;
     }
 
-    // 1. Fill spawns & extensions (keeps the colony spawning).
-    const fill = creep.pos.findClosestByPath(FIND_MY_STRUCTURES, {
-      filter: (s) =>
-        (s.structureType === STRUCTURE_SPAWN || s.structureType === STRUCTURE_EXTENSION) &&
-        s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
-    });
-    if (fill) {
-      if (creep.transfer(fill, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) creep.travelTo(fill);
-      return;
+    // 1. Fill spawns & extensions — ONLY while haulers aren't doing it yet.
+    if (!stageAtLeast(colony, "2b:Hauling")) {
+      const fill = creep.pos.findClosestByPath(FIND_MY_STRUCTURES, {
+        filter: (s) =>
+          (s.structureType === STRUCTURE_SPAWN || s.structureType === STRUCTURE_EXTENSION) &&
+          s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
+      });
+      if (fill) {
+        if (creep.transfer(fill, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) creep.travelTo(fill);
+        return;
+      }
     }
 
     // 2. Build construction sites.

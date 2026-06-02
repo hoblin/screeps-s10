@@ -9,6 +9,23 @@ jonwinsley Field Journal game plan.
 **Maximize energy throughput from sources → controller/score, minimizing waste.**
 Every stage is just removing the current bottleneck in that pipeline.
 
+## How we think about stages (the "prepare ahead" doctrine)
+
+We do NOT ask "what does the colony need right now?" — that's reactive, always
+firing late. Instead each stage is a **formal contract** (see `src/lib/Stages.js`,
+the single source of truth):
+
+- **enter trigger** — the condition that means we're IN this stage
+- **provides** — the capabilities this stage turns on
+- **next trigger** — the condition that will promote us to the next stage
+
+Because we know the *next* stage and its trigger, we write its logic in advance.
+The code exists and waits; the trigger flips it on automatically (e.g. the hauler
+overlord requests 0 haulers until a source container is finished, then scales up
+the instant that trigger fires). The colony walks its own roadmap instead of
+stumbling into each phase. Dashboard reads the same machine, so telemetry shows
+the current stage AND whether we're `READY` for the next one.
+
 - A Source yields **3000 energy / 300 ticks = 10 energy/tick**. Tapping it fully
   needs **5 WORK parts** on a miner (5×2 = 10/tick).
 - Wasted energy = source sitting full, or creeps walking instead of working.
@@ -34,7 +51,18 @@ Every stage is just removing the current bottleneck in that pipeline.
 - Build **Container under controller** + **roads** on hot paths (source↔spawn↔controller).
 - Rush the **first Tower** (RCL 3) for cheap defense, then relax.
 
-**Architecture add:** `LogisticsOverlord` (haulers), miner role becomes static.
+**Architecture add:** miner role becomes static (✅ done). Split into two triggers:
+
+### Stage 2a — Static mining (trigger: RCL≥2 or a container exists)
+- Per-source `MiningOverlord` ✅, static `Miner` ✅, container placement ✅.
+- **Next trigger:** a source container is FINISHED.
+
+### Stage 2b — Hauling (trigger: source container finished)
+- `LogisticsOverlord` + `Hauler` role: container → spawn/extensions → tower →
+  controller-container → storage. Activates ONLY on the trigger above; before it,
+  workers self-serve and 0 haulers spawn.
+- **Next trigger:** Storage exists (RCL 4) → Stage 3.
+
 A `MiningSite` HiveCluster (source + container + link) is the Overmind pattern.
 
 ## Stage 3 — Storage & links (RCL 4–5)
