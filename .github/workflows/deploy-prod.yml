@@ -23,9 +23,7 @@ jobs:
       - name: Build bundle
         run: npm run build
 
-      - name: Push to Screeps (prod branch)
-        uses: kskitek/screeps-pusher@v0.1
-        with:
-          branch: default
-          token: ${{ secrets.SCREEPS_TOKEN }}
-          dir: dist/
+      - name: Deploy to Screeps (default branch)
+        run: npm run deploy -- --branch default --dir dist
+        env:
+          SCREEPS_TOKEN: ${{ secrets.SCREEPS_TOKEN }}
