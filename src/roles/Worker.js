@@ -12,6 +12,12 @@ import { stageAtLeast } from "../lib/Stages.js";
 // Once haulers are active (2b:Hauling), workers STOP filling spawn/extensions
 // and leave that to dedicated haulers — otherwise both race for the same
 // targets, wasting trips and CPU. Workers then focus on build/repair/upgrade.
+//
+// Survival override (#37): the 2b hand-off assumes a hauler is alive to do the
+// filling. We run exactly one hauler, so if it dies nobody refills the spawn and
+// the colony spirals to extinction (can't afford a replacement hauler). So the
+// fill step reactivates as an emergency fallback whenever zero haulers live —
+// survival outranks the no-racing optimization.
 export class Worker extends Role {
   static run(creep, colony) {
     const working = Role.updateWorkingState(creep);
@@ -21,8 +27,10 @@ export class Worker extends Role {
       return;
     }
 
-    // 1. Fill spawns & extensions — ONLY while haulers aren't doing it yet.
-    if (!stageAtLeast(colony, "2b:Hauling")) {
+    // 1. Fill spawns & extensions — while haulers aren't doing it yet (pre-2b),
+    //    or as an emergency fallback when no hauler is alive to do it (#37).
+    const haulersAlive = colony.creepsWithRole("hauler").length > 0;
+    if (!stageAtLeast(colony, "2b:Hauling") || !haulersAlive) {
       const fill = creep.pos.findClosestByPath(FIND_MY_STRUCTURES, {
         filter: (s) =>
           (s.structureType === STRUCTURE_SPAWN || s.structureType === STRUCTURE_EXTENSION) &&
