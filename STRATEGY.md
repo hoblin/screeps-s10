@@ -61,6 +61,12 @@ the current stage AND whether we're `READY` for the next one.
 - `LogisticsOverlord` + `Hauler` role: container → spawn/extensions → tower →
   controller-container → storage. Activates ONLY on the trigger above; before it,
   workers self-serve and 0 haulers spawn.
+- **Controller container:** `UpgradeOverlord` plans a container hugging the
+  controller (shared `ContainerPlanner` geometry with the source containers) and
+  keeps its site alive. Haulers fill it (deliver priority 3); upgraders park
+  beside it and pull from range 1 — the static-miner trick, inverted, turning the
+  upgrader into a near-zero-walk static upgrader. The RCL-5 controller link later
+  replaces hauler delivery to this same parking spot (link→link, zero hauling).
 - **Next trigger:** Storage exists (RCL 4) → Stage 3.
 
 A `MiningSite` HiveCluster (source + container + link) is the Overmind pattern.

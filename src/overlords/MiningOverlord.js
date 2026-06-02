@@ -1,7 +1,7 @@
 import { Overlord } from "./Overlord.js";
 import { Miner } from "../roles/Miner.js";
 import { bodyFromTemplate } from "../lib/BodyGenerator.js";
-import { log } from "../lib/Logger.js";
+import { ContainerPlanner } from "../lib/ContainerPlanner.js";
 
 // ============================================================================
 //  MiningOverlord — owns the static mining of ONE source (Overmind-style:
@@ -95,53 +95,12 @@ export class MiningOverlord extends Overlord {
     Memory.colonyData[this.colony.name].miningPos[this.source.id] = value;
   }
 
-  // Walkable source-adjacent tile nearest (by path) to a spawn.
-  // Returns { position, reachedByPath }: reachedByPath is false when no tile was
-  // pathable and we had to fall back, so the caller can avoid caching it.
+  // Walkable source-adjacent tile nearest (by path) to a spawn — minimises the
+  // hauler trip. Delegates the geometry to the shared ContainerPlanner so the
+  // source and controller containers plan their tiles the same way.
   computeMiningPosition() {
     const anchor = this.colony.spawns[0] || this.colony.controller;
-    const walkableNeighbours = this.walkableTilesAround(this.source.pos);
-    if (walkableNeighbours.length === 0) {
-      return { position: null, reachedByPath: false };
-    }
-
-    let best = null;
-    let bestPathLength = Infinity;
-    for (const tile of walkableNeighbours) {
-      const path = anchor.pos.findPathTo(tile, { ignoreCreeps: true });
-      // Unreachable tiles return a path that doesn't end at the tile.
-      const reaches =
-        path.length > 0 &&
-        path[path.length - 1].x === tile.x &&
-        path[path.length - 1].y === tile.y;
-      const length = reaches ? path.length : Infinity;
-      if (length < bestPathLength) {
-        bestPathLength = length;
-        best = tile;
-      }
-    }
-
-    if (best) return { position: best, reachedByPath: true };
-    // No tile was pathable: fall back to the first walkable tile so a miner can
-    // still stand somewhere, but DON'T let the caller cache this guess.
-    return { position: walkableNeighbours[0], reachedByPath: false };
-  }
-
-  // The 8 tiles around a position that aren't walls.
-  walkableTilesAround(position) {
-    const terrain = this.room.getTerrain();
-    const tiles = [];
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        if (dx === 0 && dy === 0) continue;
-        const x = position.x + dx;
-        const y = position.y + dy;
-        if (x < 1 || x > 48 || y < 1 || y > 48) continue;
-        if (terrain.get(x, y) === TERRAIN_MASK_WALL) continue;
-        tiles.push(new RoomPosition(x, y, position.roomName));
-      }
-    }
-    return tiles;
+    return ContainerPlanner.bestContainerTile(this.room, this.source.pos, anchor.pos);
   }
 
   // --------------------------------------------------------------------------
@@ -152,29 +111,7 @@ export class MiningOverlord extends Overlord {
   ensureContainerSite() {
     const position = this.miningPosition;
     if (!position) return;
-
-    const thingsHere = position.look();
-    const hasContainer = thingsHere.some(
-      (item) =>
-        item.type === LOOK_STRUCTURES &&
-        item.structure.structureType === STRUCTURE_CONTAINER
-    );
-    const hasSite = thingsHere.some(
-      (item) =>
-        item.type === LOOK_CONSTRUCTION_SITES &&
-        item.constructionSite.structureType === STRUCTURE_CONTAINER
-    );
-    if (hasContainer || hasSite) return;
-
-    // Place the container site. ensureContainerSite early-returns once a site or
-    // container exists, so this won't spam. Log unexpected failures (e.g. the
-    // 100-site global cap) so a silently-missing container is debuggable.
-    const result = this.room.createConstructionSite(position, STRUCTURE_CONTAINER);
-    if (result !== OK) {
-      log.warn(
-        `[${this.colony.name}] container site at ${position} failed: ${result}`
-      );
-    }
+    ContainerPlanner.ensureSite(this.room, position, "source");
   }
 
   // --------------------------------------------------------------------------
