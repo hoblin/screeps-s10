@@ -4,7 +4,7 @@ const LEVELS = { error: 1, warn: 2, info: 3, debug: 4 };
 function emit(level, msg) {
   const want = (Memory && Memory.loggingLevel) || 3;
   if (LEVELS[level] > want) return;
-  const tag = { error: "🔴", warn: "🟡", info: "🔵", debug: "⚪" }[level];
+  const tag = { error: "⛔", warn: "⚠", info: "ℹ", debug: "·" }[level];
   console.log(`${tag} [${Game.time}] ${msg}`);
 }
 
