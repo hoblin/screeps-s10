@@ -44,9 +44,31 @@ export class DefenseOverlord extends Overlord {
   }
 
   // Drive structures, not creeps: place tower sites, then operate live towers.
+  //
+  // Target candidates are gathered ONCE per tick and shared across every tower
+  // — a full-room search per tower would multiply CPU by the tower count (up to
+  // 6 at RCL8) for identical results. Heal/repair targets are room-wide
+  // most-damaged picks, so all towers focus the same creep/structure (effects
+  // stack, clearing the backlog faster); attack stays per-tower (each fires on
+  // its own closest hostile for the least range falloff).
   run() {
     this.planTowers();
-    for (const tower of this.towers()) this.operateTower(tower);
+    const towers = this.towers();
+    if (towers.length === 0) return;
+
+    const hostiles = this.room.find(FIND_HOSTILE_CREEPS);
+    const wounded = hostiles.length
+      ? [] // under attack we never reach the heal branch — skip the scan
+      : this.room.find(FIND_MY_CREEPS, { filter: (c) => c.hits < c.hitsMax });
+    const healTarget = wounded.length > 0 ? this.mostDamaged(wounded) : null;
+    // The damaged-structure scan is the priciest, so run it only when no tower
+    // will fight or heal this tick (otherwise the repair branch is unreachable).
+    const repairTarget =
+      hostiles.length === 0 && !healTarget ? this.repairTarget() : null;
+
+    for (const tower of towers) {
+      this.operateTower(tower, hostiles, healTarget, repairTarget);
+    }
   }
 
   towers() {
@@ -102,38 +124,43 @@ export class DefenseOverlord extends Overlord {
   }
 
   // --------------------------------------------------------------------------
-  //  Operation: one action per tower per tick, attack > heal > repair.
+  //  Operation: one action per tower per tick, attack > heal > repair. Targets
+  //  are gathered once per tick by run() and passed in (see its comment).
   // --------------------------------------------------------------------------
-  operateTower(tower) {
+  operateTower(tower, hostiles, healTarget, repairTarget) {
     // 1. Attack the closest hostile (closest = least range falloff). Always
     //    fires, regardless of the energy reserve — fighting is the point.
-    const hostile = tower.pos.findClosestByRange(FIND_HOSTILE_CREEPS);
-    if (hostile) {
-      tower.attack(hostile);
+    if (hostiles.length > 0) {
+      tower.attack(tower.pos.findClosestByRange(hostiles));
       return;
     }
 
     // 2. Heal the most-damaged friendly creep. Also unreserved — keeping our own
     //    creeps alive is defensive.
-    const wounded = tower.room.find(FIND_MY_CREEPS, {
-      filter: (c) => c.hits < c.hitsMax,
-    });
-    if (wounded.length > 0) {
-      tower.heal(this.mostDamaged(wounded));
+    if (healTarget) {
+      tower.heal(healTarget);
       return;
     }
 
     // 3. Idle repair — only while we hold more than the combat reserve, so a
-    //    sudden attack still has ammo. Skip walls/ramparts: their hit pools are
-    //    huge and would drain the tower dry; fix the most-worn road/container/etc.
-    if (tower.store[RESOURCE_ENERGY] <= TOWER_ENERGY_RESERVE) return;
-    const damaged = tower.room.find(FIND_STRUCTURES, {
+    //    sudden attack still has ammo. (The target itself excludes walls/ramparts
+    //    — see repairTarget.)
+    if (repairTarget && tower.store[RESOURCE_ENERGY] > TOWER_ENERGY_RESERVE) {
+      tower.repair(repairTarget);
+    }
+  }
+
+  // The most-worn structure worth a tower's energy (a road/container/etc.):
+  // lowest hits/hitsMax ratio, excluding walls/ramparts whose huge hit pools
+  // would drain the tower dry. Returns null when nothing needs repair.
+  repairTarget() {
+    const damaged = this.room.find(FIND_STRUCTURES, {
       filter: (s) =>
         s.hits < s.hitsMax &&
         s.structureType !== STRUCTURE_WALL &&
         s.structureType !== STRUCTURE_RAMPART,
     });
-    if (damaged.length > 0) tower.repair(this.mostDamaged(damaged));
+    return damaged.length > 0 ? this.mostDamaged(damaged) : null;
   }
 
   // The object with the lowest hits/hitsMax ratio (most worn relative to its

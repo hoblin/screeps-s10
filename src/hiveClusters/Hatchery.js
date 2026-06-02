@@ -61,7 +61,14 @@ export class Hatchery extends HiveCluster {
     if (cached) {
       return cached.map((p) => new RoomPosition(p.x, p.y, p.roomName));
     }
-    const maxExtensions = CONTROLLER_STRUCTURES[STRUCTURE_EXTENSION][8];
+    // Plan a few candidates beyond the RCL8 extension cap so structures that
+    // share the extension checkerboard colour (towers — see TowerPlanner) can
+    // claim a tile without starving the layout: ensureSites skips occupied tiles
+    // and falls through to the spares, so the full 60-extension cap is still
+    // reachable at RCL8. Headroom = the RCL8 tower cap (the known competitor).
+    const maxExtensions =
+      CONTROLLER_STRUCTURES[STRUCTURE_EXTENSION][8] +
+      CONTROLLER_STRUCTURES[STRUCTURE_TOWER][8];
     const planned = ExtensionPlanner.planPositions(this.room, anchor.pos, maxExtensions);
     this.extensionLayoutCache = planned.map((p) => ({
       x: p.x,
