@@ -61,6 +61,15 @@ the current stage AND whether we're `READY` for the next one.
 - `LogisticsOverlord` + `Hauler` role: container → spawn/extensions → tower →
   controller-container → storage. Activates ONLY on the trigger above; before it,
   workers self-serve and 0 haulers spawn.
+- **Controller container (#27, trigger: 2b entry).** The moment haulers exist,
+  build a container next to the controller and have haulers keep it filled.
+  Upgraders park beside it and pull from one tile away — kills the source↔controller
+  round-trip walk (workers/upgraders currently commute to the *source* container).
+  Why 2b and not earlier: before 2b there are no haulers to fill it, so the
+  upgrader would self-harvest anyway and the container is dead weight. Why a
+  container before the RCL-5 link: containers exist from RCL 0 and are the cheap
+  stepping-stone — park the upgrader NOW; the link later removes the hauler leg
+  too (see Stage 3). Pairs with #26 (forbid harvest-fallback at 2b+).
 - **Next trigger:** Storage exists (RCL 4) → Stage 3.
 
 A `MiningSite` HiveCluster (source + container + link) is the Overmind pattern.
@@ -71,7 +80,11 @@ A `MiningSite` HiveCluster (source + container + link) is the Overmind pattern.
 - **RCL 4 = Storage.** Central energy buffer — the heart of mid-game logistics.
 - **RCL 5 = Links.** Teleport energy (source link → storage link → controller link),
   cutting hauler distance massively. Huge throughput unlock.
-- Dedicated **upgrader(s)** parked at controller link, just pumping.
+- Dedicated **upgrader(s)** parked at controller link, just pumping. NOTE: the
+  upgrader is ALREADY parked at the controller container from 2b (#27). The RCL-5
+  controller link sits beside that same container/parking spot and replaces the
+  hauler delivery leg with teleport — it's an upgrade to the existing parking, not
+  a new one. Container = park the upgrader (2b); link = stop hauling to it (RCL5).
 - Start **remote mining**: reserve adjacent rooms (CLAIM creep), haul energy home.
   No GCL needed to reserve; reserving boosts a source to 3000/300.
 
