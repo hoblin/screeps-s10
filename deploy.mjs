@@ -4,8 +4,9 @@
 //  serialization of unicode escapes). Here we control the payload directly:
 //  the official client JSON-encodes the modules correctly.
 //
-//  Usage:  node deploy.mjs --branch <name> [--dir dist] [--server <url>]
+//  Usage:  node deploy.mjs [--branch default] [--dir dist] [--server <url>]
 //  Auth:   env SCREEPS_TOKEN (full-access auth token)
+//  Single-branch model: defaults to the live "default" branch (= prod).
 // ============================================================================
 import { ScreepsAPI } from "screeps-api";
 import { readdirSync, readFileSync } from "node:fs";
@@ -16,15 +17,11 @@ function arg(name, def) {
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : def;
 }
 
-const branch = arg("branch");
+const branch = arg("branch", "default");
 const dir = arg("dir", "dist");
 const server = arg("server", "https://screeps.com");
 const token = process.env.SCREEPS_TOKEN;
 
-if (!branch) {
-  console.error("ERROR: --branch is required");
-  process.exit(1);
-}
 if (!token) {
   console.error("ERROR: SCREEPS_TOKEN env var is not set");
   process.exit(1);
@@ -53,6 +50,22 @@ if (server !== "https://screeps.com") {
   api.opts.hostname = u.hostname;
   api.opts.protocol = u.protocol.replace(":", "");
   api.opts.port = u.port || (u.protocol === "https:" ? 443 : 80);
+}
+
+// Diagnostics: confirm which account/server the token resolves to and what
+// branches it actually sees. "branch does not exist" usually means the token
+// belongs to a different account/server than the one holding the branch.
+try {
+  const me = await api.raw.auth.me();
+  console.log(`Auth: user=${me.username || me._id || "?"} (ok=${me.ok})`);
+  const br = await api.raw.user.branches();
+  const names = (br.list || []).map((b) => b.branch);
+  console.log(`Branches visible to token: [${names.join(", ") || "none"}]`);
+  if (!names.includes(branch)) {
+    console.error(`Target branch "${branch}" not in token's branch list above.`);
+  }
+} catch (e) {
+  console.warn("Diagnostics call failed:", e.message || e);
 }
 
 try {
