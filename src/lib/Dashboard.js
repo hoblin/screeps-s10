@@ -1,17 +1,23 @@
 // ============================================================================
-//  Dashboard — periodic colony status report to the console.
-//  Purpose: understand colony STATE at a glance (stage, economy, population,
-//  overlords) instead of watching individual creeps crawl around the map.
+//  Dashboard — colony status telemetry.
 //
-//  Printed every REPORT_INTERVAL ticks (cheap; off by default for low bucket).
-//  Read it via the screeps MCP `get_console` — this is our telemetry.
+//  TWO outputs:
+//   1. Memory.status  — structured snapshot written EVERY tick (pull model).
+//      Read instantly anytime via the API memory endpoint; no waiting for a
+//      console message to happen. This is the primary telemetry channel.
+//   2. console.log    — human-readable summary printed every LOG_INTERVAL ticks,
+//      for glancing at the in-game UI console.
+//
+//  Why Memory over console: console is push/streaming — you must be listening
+//  the moment a line is emitted. Memory persists between ticks, so a single
+//  read always returns the latest snapshot. Pull > push for status.
 // ============================================================================
 import { log } from "./Logger.js";
 
-const REPORT_INTERVAL = 15; // ticks between full reports
+const LOG_INTERVAL = 30; // ticks between human console summaries
 
 // Infer the colony's economic stage from RCL + key structures.
-// Mirrors STRATEGY.md stages so the log speaks the same language as the plan.
+// Mirrors STRATEGY.md stages so telemetry speaks the same language as the plan.
 function stageOf(colony) {
   const rcl = colony.controller.level;
   const room = colony.room;
@@ -23,66 +29,88 @@ function stageOf(colony) {
   return "1:Bootstrap";
 }
 
-// Energy in the source(s) we can still mine this regen window.
-function sourceEnergy(colony) {
-  return colony.sources.reduce((a, s) => a + s.energy, 0);
-}
+const sourceEnergy = (colony) => colony.sources.reduce((a, s) => a + s.energy, 0);
 
-// One compact bar like progress=1234/12000 (10%).
 function pct(cur, max) {
-  if (!max) return `${cur}`;
-  return `${cur}/${max} (${Math.floor((cur / max) * 100)}%)`;
+  return max ? Math.floor((cur / max) * 100) : 0;
 }
 
 export const Dashboard = {
-  // Called once per tick by the Kernel; self-throttles to REPORT_INTERVAL.
-  maybeReport(colonies) {
-    if (Game.time % REPORT_INTERVAL !== 0) return;
+  // Called once per tick by the Kernel.
+  run(colonies) {
+    const snap = {
+      time: Game.time,
+      cpu: {
+        used: +Game.cpu.getUsed().toFixed(2),
+        limit: Game.cpu.limit,
+        bucket: Game.cpu.bucket,
+      },
+      gcl: { level: Game.gcl.level, pct: pct(Game.gcl.progress, Game.gcl.progressTotal) },
+      colonies: {},
+    };
+
     for (const name in colonies) {
       try {
-        this.report(colonies[name]);
+        snap.colonies[name] = this.snapshot(colonies[name]);
       } catch (err) {
         log.error(`Dashboard ${name}: ${err.stack || err}`);
       }
     }
-    // Global footer: CPU + GCL health.
-    const cpu = Game.cpu;
-    log.info(
-      `🌍 CPU ${cpu.getUsed().toFixed(1)}/${cpu.limit} bucket=${cpu.bucket} | ` +
-        `GCL ${Game.gcl.level} ${pct(Game.gcl.progress, Game.gcl.progressTotal)}`
-    );
+
+    // 1) Write to Memory every tick — instant pull telemetry.
+    Memory.status = snap;
+
+    // 2) Human console summary, throttled.
+    if (Game.time % LOG_INTERVAL === 0) this.logSummary(snap);
   },
 
-  report(colony) {
+  // Structured per-colony snapshot (JSON-friendly, compact).
+  snapshot(colony) {
     const c = colony;
     const ctrl = c.controller;
-    const stage = stageOf(c);
 
-    // Population by role: harvester×2 worker×1 ...
-    const pop = Object.entries(c.creepsByRole)
-      .map(([role, list]) => `${role}×${list.length}`)
-      .join(" ") || "none";
+    const pop = {};
+    for (const role in c.creepsByRole) pop[role] = c.creepsByRole[role].length;
 
-    // Per-overlord want vs have — shows if we're under-staffed.
-    const staffing = c.overlords
-      .map((o) => {
-        let want = 0;
-        try { want = o.desiredCount(); } catch { want = -1; }
-        const have = c.creepsWithRole(o.role).length;
-        const flag = have < want ? "⚠️" : "✅";
-        return `${o.role}:${have}/${want}${flag}`;
-      })
-      .join(" ");
+    const overlords = c.overlords.map((o) => {
+      let want = 0;
+      try { want = o.desiredCount(); } catch { want = -1; }
+      const have = c.creepsWithRole(o.role).length;
+      return { role: o.role, have, want, ok: have >= want };
+    });
 
-    const energy = `spawn ${c.room.energyAvailable}/${c.room.energyCapacityAvailable}`;
-    const src = `src ${sourceEnergy(c)}`;
-    const ctrlLine = ctrl.level >= 8
-      ? `RCL8 (capped)`
-      : `RCL${ctrl.level} ${pct(ctrl.progress, ctrl.progressTotal)}`;
+    return {
+      stage: stageOf(c),
+      rcl: ctrl.level,
+      rclPct: ctrl.level >= 8 ? 100 : pct(ctrl.progress, ctrl.progressTotal),
+      controllerTicksToDowngrade: ctrl.ticksToDowngrade,
+      energy: { avail: c.room.energyAvailable, cap: c.room.energyCapacityAvailable },
+      sourceEnergy: sourceEnergy(c),
+      pop,
+      overlords,
+      // Construction sites pending (useful once we start building).
+      sites: c.room.find(FIND_MY_CONSTRUCTION_SITES).length,
+    };
+  },
 
+  // One-glance console lines for the in-game UI.
+  logSummary(snap) {
+    for (const name in snap.colonies) {
+      const s = snap.colonies[name];
+      const pop = Object.entries(s.pop).map(([r, n]) => `${r}×${n}`).join(" ") || "none";
+      const staffing = s.overlords
+        .map((o) => `${o.role}:${o.have}/${o.want}${o.ok ? "✅" : "⚠️"}`)
+        .join(" ");
+      const rcl = s.rcl >= 8 ? "RCL8(cap)" : `RCL${s.rcl} ${s.rclPct}%`;
+      log.info(
+        `📊 ${name} [${s.stage}] ${rcl} | spawn ${s.energy.avail}/${s.energy.cap} | ` +
+          `src ${s.sourceEnergy} | sites ${s.sites} | pop: ${pop}`
+      );
+      log.info(`   overlords: ${staffing}`);
+    }
     log.info(
-      `📊 ${c.name} [${stage}] ${ctrlLine} | ${energy} | ${src} | pop: ${pop}`
+      `🌍 CPU ${snap.cpu.used}/${snap.cpu.limit} bucket=${snap.cpu.bucket} | ` +
+        `GCL ${snap.gcl.level} ${snap.gcl.pct}%`
     );
-    log.info(`   overlords: ${staffing}`);
   },
 };
