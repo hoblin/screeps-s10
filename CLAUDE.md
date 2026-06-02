@@ -19,7 +19,7 @@ Clean modern JS (no TypeScript), bundled with esbuild and uploaded to Screeps.
 - `npm run build` — esbuild bundle → `dist/main.js`. MUST compile cleanly before any PR.
 - `npm run watch` — rebuild on change. `npm run deploy` — upload to Screeps (`deploy.mjs`).
 - No test framework and no real linter yet (`npm run lint` is a stub). Verify by building + reasoning through edge cases; keep functions small and pure where possible.
-- Bundle must be **ASCII-safe** (esbuild `charset:ascii`) — non-BMP emoji break the Screeps upload (learned the hard way: PRs #2/#3).
+- The bundle is built with esbuild `charset: "utf8"` (keeps unicode raw). Don't switch it back to ascii: esbuild's ascii output emits `\u{...}` escapes that Screeps rejects as invalid JSON on upload (learned the hard way — PR #2 set ascii, PR #3 reverted to utf8).
 
 ## Deploy pipeline — ONLY master deploys
 `push to master → GitHub Actions (.github/workflows, on: push: branches:[master]) → npm run build → npm run deploy → Screeps default branch`.
@@ -31,10 +31,8 @@ Feature branches NEVER touch the live game until their PR merges to master.
 - Open PRs as **draft** while iterating; mark ready (`gh pr ready`) only when build is clean and self-review is done. Merge is the human's click. NO direct pushes to master. No amend/force-push on shared branches.
 - No AI/Claude attribution in commit messages.
 
-## Live bot (read-only checks)
-Room **W55S43, shard2**, account `hoblin`. State via REST (NOT `execute_command`, which runs in the default-shard context and can mis-target shard2):
-`curl -s "https://screeps.com/api/game/room-objects?room=W55S43&shard=shard2" -H "X-Token: $SCREEPS_TOKEN"`.
-Manual in-game `createConstructionSite` is a DIAGNOSTIC PROBE only — it dies with the test room. The deliverable is always CODE that auto-builds/recovers on a fresh room at tick 0 (Season 10 = brand-new room).
+## Write code that builds itself
+The deliverable is always CODE that auto-builds/recovers on a fresh room at tick 0 (Season 10 starts on a brand-new room). Never hardcode room names, positions, or counts — compute them from game state. A structure should be planned/placed/repaired by an overlord, not assumed to exist.
 
 ## Conventions
 - Boy Scout Rule: leave code cleaner than you found it. Favour small, focused, well-named functions; document non-obvious game mechanics in comments.
