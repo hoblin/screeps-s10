@@ -80,6 +80,10 @@ export const Dashboard = {
       filter: (s) => s.structureType === STRUCTURE_EXTENSION,
     }).length;
 
+    const towerList = c.room.find(FIND_MY_STRUCTURES, {
+      filter: (s) => s.structureType === STRUCTURE_TOWER,
+    });
+
     return {
       stage: current.key,
       nextStage: next ? next.key : null,
@@ -89,6 +93,10 @@ export const Dashboard = {
       controllerTicksToDowngrade: ctrl.ticksToDowngrade,
       energy: { avail: c.room.energyAvailable, cap: c.room.energyCapacityAvailable },
       extensions: { built: extBuilt, cap: extCap },
+      towers: {
+        count: towerList.length,
+        energy: towerList.reduce((sum, t) => sum + t.store[RESOURCE_ENERGY], 0),
+      },
       sourceEnergy: sourceEnergy(c),
       pop,
       overlords,
@@ -109,9 +117,12 @@ export const Dashboard = {
       const nextHint = s.nextStage
         ? ` →${s.nextStage}${s.readyForNext ? "(READY)" : ""}`
         : "";
+      const towerHint = s.towers.count
+        ? ` | 🗼${s.towers.count}@${s.towers.energy}`
+        : "";
       log.info(
         `📊 ${name} [${s.stage}${nextHint}] ${rcl} | spawn ${s.energy.avail}/${s.energy.cap} | ` +
-          `ext ${s.extensions.built}/${s.extensions.cap} | src ${s.sourceEnergy} | sites ${s.sites} | pop: ${pop}`
+          `ext ${s.extensions.built}/${s.extensions.cap} | src ${s.sourceEnergy}${towerHint} | sites ${s.sites} | pop: ${pop}`
       );
       log.info(`   overlords: ${staffing}`);
     }
