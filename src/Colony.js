@@ -3,6 +3,7 @@ import { MiningOverlord } from "./overlords/MiningOverlord.js";
 import { LogisticsOverlord } from "./overlords/LogisticsOverlord.js";
 import { UpgradeOverlord } from "./overlords/UpgradeOverlord.js";
 import { WorkOverlord } from "./overlords/WorkOverlord.js";
+import { DefenseOverlord } from "./overlords/DefenseOverlord.js";
 import { log } from "./lib/Logger.js";
 
 // ============================================================================
@@ -43,6 +44,7 @@ export class Colony {
       new WorkOverlord(this),
       new LogisticsOverlord(this), // requests 0 haulers until 2b:Hauling stage
       new UpgradeOverlord(this),
+      new DefenseOverlord(this), // places + operates towers (no-op until RCL3)
     ];
   }
 

@@ -15,7 +15,8 @@ Kernel        orchestrator (CPU guard, discovers colonies, drives tick)
      └─ Overlord  goal manager (owns creeps + one responsibility)
           ├─ MiningOverlord    -> Harvester
           ├─ WorkOverlord      -> Worker (fill/build/repair)
-          └─ UpgradeOverlord   -> Upgrader
+          ├─ UpgradeOverlord   -> Upgrader
+          └─ DefenseOverlord   -> Towers (no creeps; attack/heal/repair)
 ```
 
 - **Overlord** (base) holds shared spawn-request + creep-iteration logic (DRY).
@@ -49,5 +50,5 @@ Uses [`kskitek/screeps-pusher`](https://github.com/kskitek/screeps-pusher).
 - [ ] Hauler role + container mining (decouple mine/haul)
 - [ ] Custom Traveler pathing in `creep.travelTo`
 - [ ] CommandCenter HiveCluster (storage/links/terminal)
-- [ ] Defense overlord + towers
+- [x] Defense overlord + towers (RCL3 auto-placement, attack/heal/repair)
 - [ ] Port logic from old `Hob-screepers` (Overlord-era reference)
