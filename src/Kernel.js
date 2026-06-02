@@ -34,8 +34,9 @@ export class Kernel {
       }
     }
 
-    // Telemetry: periodic status report to console (skip when CPU-starved).
-    if (!lowBucket) Dashboard.maybeReport(this.colonies);
+    // Telemetry: write Memory.status every tick (instant pull), log summary
+    // periodically. Always run — status is cheap and most useful when starved.
+    Dashboard.run(this.colonies);
   }
 
   // Wrap every owned room (with a spawn) in a Colony object.
