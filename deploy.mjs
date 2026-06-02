@@ -57,6 +57,12 @@ if (server !== "https://screeps.com") {
 
 try {
   const res = await api.code.set(branch, modules);
+  // The API returns 200 with an { error } body for logical failures
+  // (e.g. unknown branch). Treat those as a failed deploy, not success.
+  if (res && res.error) {
+    console.error("Deploy rejected by server:", res.error);
+    process.exit(1);
+  }
   console.log("OK:", JSON.stringify(res));
 } catch (err) {
   console.error("Deploy failed:", err.message || err);
