@@ -13,11 +13,11 @@ export class Role {
     const m = creep.memory;
     if (m.working && creep.store[RESOURCE_ENERGY] === 0) {
       m.working = false;
-      creep.say("⛏️");
+      creep.say("gather");
     }
     if (!m.working && creep.store.getFreeCapacity() === 0) {
       m.working = true;
-      creep.say("⚡");
+      creep.say("work");
     }
     return m.working;
   }
