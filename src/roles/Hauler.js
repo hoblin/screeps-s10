@@ -35,17 +35,13 @@ export class Hauler extends Role {
 
   // ---- collect: pull energy from the fullest source container --------------
   static collect(creep, colony) {
-    // Prefer dropped energy first (a miner with no container yet, or overflow),
-    // then the fullest source container. This keeps the floor clean and drains
-    // the busiest miner first.
-    const dropped = creep.pos.findClosestByPath(FIND_DROPPED_RESOURCES, {
-      filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount >= 50,
-    });
-    if (dropped) {
-      if (creep.pickup(dropped) === ERR_NOT_IN_RANGE) creep.travelTo(dropped);
-      return;
-    }
-
+    // Haulers NEVER pick energy off the ground (#76) — that's worker/upgrader
+    // territory (they grab loose energy while gathering). A hauler that picked
+    // up dropped energy would re-collect its own deliver-fallback drop near the
+    // controller and oscillate in place instead of draining the miner's
+    // container. So a hauler drains source containers only; with pickup gone the
+    // "drop near controller" fallback becomes a clean pump (container → pile at
+    // the controller → upgraders/workers) instead of a self-feeding loop.
     const sourceContainer = this.fullestSourceContainer(creep, colony);
     if (sourceContainer) {
       if (creep.withdraw(sourceContainer, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
