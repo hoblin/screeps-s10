@@ -3,6 +3,5 @@ dist/
 *.log
 .DS_Store
 .env
-# season scout artifacts: large/transient local mirror + generated images
-tmp/season.db
-tmp/*.png
+# scratch dir: local SQLite mirror, generated images, scan/score JSON dumps
+tmp/

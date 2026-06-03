@@ -83,6 +83,9 @@ for (const c of cells) meta.set(c.name, { sx: c.sx, sy: c.sy, claimable: c.contr
 const owned = new Set(
   db.prepare(`SELECT name FROM ownership WHERE owner IS NOT NULL`).all().map((r) => r.name),
 );
+if (owned.size === 0) {
+  console.log("note: ownership table empty — all rooms render as unowned (run `collect.mjs --owners`)");
+}
 
 const score = new Map(); // name -> total
 if (FROM) {
@@ -110,7 +113,8 @@ if (!isFinite(lo)) { lo = 0; hi = 1; }
 const span = hi - lo || 1;
 const norm = (v) => (v - lo) / span;
 
-// classify a grid coordinate into [r,g,b] + a 2-char glyph for ANSI
+// classify a grid coordinate into [r,g,b] + a glyph for ANSI. Every glyph is
+// exactly 2 chars wide so columns stay aligned under the coloured background.
 function classify(sx, sy) {
   const nm = roomAt(sx, sy);
   if (owned.has(nm)) return { rgb: C_OWNED, glyph: "##" };
@@ -157,8 +161,12 @@ function renderAnsi() {
 }
 
 // ============================================================================
-//  Minimal truecolour PNG encoder (node:zlib only — no native deps)
+//  Minimal truecolour PNG encoder (node:zlib only — no native deps).
+//  A PNG is an 8-byte signature followed by chunks; we emit the three
+//  mandatory ones: IHDR (header), IDAT (deflated pixels), IEND (terminator).
+//  Each chunk is CRC-protected, so we need the PNG/zlib CRC-32.
 // ============================================================================
+// CRC-32 lookup table, reflected polynomial 0xEDB88320 (the PNG/zlib variant).
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
   for (let n = 0; n < 256; n++) {
@@ -173,6 +181,7 @@ function crc32(buf) {
   for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
   return (c ^ 0xffffffff) >>> 0;
 }
+// One PNG chunk: 4-byte big-endian length, 4-byte type, data, CRC32(type+data).
 function chunk(type, data) {
   const len = Buffer.alloc(4); len.writeUInt32BE(data.length, 0);
   const tb = Buffer.from(type, "ascii");
@@ -198,8 +207,9 @@ function encodePng(width, height, rgb /* Buffer width*height*3 */) {
 }
 
 function renderPng() {
-  const BLK = 10;       // pixels per room
-  const LEG = 26;       // legend strip height
+  const BLK = 10;        // pixels per room
+  const LEG = 26;        // legend strip height
+  const LEG_PAD = 4;     // blank padding above/below the legend gradient
   const W = NCOL * BLK;
   const H = NROW * BLK + LEG;
   const img = Buffer.alloc(W * H * 3);
@@ -222,7 +232,7 @@ function renderPng() {
   const y0 = NROW * BLK;
   for (let x = 0; x < W; x++) {
     const rgb = heat(x / (W - 1));
-    for (let y = y0 + 4; y < y0 + LEG - 4; y++) put(x, y, rgb);
+    for (let y = y0 + LEG_PAD; y < y0 + LEG - LEG_PAD; y++) put(x, y, rgb);
   }
 
   mkdirSync(dirname(PNG_OUT), { recursive: true });

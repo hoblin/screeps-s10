@@ -47,7 +47,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { openDb, loadRoom } from "./db.mjs";
+import { openDb, loadRoom, parseRoom, roomName } from "./db.mjs";
 
 function arg(name, def) {
   const i = process.argv.indexOf(`--${name}`);
@@ -56,11 +56,13 @@ function arg(name, def) {
 const SHARD = arg("shard", "shardSeason"); // report label only — no API access
 const OUT = arg("out", "tmp/season-region.json");
 
-// Data source: the SQLite mirror, opened once. Analytics is read-only and
-// 100% offline by design — the dedicated crawler (collect.mjs) is the sole
-// owner of API access and fills the DB. Scoring a room that hasn't been
-// collected yet throws (run the collector first); we never fetch here.
-const db = openDb();
+// Data source: the SQLite mirror. Analytics is read-only and 100% offline by
+// design — the dedicated crawler (collect.mjs) is the sole owner of API access
+// and fills the DB. Scoring a room that hasn't been collected yet throws (run
+// the collector first); we never fetch here. Opened lazily so importing this
+// module for its exported model (e.g. heatmap.mjs) has no side effects.
+let _db = null;
+const db = () => (_db ??= openDb());
 
 // tuning constants
 const BASE_HOME = 100; // value of a perfectly-adjacent own source
@@ -102,33 +104,24 @@ function distField(g, sx, sy) {
 }
 
 // ---- room name math --------------------------------------------------------
-function parse(name) {
-  const m = name.match(/^([WE])(\d+)([NS])(\d+)$/);
-  const sx = m[1] === "W" ? -parseInt(m[2], 10) - 1 : parseInt(m[2], 10);
-  const sy = m[3] === "N" ? parseInt(m[4], 10) + 1 : -parseInt(m[4], 10);
-  return { sx, sy };
-}
-function name(sx, sy) {
-  const ew = sx < 0 ? `W${-sx - 1}` : `E${sx}`;
-  const ns = sy > 0 ? `N${sy - 1}` : `S${-sy}`;
-  return `${ew}${ns}`;
-}
-// orthogonal neighbours with the border direction relative to home
+// orthogonal neighbours with the border direction relative to home.
+// Room-name <-> coord math is single-sourced in db.mjs (parseRoom/roomName).
 function orthoNeighbours(nm) {
-  const { sx, sy } = parse(nm);
+  const { sx, sy } = parseRoom(nm);
   return [
-    { dir: "W", room: name(sx - 1, sy) }, // west: home x=0 border <-> neighbour x=49
-    { dir: "E", room: name(sx + 1, sy) }, // east: home x=49 <-> neighbour x=0
-    { dir: "N", room: name(sx, sy + 1) }, // north: home y=0 <-> neighbour y=49
-    { dir: "S", room: name(sx, sy - 1) }, // south: home y=49 <-> neighbour y=0
+    { dir: "W", room: roomName(sx - 1, sy) }, // west: home x=0 border <-> neighbour x=49
+    { dir: "E", room: roomName(sx + 1, sy) }, // east: home x=49 <-> neighbour x=0
+    { dir: "N", room: roomName(sx, sy + 1) }, // north: home y=0 <-> neighbour y=49
+    { dir: "S", room: roomName(sx, sy - 1) }, // south: home y=49 <-> neighbour y=0
   ];
 }
 
 // Room facts come straight from the SQLite mirror. loadRoom returns null for a
 // room the crawler hasn't reached yet — we surface that as an error rather than
-// silently fetching, keeping analytics free of API access.
-function fetchRoom(nm) {
-  const room = loadRoom(db, nm);
+// silently fetching, keeping analytics free of API access. (Named requireRoom,
+// not fetchRoom, to avoid confusion with collect.mjs's live-API fetcher.)
+function requireRoom(nm) {
+  const room = loadRoom(db(), nm);
   if (!room) throw new Error(`${nm} not collected (run bin/collect.mjs)`);
   return room;
 }
@@ -157,7 +150,7 @@ function mirror(dir, x, y) {
 const valueOf = (base, d) => (isFinite(d) ? base / (1 + K * d) : 0);
 
 async function scoreRoom(nm) {
-  const home = await fetchRoom(nm);
+  const home = requireRoom(nm);
   if (!home.controller) return { room: nm, error: "no controller (unclaimable)" };
   if (home.owner) return { room: nm, error: "already owned" };
 
@@ -178,7 +171,7 @@ async function scoreRoom(nm) {
   let enemyNeighbours = 0;
   for (const { dir, room } of orthoNeighbours(nm)) {
     let nb;
-    try { nb = await fetchRoom(room); } catch { continue; }
+    try { nb = requireRoom(room); } catch { continue; } // skip un-collected neighbours
     if (nb.owner) { enemyNeighbours++; continue; } // can't remote-mine enemy
     if (nb.sources.length === 0) continue;
     // home-side border field already in homeField; precompute neighbour field

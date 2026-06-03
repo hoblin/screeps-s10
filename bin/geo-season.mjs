@@ -25,6 +25,7 @@
 // ============================================================================
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { parseTerrain } from "./db.mjs"; // single-sourced terrain decoder
 
 function arg(name, def) {
   const i = process.argv.indexOf(`--${name}`);
@@ -60,11 +61,8 @@ async function api(path) {
 }
 
 // ---- terrain grid: 50x50, char per tile. 0=plain 1=wall 2=swamp (3=both) ---
-function parseTerrain(str) {
-  const g = new Uint8Array(2500);
-  for (let i = 0; i < 2500; i++) g[i] = str.charCodeAt(i) - 48; // '0'..'3'
-  return g;
-}
+// parseTerrain imported from db.mjs (single source); idx/isWall/cost below are
+// the local consumers of the decoded grid.
 // NOTE: this season server returns terrain transposed (index = x*50+y),
 // not the documented y*50+x. Verified against object coords (sources/controller
 // land on plains only with this indexing). If a future server reverts to the
