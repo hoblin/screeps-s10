@@ -3,6 +3,10 @@ import { Role } from "./Role.js";
 // Harvester: parks on a source and mines it. Drops energy / fills adjacent
 // container. In the simple S10 start it also hauls to spawn if no container yet.
 export class Harvester extends Role {
+  // Pre-2b mobile miner that both digs and hauls — it carries the early economy,
+  // so it ranks with the hauler, above workers/upgraders.
+  static movementPriority = 2;
+
   static run(creep, colony) {
     // Assign a source once, stable across ticks.
     if (!creep.memory.sourceId) {

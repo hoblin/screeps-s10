@@ -1,6 +1,7 @@
 import { Colony } from "./Colony.js";
 import { log } from "./lib/Logger.js";
 import { Dashboard } from "./lib/Dashboard.js";
+import { TrafficManager } from "./lib/TrafficManager.js";
 
 // ============================================================================
 //  Kernel — the top-level orchestrator (think: the Rails app object).
@@ -33,6 +34,16 @@ export class Kernel {
       } catch (err) {
         log.error(`Colony ${name} crashed: ${err.stack || err}`);
       }
+    }
+
+    // Movement: roles registered travel INTENTS instead of moving. Now that every
+    // colony has run, resolve them all by priority in one pass — so a hauler/miner
+    // shoves idle creeps aside instead of being walled in (issue #55). Must run
+    // after the colony loop and before telemetry.
+    try {
+      TrafficManager.resolveAll(lowBucket);
+    } catch (err) {
+      log.error(`TrafficManager.resolveAll crashed: ${err.stack || err}`);
     }
 
     // Telemetry: write Memory.status every tick (instant pull), log summary

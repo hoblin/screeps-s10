@@ -18,6 +18,10 @@ import { Role } from "./Role.js";
 //  Both are stamped once by the overlord and never change for this creep's life.
 // ============================================================================
 export class Miner extends Role {
+  // Top movement priority: static income is the economy's root, and a miner's
+  // tile IS its job — nothing should ever push it off its post.
+  static movementPriority = 1;
+
   static run(creep, _colony) {
     const source = Game.getObjectById(creep.memory.sourceId);
     if (!source) return; // source out of vision (shouldn't happen in owned room)

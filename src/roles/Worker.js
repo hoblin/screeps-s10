@@ -20,6 +20,10 @@ import { stageAtLeast } from "../lib/Stages.js";
 // whenever zero haulers live —
 // survival outranks the no-racing optimization.
 export class Worker extends Role {
+  // Build/repair/fill is important but interruptible — yields the tile to
+  // logistics (miner/hauler), outranks pure idling.
+  static movementPriority = 3;
+
   static run(creep, colony) {
     const working = Role.updateWorkingState(creep);
 

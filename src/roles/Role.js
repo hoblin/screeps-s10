@@ -9,6 +9,16 @@ import { stageAtLeast } from "../lib/Stages.js";
 //  toggle that almost every economic creep needs.
 // ============================================================================
 export class Role {
+  // Movement priority for the traffic resolver (TrafficManager): LOWER number =
+  // more important = wins a contested tile, the same convention as spawn
+  // priority. The base default is the lowest rank — anything without a declared
+  // priority is freely shovable. Subclasses override to claim a higher rank, and
+  // a future Behavior (#39) can override per-creep on top of that. The ordering
+  // encodes the economy's critical path: logistics (miner/hauler) outranks work,
+  // work outranks idling, so a creep that physically moves energy is never
+  // walled in by a consumer.
+  static movementPriority = 4;
+
   // Toggle creep.memory.working between gathering and spending energy.
   // Returns true if the creep should be DOING WORK (spending), false if gathering.
   static updateWorkingState(creep) {

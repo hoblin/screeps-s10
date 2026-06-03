@@ -8,6 +8,10 @@ import { Hauler } from "./Hauler.js";
 // both ranges satisfied from one parking tile. Before that container is built, it
 // falls back to the generic gather logic.
 export class Upgrader extends Role {
+  // Controller progress yields to logistics: an upgrader parked by the
+  // controller container must step aside so the hauler can deliver to it.
+  static movementPriority = 3;
+
   static run(creep, colony) {
     const working = Role.updateWorkingState(creep);
     const controller = colony.controller;

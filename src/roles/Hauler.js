@@ -19,6 +19,11 @@ import { Role } from "./Role.js";
 //  spawns.
 // ============================================================================
 export class Hauler extends Role {
+  // High movement priority (just below the miner): a hauler distributes energy
+  // to the whole colony, so a blocked hauler stalls everything — it must be able
+  // to shove idle consumers out of its delivery lane (issue #55).
+  static movementPriority = 2;
+
   static run(creep, colony) {
     const delivering = Role.updateWorkingState(creep);
     if (delivering) {
