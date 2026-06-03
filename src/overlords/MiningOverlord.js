@@ -2,6 +2,7 @@ import { Overlord } from "./Overlord.js";
 import { Miner } from "../roles/Miner.js";
 import { bodyFromTemplate } from "../lib/BodyGenerator.js";
 import { ContainerPlanner } from "../lib/ContainerPlanner.js";
+import { stageAtLeast } from "../lib/Stages.js";
 
 // ============================================================================
 //  MiningOverlord — owns the static mining of ONE source (Overmind-style:
@@ -36,8 +37,15 @@ export class MiningOverlord extends Overlord {
     return "miner";
   }
 
-  // One static miner per source is enough to fully drain it (5×WORK = 10/tick).
+  // One static miner per source is enough to fully drain it (5×WORK = 10/tick),
+  // but a CARRY-less miner only earns its keep once a container exists to catch
+  // its drops and a hauler/worker can move that energy. So gate it on Stage 2:
+  // during Bootstrap (Stage 1) the colony lives on self-sufficient generic
+  // WorkOverlord workers (WORK+CARRY+MOVE) — mirrors how Logistics/Upgrade wait
+  // on "2b:Hauling". Stage 2 enters at RCL≥2 or when a container exists, exactly
+  // the moment static mining starts paying off.
   desiredCount() {
+    if (!stageAtLeast(this.colony, "2:StaticMining")) return 0;
     return 1;
   }
 
