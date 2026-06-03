@@ -16,6 +16,11 @@ import { roleClass } from "../roles/index.js";
 //  handles creep conflicts. That keeps each creep's path short and stable (no
 //  oscillating detours around movers) and lets priority decide who yields.
 //
+//  Unlike moveTo, this returns nothing — it's purely side-effectful (registers an
+//  intent). Callers infer "did I move?" from next tick's position, never a return
+//  code; every call site already follows the `if (action === ERR_NOT_IN_RANGE)
+//  travelTo(...)` idiom and ignores the result.
+//
 //  Options:
 //    range     — stop this many tiles from the target (default 0; like moveTo,
 //                an unwalkable target yields a path ending adjacent to it).
@@ -31,6 +36,7 @@ Creep.prototype.travelTo = function (target, opts = {}) {
   // One path step toward the target, creep-agnostic (traffic resolver handles
   // creeps). An empty path means we're already as close as we can get — the
   // caller's range check / action will handle it; we simply don't move.
+  // maxRooms:1 keeps resolution per-room (multi-room routing is out of scope).
   const path = this.pos.findPathTo(targetPos, {
     ignoreCreeps: true,
     maxRooms: 1,

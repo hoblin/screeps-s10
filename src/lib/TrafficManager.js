@@ -40,6 +40,8 @@ function syncRegistryToTick() {
   }
 }
 
+// Pack a tile's (x, y) into a unique integer key. Screeps rooms are 50×50 with
+// coords 0–49, so x*50+y is collision-free.
 const coordKey = (x, y) => x * 50 + y;
 
 export class TrafficManager {
@@ -149,15 +151,20 @@ export class TrafficManager {
         ctx.assign(creep, pos);
         return true;
       }
-      // Cycle closure: occupant is already in this shove-chain, so it vacates as
-      // the recursion unwinds — we can take its tile.
+      // Cycle closure: occupant is already in this shove-chain — we reached it by
+      // recursing through it earlier, so it WILL vacate this tile as the chain
+      // unwinds (a rotation). No recursion ran since the movementMap.has(key)
+      // check above, so the tile is still free to claim.
       if (visited.has(occupant.name)) {
         ctx.assign(creep, pos);
         return true;
       }
       // Otherwise try to shove the occupant out of the way, then take its tile.
+      // The shove recursion may itself claim THIS tile (a creep deeper in the
+      // chain can cycle back onto it), so re-check it's still free before taking
+      // it — else we'd overwrite that creep's assignment and strand it.
       visited.add(occupant.name);
-      if (this.findRoute(occupant, visited, ctx)) {
+      if (this.findRoute(occupant, visited, ctx) && !ctx.movementMap.has(key)) {
         ctx.assign(creep, pos);
         return true;
       }
@@ -175,7 +182,10 @@ export class TrafficManager {
     const tiles = [];
     const intent = this.intents.get(creep.name);
     const wanted = intent && creep.fatigue === 0 ? intent.target : null;
-    if (wanted) tiles.push(wanted);
+    // Same exit-tile guard as walkableNeighbours: never step onto a room edge
+    // (it would change rooms). `wanted` comes from a maxRooms:1 path so this is
+    // belt-and-braces, but it keeps the invariant symmetric and explicit.
+    if (wanted && this.isInteriorTile(wanted.x, wanted.y)) tiles.push(wanted);
 
     for (const pos of this.walkableNeighbours(creep.pos, ctx.terrain)) {
       if (wanted && pos.x === wanted.x && pos.y === wanted.y) continue;
@@ -207,13 +217,19 @@ export class TrafficManager {
         if (dx === 0 && dy === 0) continue;
         const x = pos.x + dx;
         const y = pos.y + dy;
-        if (x <= 0 || x >= 49 || y <= 0 || y >= 49) continue; // keep off exits
+        if (!this.isInteriorTile(x, y)) continue; // keep off room-edge exit tiles
         if (terrain.get(x, y) === TERRAIN_MASK_WALL) continue;
         if (this.hasObstacleStructure(x, y)) continue;
         neighbours.push(new RoomPosition(x, y, this.room.name));
       }
     }
     return neighbours;
+  }
+
+  // Room coords run 0–49; the 0 and 49 rows/columns are exit tiles — stepping
+  // onto one moves the creep to the adjacent room, so we never target them.
+  isInteriorTile(x, y) {
+    return x > 0 && x < 49 && y > 0 && y < 49;
   }
 
   hasObstacleStructure(x, y) {
