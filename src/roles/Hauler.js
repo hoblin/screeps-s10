@@ -158,9 +158,7 @@ export class Hauler extends Role {
     return near.find((container) => !this.isSourceContainer(container, colony)) || null;
   }
 
-  static isSourceContainer(container, colony) {
-    return colony.sources.some(
-      (source) => source.pos.getRangeTo(container.pos) <= 1
-    );
-  }
+  // isSourceContainer lives on the base Role (the one definition every role
+  // shares); Hauler.isSourceContainer(...) still resolves here via static
+  // inheritance, so existing callers stay unchanged.
 }
