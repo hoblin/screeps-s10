@@ -106,10 +106,16 @@ A `MiningSite` HiveCluster (source + container + link) is the Overmind pattern.
 
 **Goal:** RCL 8 capped — pivot CPU/energy to the actual win condition.
 - RCL 8 controller caps at **15 energy/tick** upgrade (more only via Power Creeps).
-- **Season 10 win = SCORE.** Score items spawn periodically in ALL rooms. Collect by
-  moving a creep onto them. Most score wins.
-- Endgame surplus energy/CPU → **score collection fleet**: fast scouts + collectors
-  roaming for score, hauling it to deposit points (per S10 mechanics).
+- **Season 10 win = SCORE** (confirmed HIGH confidence). Mechanic, constants, and the
+  geographic implication are documented in full at
+  [`docs/season-10-score-mechanic.md`](docs/season-10-score-mechanic.md) — read it
+  before touching score work. In short: `ScoreContainer`s spawn randomly map-wide;
+  a creep withdraws the score and **`transfer`s it to a `ScoreCollector`** (which
+  lives in **highway rooms**, walled radius-5). Points bank **at highways, not in
+  your own room** — so proximity to a highway collector hub is a win factor, not
+  just economy (see #48 Scoring v3).
+- Endgame surplus energy/CPU → **score collection fleet**: scouts find containers +
+  collectors, a score overlord runs harvest → dismantle-walls → deposit (#24).
 - 100 CPU flat for everyone → algorithm quality wins, not wallet. Spend CPU on good
   pathfinding/planning freely.
 
