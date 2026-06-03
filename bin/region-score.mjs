@@ -36,25 +36,31 @@
 //        + mineral bonus
 //        - safety penalty (owned neighbours are dangerous / unmineable)
 //
+//  Reads the local SQLite mirror (tmp/season.db) only — zero API access. Run
+//  the collector (bin/collect.mjs) first to populate rooms; scoring a room the
+//  crawler hasn't reached yet reports it as not-collected.
+//
 //  Usage:
-//    SCREEPS_TOKEN=*** node bin/region-score.mjs --from tmp/season-geo.json --top 8
-//    SCREEPS_TOKEN=*** node bin/region-score.mjs W24S3 W24N7
+//    node bin/region-score.mjs --from tmp/season-geo.json --top 8
+//    node bin/region-score.mjs W24S3 W24N7
 // ============================================================================
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { openDb, loadRoom } from "./db.mjs";
 
 function arg(name, def) {
   const i = process.argv.indexOf(`--${name}`);
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : def;
 }
-const SERVER = arg("server", "https://screeps.com/season").replace(/\/$/, "");
-const SHARD = arg("shard", "shardSeason");
-const TOKEN = process.env.SCREEPS_TOKEN;
+const SHARD = arg("shard", "shardSeason"); // report label only — no API access
 const OUT = arg("out", "tmp/season-region.json");
-if (!TOKEN) {
-  console.error("ERROR: SCREEPS_TOKEN not set");
-  process.exit(1);
-}
+
+// Data source: the SQLite mirror, opened once. Analytics is read-only and
+// 100% offline by design — the dedicated crawler (collect.mjs) is the sole
+// owner of API access and fills the DB. Scoring a room that hasn't been
+// collected yet throws (run the collector first); we never fetch here.
+const db = openDb();
 
 // tuning constants
 const BASE_HOME = 100; // value of a perfectly-adjacent own source
@@ -63,21 +69,12 @@ const K = 0.04; // distance decay; at 25 tiles a source keeps 1/(1+1)=50%
 const MINERAL_BONUS = { U: 18, X: 18, K: 14, L: 14, Z: 12, O: 8, H: 8 };
 const ENEMY_NEIGHBOUR_PENALTY = 40;
 
-async function api(path) {
-  const res = await fetch(`${SERVER}/api${path}`, { headers: { "X-Token": TOKEN } });
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${path}`);
-  return res.json();
-}
-
 // ---- terrain (transposed on this season server: index = x*50 + y) ----------
 const idx = (x, y) => x * 50 + y;
 const isWall = (g, x, y) => x < 0 || y < 0 || x > 49 || y > 49 || (g[idx(x, y)] & 1) === 1;
 const tcost = (g, x, y) => ((g[idx(x, y)] & 2) === 2 ? 5 : 1);
-function parseTerrain(str) {
-  const g = new Uint8Array(2500);
-  for (let i = 0; i < 2500; i++) g[i] = str.charCodeAt(i) - 48;
-  return g;
-}
+// Terrain decoding lives in db.mjs (parseTerrain) so loadRoom is the single
+// source of the grid; region-score only consumes it.
 
 // Dijkstra distance field from one start tile (terrain-weighted).
 function distField(g, sx, sy) {
@@ -127,21 +124,13 @@ function orthoNeighbours(nm) {
   ];
 }
 
-async function fetchRoom(nm) {
-  const [terr, objr] = await Promise.all([
-    api(`/game/room-terrain?room=${nm}&shard=${SHARD}&encoded=1`),
-    api(`/game/room-objects?room=${nm}&shard=${SHARD}`),
-  ]);
-  const tstr = Array.isArray(terr.terrain) ? terr.terrain[0].terrain : terr.terrain;
-  const g = parseTerrain(tstr);
-  const sources = [];
-  let controller = null, mineral = null, owner = null;
-  for (const o of objr.objects || []) {
-    if (o.type === "source") sources.push({ x: o.x, y: o.y });
-    else if (o.type === "controller") { controller = { x: o.x, y: o.y }; owner = o.user || null; }
-    else if (o.type === "mineral") mineral = { x: o.x, y: o.y, t: o.mineralType };
-  }
-  return { g, sources, controller, mineral, owner };
+// Room facts come straight from the SQLite mirror. loadRoom returns null for a
+// room the crawler hasn't reached yet — we surface that as an error rather than
+// silently fetching, keeping analytics free of API access.
+function fetchRoom(nm) {
+  const room = loadRoom(db, nm);
+  if (!room) throw new Error(`${nm} not collected (run bin/collect.mjs)`);
+  return room;
 }
 
 // All passable border tiles on a given side, as [x,y].
@@ -273,4 +262,12 @@ async function main() {
   writeFileSync(OUT, JSON.stringify({ shard: SHARD, at: new Date().toISOString(), rooms: out }, null, 2));
   console.log(`\nFull -> ${OUT}`);
 }
-main().catch((e) => { console.error("region-score failed:", e.message || e); process.exit(1); });
+// scoreRoom is exported so downstream tools (bin/heatmap.mjs) can reuse the
+// exact economic model over the whole collected grid without duplicating it.
+export { scoreRoom };
+
+// Only run the CLI when invoked directly, not when imported as a module.
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+if (isMain) {
+  main().catch((e) => { console.error("region-score failed:", e.message || e); process.exit(1); });
+}

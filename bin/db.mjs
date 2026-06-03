@@ -70,6 +70,51 @@ export function openDb(path = DB_PATH) {
   return db;
 }
 
+// ---- terrain ---------------------------------------------------------------
+//  Single source of truth for decoding the stored terrain blob. Season server
+//  stores it transposed: the i-th char maps to tile (x = i/50, y = i%50), i.e.
+//  index = x*50 + y. Each char is '0'..'3' (bit0 = wall, bit1 = swamp).
+//  region-score and any heat-map consumer MUST reuse this — never re-derive.
+export function parseTerrain(str) {
+  const g = new Uint8Array(2500);
+  for (let i = 0; i < 2500; i++) g[i] = str.charCodeAt(i) - 48;
+  return g;
+}
+
+// ---- offline room loader ---------------------------------------------------
+//  Returns the SAME shape region-score's live fetchRoom produces, read purely
+//  from the SQLite mirror. Returns null if the room is not yet collected (no
+//  terrain row) so callers can fall back to the API.
+//
+//    { g, sources:[{x,y}], controller:{x,y}|null, mineral:{x,y,t}|null, owner }
+//
+export function loadRoom(db, name) {
+  const row = db.prepare(`
+    SELECT sources_json, mineral, mineral_xy, controller, controller_xy, terrain
+      FROM rooms WHERE name = ? AND terrain IS NOT NULL
+  `).get(name);
+  if (!row) return null;
+
+  const g = parseTerrain(row.terrain);
+  const sources = JSON.parse(row.sources_json || "[]").map(([x, y]) => ({ x, y }));
+
+  let controller = null;
+  if (row.controller && row.controller_xy) {
+    const [x, y] = row.controller_xy.split(",").map(Number);
+    controller = { x, y };
+  }
+  let mineral = null;
+  if (row.mineral && row.mineral_xy) {
+    const [x, y] = row.mineral_xy.split(",").map(Number);
+    mineral = { x, y, t: row.mineral };
+  }
+  // ownership is mutable and refreshed separately; absent until --owners runs.
+  const own = db.prepare(`SELECT owner FROM ownership WHERE name = ?`).get(name);
+  const owner = own?.owner ?? null;
+
+  return { g, sources, controller, mineral, owner };
+}
+
 // ---- room name <-> signed coords ------------------------------------------
 export function parseRoom(name) {
   const m = name.match(/^([WE])(\d+)([NS])(\d+)$/);
