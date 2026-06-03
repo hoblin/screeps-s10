@@ -37,8 +37,9 @@ export class Upgrader extends Role {
 
     // Empty-state moves (withdraw / park at the controller container) run at the
     // gather priority so a parking upgrader never shoves an actively-working
-    // creep (#58) — same rule as Role.gatherEnergy.
-    const move = (target) => creep.travelTo(target, { priority: Role.gatherMovementPriority });
+    // creep (#58) — same rule as gatherEnergy. `this.gatherMovementPriority` keeps
+    // it role-overridable.
+    const move = (target) => creep.travelTo(target, { priority: this.gatherMovementPriority });
 
     if (controllerContainer && controllerContainer.store[RESOURCE_ENERGY] > 0) {
       if (creep.withdraw(controllerContainer, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
@@ -58,13 +59,13 @@ export class Upgrader extends Role {
       if (!creep.pos.inRangeTo(controllerContainer, 1)) {
         move(controllerContainer);
       } else if (this.reachableSpareEnergy(creep, colony)) {
-        Role.gatherEnergy(creep, colony);
+        this.gatherEnergy(creep, colony);
       }
       return;
     }
 
     // No controller container yet (early game): self-serve generically.
-    Role.gatherEnergy(creep, colony);
+    this.gatherEnergy(creep, colony);
   }
 
   // Is there non-source energy close enough that topping up from it beats idling

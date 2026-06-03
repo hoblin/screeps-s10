@@ -11,19 +11,20 @@ import { stageAtLeast } from "../lib/Stages.js";
 export class Role {
   // Movement priority for the traffic resolver (TrafficManager): LOWER number =
   // more important = wins a contested tile, the same convention as spawn
-  // priority. The base default is the lowest rank — anything without a declared
-  // priority is freely shovable. Subclasses override to claim a higher rank, and
-  // a future Behavior (#39) can override per-creep on top of that. The ordering
-  // encodes the economy's critical path: logistics (miner/hauler) outranks work,
-  // work outranks idling, so a creep that physically moves energy is never
-  // walled in by a consumer.
+  // priority. This base value is the idle/unknown rank — a role that doesn't
+  // override it is freely shovable. Subclasses override to claim a higher rank,
+  // and a future Behavior (#39) can override per-creep on top of that. The
+  // ordering encodes the economy's critical path: logistics (miner/hauler)
+  // outranks work, work outranks idling, so a creep that physically moves energy
+  // is never walled in by a consumer.
   static movementPriority = 4;
 
-  // Movement priority while merely GATHERING/PARKING (empty). A notch below the
-  // idle baseline (the most shovable mover), so an empty creep fetching energy or
-  // waiting by a container never pushes one that's actively carrying energy to
-  // its job. gatherEnergy runs only when working===false, so it stamps this on
-  // every move it makes; working moves keep the role's movementPriority.
+  // Movement priority while merely GATHERING/PARKING (empty) — the LOWEST rank of
+  // all (below the idle baseline), so an empty creep fetching energy or waiting
+  // by a container never pushes one that's actively carrying energy to its job.
+  // gatherEnergy runs only when working===false, so it stamps this on every move
+  // it makes; working moves keep the role's movementPriority. Resolved via `this`
+  // so a subclass can override it (same role-owned spirit as movementPriority).
   // (Observed live: empty workers parking pushed active builders out of reach.)
   static gatherMovementPriority = 5;
 
@@ -56,7 +57,9 @@ export class Role {
     // Everything here is empty-state repositioning (gatherEnergy runs only while
     // working===false), so every move drops to the gather priority — an empty
     // creep must yield to one actively carrying energy to its job. See #58.
-    const move = (target) => creep.travelTo(target, { priority: Role.gatherMovementPriority });
+    // `this` is the calling role class (callers use this.gatherEnergy), so a
+    // subclass override of gatherMovementPriority is honoured.
+    const move = (target) => creep.travelTo(target, { priority: this.gatherMovementPriority });
 
     // A source container is reserved for the hauler ONLY while a hauler is alive
     // AND able to drain it — that's who we must not out-compete. A hauler still
