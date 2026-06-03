@@ -105,20 +105,30 @@ export class TrafficManager {
 
     // Movers = our creeps that asked to move and physically can this tick.
     // Sorted by the intent's priority (lower wins) so the most important creep
-    // claims its tile first and gets to shove the rest.
+    // claims its tile first and gets to shove the rest. Equal priorities break
+    // by creep name — a stable, tick-to-tick-deterministic tiebreak (Map
+    // iteration order isn't), so same-priority creeps don't jitter.
     const movers = [...this.intents.values()]
       .filter((intent) => intent.creep.my && intent.creep.fatigue === 0)
-      .sort((a, b) => a.priority - b.priority)
+      .sort((a, b) => a.priority - b.priority || (a.creep.name < b.creep.name ? -1 : 1))
       .map((intent) => intent.creep);
 
     for (const creep of movers) {
       if (assignedDest.has(creep.name)) continue;
-      this.findRoute(creep, new Set([creep.name]), {
+      // `stack` = creeps on the active recursion path (for cycle detection);
+      // `failed` = creeps proven immovable, memoized to bound THIS search to
+      // O(creeps). Both are per-mover: whether a creep can move via a rotation
+      // depends on this mover's stack, so a creep that fails for one mover may
+      // still move for another — sharing `failed` would wrongly deny that. Per
+      // mover keeps each search complete; total work stays O(creeps²).
+      this.findRoute(creep, {
         terrain,
         occupantByPos,
         movementMap,
         assignedDest,
         assign,
+        stack: new Set(),
+        failed: new Set(),
       });
     }
 
@@ -132,10 +142,29 @@ export class TrafficManager {
 
   // Depth-first augmenting search: try to place `creep` on one of its candidate
   // tiles, recursively relocating whatever lower-priority/idle creep is in the
-  // way. Returns true if a placement (possibly a whole shove-chain or a swap)
-  // was found. Cycles (A wants B's tile while B wants A's) resolve as a rotation
-  // — everyone in the chain vacates together.
-  findRoute(creep, visited, ctx) {
+  // way. Returns true if a placement (a shove-chain or a swap) was found.
+  //
+  // Two sets do the bookkeeping, and the distinction is what makes cycle
+  // detection correct AND keeps the search bounded:
+  //   - ctx.stack  = creeps on the CURRENT recursion path (added on enter,
+  //     removed on exit). A candidate occupied by a creep in `stack` is a true
+  //     cycle — that creep is an ancestor and WILL vacate as the chain unwinds.
+  //   - ctx.failed = creeps already proven immovable in THIS mover's search. We
+  //     never recurse into them again, and — crucially — they are NOT cycle
+  //     targets (a creep from a dead sibling branch is not part of the active
+  //     chain, so claiming its tile would strand it). This caps one search at
+  //     O(creeps); per-mover sets keep it correct (see the resolve loop).
+  findRoute(creep, ctx) {
+    if (ctx.failed.has(creep.name)) return false;
+    ctx.stack.add(creep.name);
+    const placed = this.searchCandidates(creep, ctx);
+    ctx.stack.delete(creep.name);
+    if (!placed) ctx.failed.add(creep.name);
+    return placed;
+  }
+
+  // Try each candidate tile in preference order; assign the first that works.
+  searchCandidates(creep, ctx) {
     for (const pos of this.candidateTiles(creep, ctx)) {
       const key = coordKey(pos.x, pos.y);
       if (ctx.movementMap.has(key)) continue; // tile already claimed this resolve
@@ -151,20 +180,19 @@ export class TrafficManager {
         ctx.assign(creep, pos);
         return true;
       }
-      // Cycle closure: occupant is already in this shove-chain — we reached it by
-      // recursing through it earlier, so it WILL vacate this tile as the chain
-      // unwinds (a rotation). No recursion ran since the movementMap.has(key)
+      // True cycle: occupant is an ancestor on the current recursion path, so it
+      // vacates as the chain unwinds. No recursion ran since the movementMap.has
       // check above, so the tile is still free to claim.
-      if (visited.has(occupant.name)) {
+      if (ctx.stack.has(occupant.name)) {
         ctx.assign(creep, pos);
         return true;
       }
+      if (ctx.failed.has(occupant.name)) continue; // known immovable this tick
       // Otherwise try to shove the occupant out of the way, then take its tile.
       // The shove recursion may itself claim THIS tile (a creep deeper in the
       // chain can cycle back onto it), so re-check it's still free before taking
       // it — else we'd overwrite that creep's assignment and strand it.
-      visited.add(occupant.name);
-      if (this.findRoute(occupant, visited, ctx) && !ctx.movementMap.has(key)) {
+      if (this.findRoute(occupant, ctx) && !ctx.movementMap.has(key)) {
         ctx.assign(creep, pos);
         return true;
       }
