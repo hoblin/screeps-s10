@@ -102,6 +102,9 @@ export const Dashboard = {
       overlords,
       // Construction sites pending (useful once we start building).
       sites: c.room.find(FIND_MY_CONSTRUCTION_SITES).length,
+      // Economic-dynamics signals driving creep counts (#81) — visible live so
+      // the control loop is debuggable.
+      health: c.health,
     };
   },
 
@@ -120,9 +123,12 @@ export const Dashboard = {
       const towerHint = s.towers.count
         ? ` | 🗼${s.towers.count}@${s.towers.energy}`
         : "";
+      const healthHint = s.health
+        ? ` | ${s.health.energyRich ? "💰rich" : "lean"} sat${Math.round(s.health.saturation * 100)}%`
+        : "";
       log.info(
         `📊 ${name} [${s.stage}${nextHint}] ${rcl} | spawn ${s.energy.avail}/${s.energy.cap} | ` +
-          `ext ${s.extensions.built}/${s.extensions.cap} | src ${s.sourceEnergy}${towerHint} | sites ${s.sites} | pop: ${pop}`
+          `ext ${s.extensions.built}/${s.extensions.cap} | src ${s.sourceEnergy}${towerHint} | sites ${s.sites}${healthHint} | pop: ${pop}`
       );
       log.info(`   overlords: ${staffing}`);
     }
