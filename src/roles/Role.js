@@ -70,8 +70,24 @@ export class Role {
     // pipeline is broken and survival outranks the no-racing rule: workers/
     // upgraders may drain source containers directly, else a colony whose last
     // hauler dies right after a spawn can't refill and spirals out.
+    //
+    // The same survival logic applies while any container is still UNDER
+    // CONSTRUCTION (#74). At 2b entry the controller container isn't built yet
+    // (nor is storage), so haulers have no delivered-energy endpoint to fill and
+    // workers/upgraders have none to draw from — they can't harvest directly
+    // (gated off below at 2b) and the source containers are reserved, so the very
+    // workers who must BUILD that container can't fund it. Deadlock. While a
+    // container site exists the pipeline is incomplete, so lift the reservation
+    // and let them self-serve until those containers finish.
+    const unbuiltContainers =
+      colony &&
+      colony.room.find(FIND_MY_CONSTRUCTION_SITES, {
+        filter: (s) => s.structureType === STRUCTURE_CONTAINER,
+      }).length > 0;
     const reserveSourceContainers =
-      colony && colony.creepsWithRole("hauler").some((h) => !h.spawning);
+      colony &&
+      colony.creepsWithRole("hauler").some((h) => !h.spawning) &&
+      !unbuiltContainers;
 
     // 1. Dropped energy nearby
     const dropped = creep.pos.findClosestByPath(FIND_DROPPED_RESOURCES, {
