@@ -8,7 +8,6 @@
 //  Auth:   env SCREEPS_TOKEN (full-access auth token)
 //  Single-branch model: defaults to the live "default" branch (= prod).
 // ============================================================================
-import { ScreepsAPI } from "screeps-api";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, basename, extname } from "node:path";
 
@@ -44,40 +43,27 @@ if (names.length === 0) {
 
 console.log(`Deploying ${names.length} module(s) [${names.join(", ")}] -> branch "${branch}" @ ${server}`);
 
-const api = new ScreepsAPI({ token, protocol: "https", hostname: "screeps.com", port: 443 });
-if (server !== "https://screeps.com") {
-  const u = new URL(server);
-  api.opts.hostname = u.hostname;
-  api.opts.protocol = u.protocol.replace(":", "");
-  api.opts.port = u.port || (u.protocol === "https:" ? 443 : 80);
-}
-
-// Diagnostics: confirm which account/server the token resolves to and what
-// branches it actually sees. "branch does not exist" usually means the token
-// belongs to a different account/server than the one holding the branch.
+// NOTE: we POST directly to `${server}/api/user/code` rather than using the
+// screeps-api client's `api.code.set()`. That client caches its host at
+// construction and ignores later `api.opts.hostname` overrides, so a
+// `--server https://screeps.com/season` deploy silently went to the MAIN
+// server and the season branch stayed empty while still returning {ok:1}.
+// A plain fetch to the exact server URL is unambiguous.
 try {
-  const me = await api.raw.auth.me();
-  console.log(`Auth: user=${me.username || me._id || "?"} (ok=${me.ok})`);
-  const br = await api.raw.user.branches();
-  const names = (br.list || []).map((b) => b.branch);
-  console.log(`Branches visible to token: [${names.join(", ") || "none"}]`);
-  if (!names.includes(branch)) {
-    console.error(`Target branch "${branch}" not in token's branch list above.`);
-  }
-} catch (e) {
-  console.warn("Diagnostics call failed:", e.message || e);
-}
-
-try {
-  const res = await api.code.set(branch, modules);
+  const res = await fetch(`${server}/api/user/code`, {
+    method: "POST",
+    headers: { "X-Token": token, "Content-Type": "application/json" },
+    body: JSON.stringify({ branch, modules }),
+  });
+  const body = await res.json().catch(() => null);
   // Screeps returns HTTP 200 even for logical failures, carrying an { error }
   // body (e.g. "branch does not exist"). A real success is { ok: 1 }. Require
   // ok===1 so anything unexpected fails the deploy instead of being swallowed.
-  if (!res || res.error || res.ok !== 1) {
-    console.error("Deploy rejected by server:", JSON.stringify(res));
+  if (!res.ok || !body || body.error || body.ok !== 1) {
+    console.error(`Deploy rejected by ${server} (HTTP ${res.status}):`, JSON.stringify(body));
     process.exit(1);
   }
-  console.log("Deploy OK:", JSON.stringify(res));
+  console.log("Deploy OK:", JSON.stringify(body));
 } catch (err) {
   console.error("Deploy failed:", err.message || err);
   process.exit(1);
