@@ -12,9 +12,16 @@ import { roleClass } from "../roles/index.js";
 //  resolves all intents together (Kernel.tick → TrafficManager.resolveAll) so a
 //  higher-priority creep can shove an idle one aside instead of being walled in.
 //
-//  Pathing ignores creeps on purpose — the traffic resolver, not the pathfinder,
-//  handles creep conflicts. That keeps each creep's path short and stable (no
-//  oscillating detours around movers) and lets priority decide who yields.
+//  Pathing routes AROUND other creeps by default, falling back to straight-
+//  through (and letting the resolver shove) only when creeps block every route.
+//  Why not always ignore creeps and let the resolver sort it out? Because the
+//  resolver is per-tick and creep-blind paths are frozen: a blocked creep
+//  re-submits the identical straight line every tick, so the resolver swaps/
+//  shoves it, and next tick it offers the same move again — a stable oscillation
+//  ("dancing") in any dense area, with no fixed point (#60). Routing around lets
+//  a blocked creep's path adapt, so the conflict stops regenerating and it uses
+//  the go-around tile. The straight-through fallback preserves the #55 ring-break
+//  (a fully-ringed target has no path around, so we go straight and shove).
 //
 //  Unlike moveTo, this returns nothing — it's purely side-effectful (registers an
 //  intent). Callers infer "did I move?" from next tick's position, never a return
@@ -28,28 +35,29 @@ import { roleClass } from "../roles/index.js";
 //                the creep's Role.movementPriority; pass to override per-call
 //                (the hook a future Behavior uses to re-rank a single creep).
 //    pathOpts  — extra options forwarded to findPathTo for tuning (e.g.
-//                plainCost/swampCost). Cannot override the resolver's invariants
-//                (ignoreCreeps / maxRooms) — those are locked below.
-//    visualize — draw a faint debug line to the requested tile (default true;
-//                pass false to silence it in busy rooms).
+//                plainCost/swampCost). Cannot override maxRooms (single-room is
+//                an invariant the resolver depends on) — that's locked below.
+//    visualize — draw the intended path as a dashed line (default true; pass
+//                false to silence it in busy rooms).
 // ============================================================================
 Creep.prototype.travelTo = function (target, opts = {}) {
   const targetPos = target.pos || target;
   if (this.pos.isEqualTo(targetPos)) return;
 
-  // One path step toward the target. An empty path means we're already as close
-  // as we can get — the caller's range check / action handles it; we don't move.
-  // `ignoreCreeps` and `maxRooms` are spread LAST so caller pathOpts can tune
-  // costs but never break the two invariants the resolver depends on:
-  //   - ignoreCreeps: the traffic resolver, not the pathfinder, avoids creeps
-  //     (keeps paths short and stable; priority decides who yields).
-  //   - maxRooms: 1: resolution is per-room (multi-room routing is out of scope).
-  const path = this.pos.findPathTo(targetPos, {
-    range: opts.range ?? 0,
-    ...opts.pathOpts,
-    ignoreCreeps: true,
-    maxRooms: 1,
-  });
+  // maxRooms is spread LAST so caller pathOpts can tune costs but never break the
+  // per-room invariant the resolver depends on.
+  const pathOpts = { range: opts.range ?? 0, ...opts.pathOpts, maxRooms: 1 };
+
+  // Prefer a path that routes AROUND other creeps so a blocked creep adapts
+  // instead of dancing (see header). If creeps block every route to the target
+  // (e.g. a full ring), no such path exists — fall back to a straight, creep-
+  // agnostic path and let the resolver shove through.
+  let path = this.pos.findPathTo(targetPos, { ...pathOpts, ignoreCreeps: false });
+  if (path.length === 0) {
+    path = this.pos.findPathTo(targetPos, { ...pathOpts, ignoreCreeps: true });
+  }
+  // An empty path now means we're already as close as we can get — the caller's
+  // range check / action handles it; we simply don't move.
   if (path.length === 0) return;
 
   const step = path[0];
@@ -57,11 +65,14 @@ Creep.prototype.travelTo = function (target, opts = {}) {
   const priority = opts.priority ?? roleClass(this.memory.role).movementPriority;
   TrafficManager.for(this.room).register(this, nextPos, priority);
 
-  // Light debug viz: a faint line to the tile we're requesting this tick.
+  // Debug viz: the full intended path as a dashed line, so a creep's destination
+  // and route (around vs straight-through) are visible at a glance.
   if (opts.visualize !== false) {
-    new RoomVisual(this.room.name).line(this.pos, nextPos, {
-      color: "#ffaa00",
+    const points = [[this.pos.x, this.pos.y], ...path.map((s) => [s.x, s.y])];
+    new RoomVisual(this.room.name).poly(points, {
+      stroke: "#ffaa00",
       opacity: 0.3,
+      lineStyle: "dashed",
     });
   }
 };
