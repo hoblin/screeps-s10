@@ -3,3 +3,5 @@ dist/
 *.log
 .DS_Store
 .env
+# scratch dir: local SQLite mirror, generated images, scan/score JSON dumps
+tmp/
