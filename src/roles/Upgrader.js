@@ -35,9 +35,14 @@ export class Upgrader extends Role {
   static gather(creep, colony) {
     const controllerContainer = Hauler.controllerContainer(colony);
 
+    // Empty-state moves (withdraw / park at the controller container) run at the
+    // gather priority so a parking upgrader never shoves an actively-working
+    // creep (#58) — same rule as Role.gatherEnergy.
+    const move = (target) => creep.travelTo(target, { priority: Role.gatherMovementPriority });
+
     if (controllerContainer && controllerContainer.store[RESOURCE_ENERGY] > 0) {
       if (creep.withdraw(controllerContainer, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-        creep.travelTo(controllerContainer);
+        move(controllerContainer);
       }
       return;
     }
@@ -51,7 +56,7 @@ export class Upgrader extends Role {
       // downgrade. Source containers stay off-limits: that round trip is exactly
       // what parking exists to avoid.
       if (!creep.pos.inRangeTo(controllerContainer, 1)) {
-        creep.travelTo(controllerContainer);
+        move(controllerContainer);
       } else if (this.reachableSpareEnergy(creep, colony)) {
         Role.gatherEnergy(creep, colony);
       }
