@@ -145,13 +145,14 @@ export class Hauler extends Role {
     }
   }
 
-  // A container hugging the controller (within 2) that is NOT a source
-  // container. Range 2 (not 3) avoids matching a distant source/storage
-  // container in compact rooms; a controller container is built right next to
-  // the controller.
+  // The controller container — a non-source container within range 3 of the
+  // controller. ContainerPlanner places it two tiles short of the controller (up
+  // to chebyshev 3 on a constrained approach), so range 3 covers every tile it
+  // can pick. The non-source filter keeps it unambiguous: only source and
+  // controller containers exist, and source containers are excluded by definition.
   static controllerContainer(colony) {
     if (!colony.controller) return null;
-    const near = colony.controller.pos.findInRange(FIND_STRUCTURES, 2, {
+    const near = colony.controller.pos.findInRange(FIND_STRUCTURES, 3, {
       filter: (s) => s.structureType === STRUCTURE_CONTAINER,
     });
     return near.find((container) => !this.isSourceContainer(container, colony)) || null;

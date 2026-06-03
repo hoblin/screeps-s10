@@ -1,18 +1,22 @@
 import { log } from "./Logger.js";
 
 // ============================================================================
-//  ContainerPlanner — shared geometry for parking a creep on (or beside) a
-//  container that hugs an anchor: a source for static miners, the controller for
-//  upgraders. Both cases need the SAME three steps:
+//  ContainerPlanner — shared geometry for placing a container near an anchor and
+//  keeping its construction site alive. Two callers, two geometries:
 //
-//    1. find the non-wall tiles around the anchor,
-//    2. pick the one closest BY PATH to a logistics origin (a spawn, or a source
-//       container) so the creep/hauler trip is as short as possible,
-//    3. keep a container construction site alive on that tile until it's built.
+//    • SOURCE container (MiningOverlord): a static miner must STAND on it, so it
+//      hugs the source. `bestContainerTile` picks the source-adjacent tile
+//      closest BY PATH to a spawn — shortest hauler trip.
+//    • CONTROLLER container (UpgradeOverlord): upgraders only need range 3, and
+//      the hauler that fills it shouldn't push into the upgrader cluster to
+//      deliver. `controllerContainerTile` places it TWO tiles short of the
+//      controller, on the source->controller approach — drop-off at the edge of
+//      the work zone, not its centre.
 //
-//  MiningOverlord grew this logic first; the controller container needs the exact
-//  same thing. Keeping it here means the two planners can't drift apart, and the
-//  pure geometry is trivial to reason about in one place.
+//  Both return { position, reachedByPath }: reachedByPath is false when pathing
+//  didn't resolve, so the caller knows not to cache a transient failure. Keeping
+//  both geometries here means the planners can't drift apart and the pure
+//  geometry is trivial to reason about in one place.
 // ============================================================================
 export const ContainerPlanner = {
   // The 8 tiles around `position` that aren't walls, clamped to the buildable
@@ -62,6 +66,62 @@ export const ContainerPlanner = {
     // Nothing was pathable: let a creep still stand somewhere, but flag it so the
     // caller doesn't cache this guess as the permanent answer.
     return { position: walkable[0], reachedByPath: false };
+  },
+
+  // The controller container, unlike a source container, is NOT glued to its
+  // anchor. A static miner stands ON its container, so that one must hug the
+  // source. But upgraders work at range 3, and the hauler filling the controller
+  // container shouldn't have to push into the upgrader cluster to deliver. So we
+  // place this container TWO tiles short of the controller along the real
+  // source->controller approach: the hauler drops off at the edge of the work
+  // zone, upgraders stand past it toward the controller (still within
+  // `upgradeController` range 3), and the supply lane stays clear.
+  //
+  // Walk the `anchorPos`->`controllerPos` path backward from the controller and
+  // take the first buildable tile at chebyshev distance 2..3 from it. Returns the
+  // same { position, reachedByPath } contract as `bestContainerTile`, so the
+  // caller never caches a transient pathing failure as the permanent answer.
+  controllerContainerTile(room, controllerPos, anchorPos) {
+    const path = anchorPos.findPathTo(controllerPos, { ignoreCreeps: true });
+    if (path.length === 0) return { position: null, reachedByPath: false };
+
+    const terrain = room.getTerrain();
+    for (let i = path.length - 1; i >= 0; i--) {
+      const { x, y } = path[i];
+      const dist = Math.max(
+        Math.abs(x - controllerPos.x),
+        Math.abs(y - controllerPos.y)
+      );
+      // Two cells short of the controller — far enough off the dist-1 corner to
+      // clear the cluster, near enough to keep upgraders in range 3.
+      if (dist < 2 || dist > 3) continue;
+      if (this.isBuildableTile(room, terrain, x, y)) {
+        return {
+          position: new RoomPosition(x, y, room.name),
+          reachedByPath: true,
+        };
+      }
+    }
+    // The whole approach was too short or blocked — don't cache a guess; the
+    // caller retries next tick once the geometry resolves.
+    return { position: null, reachedByPath: false };
+  },
+
+  // A tile we can drop a container on: inside the buildable interior (1..48),
+  // not a wall, and not already occupied by a blocking structure. Path tiles
+  // already route around spawns/sources, but a road may share the tile (legal)
+  // so we only reject structures that truly can't coexist with a container.
+  isBuildableTile(room, terrain, x, y) {
+    if (x < 1 || x > 48 || y < 1 || y > 48) return false;
+    if (terrain.get(x, y) === TERRAIN_MASK_WALL) return false;
+    const blocked = room
+      .lookForAt(LOOK_STRUCTURES, x, y)
+      .some(
+        (s) =>
+          s.structureType !== STRUCTURE_ROAD &&
+          s.structureType !== STRUCTURE_RAMPART
+      );
+    return !blocked;
   },
 
   // Keep a container construction site alive on `position` until it's built.

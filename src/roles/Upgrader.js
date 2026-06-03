@@ -2,8 +2,9 @@ import { Role } from "./Role.js";
 import { Hauler } from "./Hauler.js";
 
 // Upgrader: keeps the controller leveled. Once a controller container exists (a
-// container hugging the controller that haulers keep filled), it parks beside it
-// and pulls energy from one tile away — never walking back to a source container.
+// container two tiles short of the controller that haulers keep filled), it parks
+// on/beside it and pulls energy from range — never walking back to a source
+// container, and still within upgradeController range 3 of the controller.
 // Before that container is built, it falls back to the generic gather logic.
 export class Upgrader extends Role {
   static run(creep, colony) {
