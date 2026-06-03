@@ -79,15 +79,17 @@ export class Role {
     // workers who must BUILD that container can't fund it. Deadlock. While a
     // container site exists the pipeline is incomplete, so lift the reservation
     // and let them self-serve until those containers finish.
+    // Only scan for container sites once we know a hauler can actually drain —
+    // with no drain-capable hauler the reservation is already off, so the scan
+    // would be wasted work (gatherEnergy runs every tick for every empty creep).
+    const haulerCanDrain =
+      colony && colony.creepsWithRole("hauler").some((h) => !h.spawning);
     const unbuiltContainers =
-      colony &&
+      haulerCanDrain &&
       colony.room.find(FIND_MY_CONSTRUCTION_SITES, {
         filter: (s) => s.structureType === STRUCTURE_CONTAINER,
       }).length > 0;
-    const reserveSourceContainers =
-      colony &&
-      colony.creepsWithRole("hauler").some((h) => !h.spawning) &&
-      !unbuiltContainers;
+    const reserveSourceContainers = haulerCanDrain && !unbuiltContainers;
 
     // 1. Dropped energy nearby
     const dropped = creep.pos.findClosestByPath(FIND_DROPPED_RESOURCES, {
