@@ -49,9 +49,9 @@ export class Worker extends Role {
       }
     }
 
-    // 2. Build construction sites. Containers first (#72), then the rest of the
-    //    structural sites (extensions/tower/storage), then roads (#14, above
-    //    repair): containers gate hauling and let the colony feed its
+    // 2. Build construction sites. Containers first (#72), then every other
+    //    non-road structure (extensions, tower, storage, …), then roads (#14,
+    //    above repair): containers gate hauling and let the colony feed its
     //    extensions, roads are a throughput nicety. Within a tier, concentrate
     //    effort (#33).
     const sites = creep.room.find(FIND_MY_CONSTRUCTION_SITES);
@@ -97,12 +97,18 @@ export class Worker extends Role {
   // throughput nicety, while containers/extensions gate energy flow.
   static selectBuildTarget(creep, sites) {
     const epsilon = BUILD_POWER * 10;
-    const containers = sites.filter((s) => s.structureType === STRUCTURE_CONTAINER);
-    const roads = sites.filter((s) => s.structureType === STRUCTURE_ROAD);
-    const structural = sites.filter(
-      (s) => s.structureType !== STRUCTURE_CONTAINER && s.structureType !== STRUCTURE_ROAD,
-    );
-    const pool = containers.length ? containers : structural.length ? structural : roads;
+    // Classify into priority tiers in a single pass (CPU is tight): containers,
+    // then every other non-road structure, then roads. Build the highest
+    // non-empty tier (falls back to the full set if somehow none match).
+    const containers = [];
+    const structural = [];
+    const roads = [];
+    for (const s of sites) {
+      if (s.structureType === STRUCTURE_CONTAINER) containers.push(s);
+      else if (s.structureType === STRUCTURE_ROAD) roads.push(s);
+      else structural.push(s);
+    }
+    const pool = [containers, structural, roads].find((tier) => tier.length) || sites;
     const maxProgress = Math.max(...pool.map((s) => s.progress));
     const leaders = pool.filter((s) => s.progress >= maxProgress - epsilon);
     return creep.pos.findClosestByPath(leaders);
