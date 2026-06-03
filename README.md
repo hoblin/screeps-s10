@@ -78,14 +78,23 @@ into a local SQLite mirror, then runs all analysis with zero API calls.
 - `scan-season.mjs` — source-count scan of the room grid.
 - `geo-season.mjs` — home-room layout geometry for candidates.
 - `collect.mjs` — resilient background crawler (gap-fills, 429 backoff); the
-  **sole owner of API access**. Mirrors terrain/sources/controller/mineral
-  into `tmp/season.db`. Run in tmux: `SCREEPS_TOKEN=*** node bin/collect.mjs --range 31`.
-- `db.mjs` — SQLite schema + `loadRoom(db,name)` + single-sourced `parseTerrain`.
+  **sole owner of API access**. Mirrors terrain/sources/controller/mineral plus
+  the v2 scout fields (keeper lairs, extractor, invader cores, controller
+  owner/level/reservation, mineral density, portals, highway deposits/power
+  banks) into `tmp/season.db`. Run in tmux: `SCREEPS_TOKEN=*** node bin/collect.mjs --range 31`.
+  Rooms scanned before the v2 schema keep those columns NULL — backfill them
+  with `node bin/collect.mjs --rescan` (a full ±31 re-crawl, ~840s).
+- `db.mjs` — SQLite schema (auto-migrates v1→v2 columns) + `loadRoom(db,name)`
+  + single-sourced `parseTerrain`. `SCAN_V` gates the rescan.
 - `region-score.mjs` — full economic valuation (terrain-weighted haul cost,
-  cross-border remote mining, mineral bonus, enemy-neighbour penalty).
+  cross-border remote mining, mineral bonus) plus additive v2 terms with
+  documented weights: SK-neighbour value, RCL-scaled enemy penalty,
+  reserved-remote discount, choke defensibility, highway access.
   **DB-only, no API** (SOLID: crawler fills the DB, analytics is read-only).
-- `heatmap.mjs` — scores the whole grid offline, renders an ANSI heat map +
-  `tmp/season-heatmap.png`, prints the top-10 rooms.
+- `heatmap.mjs` — scores the whole grid offline, renders an ANSI heat map with
+  per-room feature glyphs + legend, an enriched `tmp/season-heatmap.png` (score
+  tint, distinct hues for owned/SK/highway, feature marker dots), and a top-10
+  table with neighbour context (SK adjacency, nearest enemy RCL).
 
 Map is a **±30 square** (`W30..E30 × N30..S30`, ~3721 game rooms). Season 10
 spawn was chosen this way: **E15S7**.

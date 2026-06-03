@@ -15,9 +15,17 @@
 //  Usage:
 //    SCREEPS_TOKEN=*** node bin/collect.mjs            # fill terrain/objects gaps
 //    SCREEPS_TOKEN=*** node bin/collect.mjs --owners   # refresh ownership only
+//    SCREEPS_TOKEN=*** node bin/collect.mjs --rescan   # re-crawl v1 rooms for v2 fields
 //    flags: --range 35  --conc 2  --server URL  --shard shardSeason
+//
+//  --rescan: the v2 scan captures keeper lairs, extractor, invader cores,
+//  controller owner/level/reservation, mineral density, portals and highway
+//  deposits/power banks that the original v1 scan dropped. Rooms scanned before
+//  the schema bump have those columns NULL; --rescan re-fetches every room whose
+//  `scan_v` is below the current SCAN_V to backfill them (a full ±31 re-crawl is
+//  ~840s — same cost as the first crawl, since it re-hits room-objects).
 // ============================================================================
-import { openDb, upsertRoom, upsertOwnership, parseRoom, roomName } from "./db.mjs";
+import { openDb, upsertRoom, upsertOwnership, parseRoom, roomName, SCAN_V } from "./db.mjs";
 
 function arg(name, def) {
   const i = process.argv.indexOf(`--${name}`);
@@ -30,6 +38,7 @@ const SHARD = String(arg("shard", "shardSeason"));
 const RANGE = parseInt(arg("range", "35"), 10);
 const CONC = parseInt(arg("conc", "2"), 10);
 const OWNERS = arg("owners", false) === true;
+const RESCAN = arg("rescan", false) === true;
 const TOKEN = process.env.SCREEPS_TOKEN;
 if (!TOKEN) { console.error("SCREEPS_TOKEN not set"); process.exit(1); }
 
@@ -89,6 +98,78 @@ async function refreshOwners(db) {
   console.log(`owners refreshed: ${scanned} normal rooms, ${claimed} claimed, ${players.size} players`);
 }
 
+// Parse a room-objects payload into the snake_case row that upsertRoom expects.
+// Captures the full scout-relevant object set; missing object types simply
+// leave their fields at the defaults (NULL/0). `users` maps user ids to names
+// when the payload carries it, letting us record controller/reserver usernames
+// inline without a second map-stats call.
+function parseObjects(objects, users) {
+  const sources = [], keeperLairs = [], portals = [];
+  const row = {
+    sources: 0, sources_json: null, mineral: null, mineral_xy: null,
+    mineral_density: null, controller: 0, controller_xy: null,
+    controller_level: null, controller_owner: null, controller_owner_name: null,
+    reservation_owner: null, reservation_owner_name: null, reservation_end: null,
+    safe_mode: null, keeper_lairs: 0, keeper_lairs_json: null, extractor: null,
+    invader_core: null, invader_core_level: null, portal: null, portal_json: null,
+    deposit: null, deposit_type: null, power_bank: null,
+  };
+  const uname = (id) => (id ? users?.[id]?.username ?? null : null);
+
+  for (const o of objects || []) {
+    switch (o.type) {
+      case "source":
+        sources.push([o.x, o.y]);
+        break;
+      case "mineral":
+        row.mineral = o.mineralType;
+        row.mineral_xy = `${o.x},${o.y}`;
+        row.mineral_density = o.density ?? null;
+        break;
+      case "controller":
+        row.controller = 1;
+        row.controller_xy = `${o.x},${o.y}`;
+        row.controller_level = o.level ?? 0;
+        row.controller_owner = o.user ?? null;
+        row.controller_owner_name = uname(o.user);
+        if (o.reservation) {
+          row.reservation_owner = o.reservation.user ?? null;
+          row.reservation_owner_name = uname(o.reservation.user);
+          row.reservation_end = o.reservation.endTime ?? null;
+        }
+        row.safe_mode = o.safeMode ?? null;
+        break;
+      case "keeperLair":
+        keeperLairs.push([o.x, o.y]);
+        break;
+      case "extractor":
+        row.extractor = 1;
+        break;
+      case "invaderCore":
+        row.invader_core = 1;
+        row.invader_core_level = o.level ?? 0;
+        break;
+      case "portal":
+        portals.push({ x: o.x, y: o.y, dest: o.destination ?? null });
+        break;
+      case "deposit":
+        row.deposit = 1;
+        row.deposit_type = o.depositType ?? null;
+        break;
+      case "powerBank":
+        row.power_bank = 1;
+        break;
+    }
+  }
+  row.sources = sources.length;
+  row.sources_json = JSON.stringify(sources);
+  row.keeper_lairs = keeperLairs.length;
+  row.keeper_lairs_json = keeperLairs.length ? JSON.stringify(keeperLairs) : null;
+  row.portal = portals.length ? 1 : null;
+  row.portal_json = portals.length ? JSON.stringify(portals) : null;
+  return row;
+}
+
 async function fetchRoom(db, name) {
   const { sx, sy } = parseRoom(name);
   const [terr, objr] = await Promise.all([
@@ -96,19 +177,12 @@ async function fetchRoom(db, name) {
     api(`/game/room-objects?room=${name}&shard=${SHARD}`),
   ]);
   const tstr = Array.isArray(terr.terrain) ? terr.terrain[0].terrain : terr.terrain;
-  const sources = [];
-  let mineral = null, mineral_xy = null, controller = 0, controller_xy = null, status = "normal";
-  for (const o of objr.objects || []) {
-    if (o.type === "source") sources.push([o.x, o.y]);
-    else if (o.type === "mineral") { mineral = o.mineralType; mineral_xy = `${o.x},${o.y}`; }
-    else if (o.type === "controller") { controller = 1; controller_xy = `${o.x},${o.y}`; }
-  }
+  const objs = parseObjects(objr.objects, objr.users);
   upsertRoom(db, {
-    name, sx, sy, status, sources: sources.length,
-    sources_json: JSON.stringify(sources), mineral, mineral_xy,
-    controller, controller_xy, terrain: tstr, scanned_at: Date.now(),
+    name, sx, sy, status: "normal", terrain: tstr,
+    scanned_at: Date.now(), scan_v: SCAN_V, ...objs,
   });
-  return sources.length;
+  return objs.sources;
 }
 
 async function main() {
@@ -116,9 +190,23 @@ async function main() {
   if (OWNERS) { await refreshOwners(db); db.close(); return; }
 
   const all = gridRooms(RANGE);
-  const have = new Set(db.prepare(`SELECT name FROM rooms WHERE terrain IS NOT NULL`).all().map((r) => r.name));
-  const todo = all.filter((n) => !have.has(n));
-  console.log(`collect: ${all.length} rooms in ±${RANGE} box, ${have.size} cached, ${todo.length} to fetch`);
+  // Normal mode fills gaps (rooms with no terrain). --rescan instead re-fetches
+  // already-collected rooms whose scan_v is below the current schema, to
+  // backfill the v2 scout fields without re-crawling untouched gaps.
+  let todo, cachedNote;
+  if (RESCAN) {
+    const stale = db.prepare(
+      `SELECT name FROM rooms WHERE terrain IS NOT NULL AND (scan_v IS NULL OR scan_v < ?)`,
+    ).all(SCAN_V).map((r) => r.name);
+    const inBox = new Set(all);
+    todo = stale.filter((n) => inBox.has(n));
+    cachedNote = `rescan: ${stale.length} rooms below scan_v ${SCAN_V}, ${todo.length} in ±${RANGE} box to re-fetch`;
+  } else {
+    const have = new Set(db.prepare(`SELECT name FROM rooms WHERE terrain IS NOT NULL`).all().map((r) => r.name));
+    todo = all.filter((n) => !have.has(n));
+    cachedNote = `collect: ${all.length} rooms in ±${RANGE} box, ${have.size} cached, ${todo.length} to fetch`;
+  }
+  console.log(cachedNote);
 
   let done = 0, t0 = Date.now();
   const queue = [...todo];

@@ -60,10 +60,14 @@ function heat(t) {
   const f = s - i, a = STOPS[i], b = STOPS[i + 1];
   return [0, 1, 2].map((k) => Math.round(a[k] + (b[k] - a[k]) * f));
 }
-// state colours for non-scored cells
-const C_EMPTY = [22, 22, 28]; // not collected
-const C_BLOCK = [52, 52, 60]; // collected but unclaimable (highway/center/SK)
-const C_OWNED = [205, 40, 175]; // owned by a player
+// state colours for non-scored cells — distinct hues per category so the map
+// reads at a glance (not flat grey for everything special).
+const C_EMPTY = [22, 22, 28];    // not collected
+const C_BLOCK = [52, 52, 60];    // collected but unclaimable & featureless
+const C_OWNED = [205, 40, 175];  // owned by a player (magenta)
+const C_SK = [120, 60, 170];     // Source-Keeper room (violet)
+const C_HIGHWAY = [40, 110, 120]; // highway feature room: portal/deposit/power (teal)
+const C_INVADER = [180, 50, 40]; // invader core (red)
 
 // ============================================================================
 //  Load scores: either a precomputed region-score JSON, or compute live.
@@ -80,18 +84,38 @@ const cells = db.prepare(`
 const meta = new Map(); // name -> { sx, sy, claimable }
 for (const c of cells) meta.set(c.name, { sx: c.sx, sy: c.sy, claimable: c.controller === 1 });
 
-const owned = new Set(
-  db.prepare(`SELECT name FROM ownership WHERE owner IS NOT NULL`).all().map((r) => r.name),
-);
+// v2 scout features per room, for glyphs + PNG markers. NULL columns (v1 rows
+// not yet rescanned) simply read as 0/absent, so the map degrades gracefully.
+const feat = new Map();
+for (const r of db.prepare(`
+  SELECT name, controller, sources, mineral, keeper_lairs, invader_core,
+         invader_core_level, portal, deposit, power_bank, reservation_owner
+    FROM rooms WHERE terrain IS NOT NULL
+     AND sx BETWEEN ? AND ? AND sy BETWEEN ? AND ?
+`).all(SX_MIN, SX_MAX, SY_MIN, SY_MAX)) {
+  feat.set(r.name, r);
+}
+
+// owner -> controller level (for the enemy glyph). map-stats fills the level.
+const owned = new Map();
+for (const r of db.prepare(`SELECT name, level FROM ownership WHERE owner IS NOT NULL`).all()) {
+  owned.set(r.name, r.level ?? 0);
+}
 if (owned.size === 0) {
   console.log("note: ownership table empty — all rooms render as unowned (run `collect.mjs --owners`)");
 }
 
-const score = new Map(); // name -> total
+const score = new Map();  // name -> total
+const detail = new Map(); // name -> full score result (for the enriched top-N)
+const remember = (r) => {
+  if (!r || r.error || r.total == null) return;
+  score.set(r.room, r.total);
+  detail.set(r.room, r);
+};
 if (FROM) {
   const d = JSON.parse(readFileSync(FROM, "utf8"));
   const list = d.rooms || d.candidates || d;
-  for (const r of list) if (r && r.total != null && !r.error) score.set(r.room, r.total);
+  for (const r of list) remember(r);
   console.log(`loaded ${score.size} precomputed scores from ${FROM}`);
 } else {
   const claimable = cells.filter((c) => c.controller === 1);
@@ -100,7 +124,7 @@ if (FROM) {
   for (const c of claimable) {
     let r;
     try { r = await scoreRoom(c.name); } catch { /* not collected / unscorable */ }
-    if (r && !r.error && r.total != null) score.set(c.name, r.total);
+    remember(r);
     if (++done % 200 === 0) console.log(`  ${done}/${claimable.length}`);
   }
   console.log(`scored ${score.size} rooms`);
@@ -113,24 +137,41 @@ if (!isFinite(lo)) { lo = 0; hi = 1; }
 const span = hi - lo || 1;
 const norm = (v) => (v - lo) / span;
 
-// classify a grid coordinate into [r,g,b] + a glyph for ANSI. Every glyph is
-// exactly 2 chars wide so columns stay aligned under the coloured background.
+// classify a grid coordinate into [r,g,b] + a 2-char glyph encoding what's in
+// the room. Every glyph is exactly 2 chars wide so columns stay aligned under
+// the coloured background. Priority: ownership > SK > invader > highway feature
+// > scored candidate > plain block > uncollected.
+//   E<n> owned-enemy (n = RCL)   K<n> keeper room (n = sources)
+//   I<n> invader core (n = level) P↔ portal   D▒ deposit   B✷ power bank
+//   <n>* scored candidate (n = sources, * = has mineral)   ·· uncollected
 function classify(sx, sy) {
   const nm = roomAt(sx, sy);
-  if (owned.has(nm)) return { rgb: C_OWNED, glyph: "##" };
-  if (score.has(nm)) return { rgb: heat(norm(score.get(nm))), glyph: "  " };
+  const f = feat.get(nm);
+  if (owned.has(nm)) return { rgb: C_OWNED, glyph: `E${lvlChar(owned.get(nm))}` };
+  if (f?.keeper_lairs > 0) return { rgb: C_SK, glyph: `K${digit(f.sources)}` };
+  if (f?.invader_core) return { rgb: C_INVADER, glyph: `I${digit(f.invader_core_level)}` };
+  if (f?.portal) return { rgb: C_HIGHWAY, glyph: "P↔" };
+  if (f?.power_bank) return { rgb: C_HIGHWAY, glyph: "B✷" };
+  if (f?.deposit) return { rgb: C_HIGHWAY, glyph: "D▒" };
+  if (score.has(nm)) {
+    const g = `${digit(f?.sources)}${f?.mineral ? "*" : " "}`;
+    return { rgb: heat(norm(score.get(nm))), glyph: g };
+  }
   const m = meta.get(nm);
   if (!m) return { rgb: C_EMPTY, glyph: "··" }; // not collected
-  if (!m.claimable) return { rgb: C_BLOCK, glyph: "  " }; // highway/center/SK
+  if (!m.claimable) return { rgb: C_BLOCK, glyph: "  " }; // highway/center, no feature
   return { rgb: C_EMPTY, glyph: "··" }; // claimable but unscored (walled/edge)
 }
+const digit = (n) => (n > 0 && n < 10 ? String(n) : n >= 10 ? "+" : "·");
+const lvlChar = (n) => (n > 0 && n <= 8 ? String(n) : "·");
 
 // ============================================================================
 //  ANSI terminal grid
 // ============================================================================
 function renderAnsi() {
   const MARGIN = 4; // width of the row label gutter
-  const bg = (rgb, txt) => `\x1b[48;2;${rgb[0]};${rgb[1]};${rgb[2]}m${txt}\x1b[0m`;
+  // light foreground over the coloured background so the 2-char glyphs read.
+  const bg = (rgb, txt) => `\x1b[48;2;${rgb[0]};${rgb[1]};${rgb[2]};38;2;235;235;235m${txt}\x1b[0m`;
 
   // column ruler: EW label every 5 columns, aligned to the 2-char cells
   const ruler = Array(MARGIN + NCOL * 2 + 4).fill(" ");
@@ -154,9 +195,11 @@ function renderAnsi() {
   }
   console.log("\n" + lines.join("\n"));
   console.log(
-    `\nlegend: ${bg(C_EMPTY, "··")} uncollected/unscored  ${bg(C_BLOCK, "  ")} highway/center/SK  ` +
-    `${bg(C_OWNED, "##")} owned   score ${bg(heat(0), "  ")}${bg(heat(0.5), "  ")}${bg(heat(1), "  ")} ` +
-    `low(${lo.toFixed(0)})→high(${hi.toFixed(0)})`,
+    `\nlegend:  score ${bg(heat(0), "  ")}${bg(heat(0.5), "  ")}${bg(heat(1), "  ")} low(${lo.toFixed(0)})→high(${hi.toFixed(0)})` +
+    `   glyph ⟨n*⟩=sources(+mineral)\n` +
+    `         ${bg(C_OWNED, "E7")} owned-enemy(RCL)  ${bg(C_SK, "K3")} keeper room(sources)  ${bg(C_INVADER, "I2")} invader core(lvl)\n` +
+    `         ${bg(C_HIGHWAY, "P↔")} portal  ${bg(C_HIGHWAY, "D▒")} deposit  ${bg(C_HIGHWAY, "B✷")} power bank  ` +
+    `${bg(C_BLOCK, "  ")} highway/center  ${bg(C_EMPTY, "··")} uncollected`,
   );
 }
 
@@ -221,11 +264,36 @@ function renderPng() {
     for (let dy = 0; dy < BLK; dy++)
       for (let dx = 0; dx < BLK; dx++) put(cx * BLK + dx, cy * BLK + dy, rgb);
   };
+  // small filled rect inside a room block (block-local coords, clipped to BLK).
+  const dot = (cx, cy, ox, oy, w, h, rgb) => {
+    for (let dy = 0; dy < h; dy++)
+      for (let dx = 0; dx < w; dx++) {
+        const px = cx * BLK + ox + dx, py = cy * BLK + oy + dy;
+        if (ox + dx < BLK && oy + dy < BLK) put(px, py, rgb);
+      }
+  };
+
+  // Feature markers PNG can't render as glyphs: colour-coded corner dots +
+  // a source-count tick row along the bottom edge.
+  const M_SK = [235, 120, 255], M_INV = [255, 70, 50], M_PORTAL = [90, 230, 235];
+  const M_MIN = [235, 235, 235], M_SRC = [250, 220, 90];
+  const markers = (cx, cy, nm) => {
+    const f = feat.get(nm);
+    if (!f) return;
+    if (f.keeper_lairs > 0) dot(cx, cy, 0, 0, 3, 3, M_SK);        // top-left = SK
+    if (f.invader_core) dot(cx, cy, 0, 0, 3, 3, M_INV);          // top-left = invader
+    if (f.portal) dot(cx, cy, BLK - 3, 0, 3, 3, M_PORTAL);       // top-right = portal
+    if (f.mineral) dot(cx, cy, BLK - 3, BLK - 3, 3, 3, M_MIN);   // bottom-right = mineral
+    const n = Math.min(f.sources || 0, 3);                       // bottom edge = source count
+    for (let i = 0; i < n; i++) dot(cx, cy, 1 + i * 3, BLK - 2, 2, 1, M_SRC);
+  };
 
   for (let r = 0; r < NROW; r++) {
     const sy = SY_MAX - r;
     for (let c = 0; c < NCOL; c++) {
+      const nm = roomAt(SX_MIN + c, sy);
       fillBlock(c, r, classify(SX_MIN + c, sy).rgb);
+      markers(c, r, nm);
     }
   }
   // legend: horizontal score gradient across the full width
@@ -248,4 +316,14 @@ if (WANT_PNG) renderPng();
 
 const top = [...score.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
 console.log(`\nTop ${top.length} rooms by score:`);
-for (const [nm, v] of top) console.log(`  ${nm.padEnd(8)} ${v.toFixed(1)}`);
+console.log("  room      score   mineral  SK-neighbours        enemy(rcl)");
+for (const [nm, v] of top) {
+  const d = detail.get(nm) || {};
+  const sk = d.skNeighbours?.length ? d.skNeighbours.join(",") : "-";
+  const enemy = d.enemyNeighbours
+    ? `${d.enemyNeighbours}${d.nearestEnemyRcl != null ? `(L${d.nearestEnemyRcl})` : ""}`
+    : "-";
+  console.log(
+    `  ${nm.padEnd(8)}  ${v.toFixed(1).padEnd(6)}  ${String(d.mineral || "-").padEnd(7)}  ${sk.padEnd(19)}  ${enemy}`,
+  );
+}

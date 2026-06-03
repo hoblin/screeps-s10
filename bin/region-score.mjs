@@ -64,12 +64,37 @@ const OUT = arg("out", "tmp/season-region.json");
 let _db = null;
 const db = () => (_db ??= openDb());
 
-// tuning constants
+// ---- tuning constants ------------------------------------------------------
+// Economy core (v1): a source's bankable value, distance-decayed.
 const BASE_HOME = 100; // value of a perfectly-adjacent own source
 const BASE_REMOTE = 55; // remote source worth ~half: reserver + risk + road
 const K = 0.04; // distance decay; at 25 tiles a source keeps 1/(1+1)=50%
 const MINERAL_BONUS = { U: 18, X: 18, K: 14, L: 14, Z: 12, O: 8, H: 8 };
-const ENEMY_NEIGHBOUR_PENALTY = 40;
+
+// Additive v2 terms — all in the same ~100-per-source units as the economy
+// core so they tune transparently. Each is documented with the fact it encodes
+// and is only as informed as the scan: SK lairs, controller level, reservation
+// and highway access come from the v2 room fields, so a room scored from a v1
+// (un-rescanned) row falls back to the old economy-only behaviour.
+const BASE_SK = 40;        // a Source-Keeper source: fat (4000e/regen, ~33% over
+                           // a normal 3000e source) but guarded — only mineable
+                           // at Stage-4 with boosted clearers, past keeper lairs.
+                           // ~70% of BASE_REMOTE: the fatness partly offsets the
+                           // clearing cost, the discount books the late-game delay.
+const SK_MINERAL_BONUS = 10;  // an SK room's mineral is a free late-game extractor site.
+const ENEMY_BASE_PENALTY = 18; // any hostile neighbour costs you map control...
+const ENEMY_PER_LEVEL = 6;     // ...scaled by their RCL: an L1 squatter ≠ an L8 fortress.
+const RESERVED_REMOTE_FACTOR = 0.35; // a neighbour reserved by someone else isn't a free remote.
+const CHOKE_MAX_BONUS = 20;    // a near-sealed room (few open border tiles) is cheap to wall.
+const CHOKE_OPEN_REF = 160;    // open-exit-tile count at which the choke bonus fades to zero.
+const HIGHWAY_ACCESS_BONUS = 6; // adjacency to a highway = deposit/power/portal reach later.
+
+// A room is on a highway when either coordinate number is a multiple of 10
+// (the sector grid lines). Highway rooms host deposits / power banks / portals.
+function isHighway(nm) {
+  const m = nm.match(/^[WE](\d+)[NS](\d+)$/);
+  return !!m && (+m[1] % 10 === 0 || +m[2] % 10 === 0);
+}
 
 // ---- terrain (transposed on this season server: index = x*50 + y) ----------
 const idx = (x, y) => x * 50 + y;
@@ -149,6 +174,29 @@ function mirror(dir, x, y) {
 
 const valueOf = (base, d) => (isFinite(d) ? base / (1 + K * d) : 0);
 
+// Cheapest terrain-weighted distance from a neighbour source to the home spawn
+// proxy, crossing the shared border. Returns Infinity when the border is walled
+// off (source physically unreachable from home). Shared by normal and SK remotes.
+function crossBorderDist(home, homeField, nb, dir, s) {
+  const nbField = distField(nb.g, s.x, s.y);
+  let best = Infinity;
+  for (const [hx, hy] of borderTiles(home.g, dir)) {
+    const [mx, my] = mirror(dir, hx, hy);
+    if (isWall(nb.g, mx, my)) continue;
+    const d = homeField[idx(hx, hy)] + 1 + nbField[idx(mx, my)];
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+// Defensibility proxy: the fewer passable border tiles a room has, the cheaper
+// it is to wall off. Scales from CHOKE_MAX_BONUS (near-sealed) to 0 (wide open).
+function chokeBonus(g) {
+  let open = 0;
+  for (const dir of ["W", "E", "N", "S"]) open += borderTiles(g, dir).length;
+  return CHOKE_MAX_BONUS * Math.max(0, 1 - open / CHOKE_OPEN_REF);
+}
+
 async function scoreRoom(nm) {
   const home = requireRoom(nm);
   if (!home.controller) return { room: nm, error: "no controller (unclaimable)" };
@@ -166,55 +214,89 @@ async function scoreRoom(nm) {
   });
   const homeValue = homeSrc.reduce((a, s) => a + s.value, 0);
 
-  // -- remote (orthogonal) sources --
-  const remotes = [];
-  let enemyNeighbours = 0;
+  // -- orthogonal neighbours: remotes, SK rooms, enemies, reservation, highway --
+  const remotes = [];   // immediately mineable neutral remotes
+  const skRemotes = []; // guarded Source-Keeper rooms (discounted, late-game)
+  const skNeighbours = [];
+  let enemyNeighbours = 0, enemyPenalty = 0, nearestEnemyRcl = null;
+  let reservedNeighbours = 0, highwayAccess = false;
+
   for (const { dir, room } of orthoNeighbours(nm)) {
+    if (isHighway(room)) highwayAccess = true;
     let nb;
     try { nb = requireRoom(room); } catch { continue; } // skip un-collected neighbours
-    if (nb.owner) { enemyNeighbours++; continue; } // can't remote-mine enemy
+
+    // Enemy-owned: can't remote-mine, and they cost map control scaled by RCL.
+    if (nb.owner) {
+      enemyNeighbours++;
+      const lvl = nb.controller?.level ?? 0;
+      enemyPenalty += ENEMY_BASE_PENALTY + ENEMY_PER_LEVEL * lvl;
+      if (nearestEnemyRcl == null || lvl > nearestEnemyRcl) nearestEnemyRcl = lvl;
+      continue;
+    }
+
+    // Source-Keeper room (keeper lairs present): a fat late-game remote, not a
+    // free one. Value its sources at the discounted BASE_SK plus its mineral,
+    // and keep it out of the immediate-remote bucket. (Needs v2 scan data; a
+    // v1 row reports no lairs and the room falls through as a normal remote.)
+    if (nb.keeperLairs.length > 0) {
+      let skVal = 0;
+      for (const s of nb.sources) skVal += valueOf(BASE_SK, crossBorderDist(home, homeField, nb, dir, s) * 2);
+      if (nb.mineral) skVal += SK_MINERAL_BONUS;
+      skRemotes.push({ room, sources: nb.sources.length, mineral: nb.mineral?.t || null, value: round(skVal) });
+      skNeighbours.push(room);
+      continue;
+    }
+
     if (nb.sources.length === 0) continue;
-    // home-side border field already in homeField; precompute neighbour field
-    // per source below. For each source, find the cheapest border crossing.
+
+    // Reserved by someone else => contested, discount the remote (not yet free).
+    const reservedByOther = !!nb.reservation?.owner;
+    if (reservedByOther) reservedNeighbours++;
+    const factor = reservedByOther ? RESERVED_REMOTE_FACTOR : 1;
+
     for (const s of nb.sources) {
-      const nbField = distField(nb.g, s.x, s.y); // dist from source to anywhere in neighbour
-      let best = Infinity;
-      // iterate home border tiles on this side; map to neighbour entry tile
-      for (const [hx, hy] of borderTiles(home.g, dir)) {
-        const [mx, my] = mirror(dir, hx, hy);
-        if (isWall(nb.g, mx, my)) continue;
-        const d = homeField[idx(hx, hy)] + 1 + nbField[idx(mx, my)];
-        if (d < best) best = d;
-      }
-      // best === Infinity => the shared border is walled off; source is
-      // physically unreachable from home. Record it as cut-off (value 0) so
-      // count-rich-but-walled regions are correctly penalised.
+      const best = crossBorderDist(home, homeField, nb, dir, s);
+      // best === Infinity => shared border walled off; source unreachable from
+      // home. Recorded as cut-off (value 0) so count-rich-but-walled regions
+      // are correctly penalised.
       const reachable = isFinite(best);
-      const rt = best * 2;
       remotes.push({
         room, dir, x: s.x, y: s.y,
         dist: reachable ? round(best) : null,
-        reachable,
-        value: reachable ? round(valueOf(BASE_REMOTE, rt)) : 0,
+        reachable, reserved: reservedByOther,
+        value: reachable ? round(valueOf(BASE_REMOTE, best * 2) * factor) : 0,
       });
     }
   }
   const remoteValue = remotes.reduce((a, s) => a + s.value, 0);
+  const skValue = skRemotes.reduce((a, s) => a + s.value, 0);
 
   const mineralBonus = home.mineral ? (MINERAL_BONUS[home.mineral.t] || 6) : 0;
-  const safety = -enemyNeighbours * ENEMY_NEIGHBOUR_PENALTY;
-  const total = round(homeValue + remoteValue + mineralBonus + safety);
+  const choke = chokeBonus(home.g);
+  const highwayBonus = highwayAccess ? HIGHWAY_ACCESS_BONUS : 0;
+  const safety = -enemyPenalty;
+  const total = round(homeValue + remoteValue + skValue + mineralBonus + choke + highwayBonus + safety);
 
   return {
     room: nm,
     total,
     homeValue: round(homeValue),
     remoteValue: round(remoteValue),
+    skValue: round(skValue),
     mineralBonus,
+    chokeBonus: round(choke),
+    highwayBonus,
     mineral: home.mineral?.t || null,
     enemyNeighbours,
+    enemyPenalty: round(enemyPenalty),
+    nearestEnemyRcl,
+    reservedNeighbours,
+    highwayAccess,
+    skNeighbours,
     homeSources: homeSrc.map((s) => ({ x: s.x, y: s.y, dist: s.dist, value: s.value })),
     remoteSources: remotes.sort((a, b) => b.value - a.value),
+    skRemotes: skRemotes.sort((a, b) => b.value - a.value),
   };
 }
 const round = (n, p = 1) => (isFinite(n) ? Math.round(n * 10 ** p) / 10 ** p : null);
@@ -240,15 +322,18 @@ async function main() {
   }
   out.sort((a, b) => (b.total ?? -1e9) - (a.total ?? -1e9));
 
-  console.log("room      TOTAL   home   remote  mineral  enemies  | homeSrc(dist)         topRemote(dist)");
+  console.log("room      TOTAL   home   remote  sk     choke  hw   mineral  enemy(rcl)  | SK-neigh / topRemote(dist)");
   for (const r of out) {
     if (r.error) { console.log(`${r.room.padEnd(8)}  ERROR: ${r.error}`); continue; }
-    const hs = r.homeSources.map((s) => `${s.dist}`).join(",");
     const reach = r.remoteSources.filter((s) => s.reachable);
     const cut = r.remoteSources.length - reach.length;
-    const tr = reach.slice(0, 4).map((s) => `${s.room}:${s.dist}`).join(" ") + (cut ? `  (+${cut} walled-off)` : "");
+    const sk = r.skNeighbours.length ? `SK:${r.skNeighbours.join(",")}  ` : "";
+    const tr = reach.slice(0, 3).map((s) => `${s.room}:${s.dist}`).join(" ") + (cut ? `  (+${cut} walled)` : "");
+    const enemy = `${r.enemyNeighbours}${r.nearestEnemyRcl != null ? `(L${r.nearestEnemyRcl})` : ""}`;
     console.log(
-      `${r.room.padEnd(8)}  ${String(r.total).padEnd(6)}  ${String(r.homeValue).padEnd(5)}  ${String(r.remoteValue).padEnd(6)}  ${String(r.mineral || "-").padEnd(7)}  ${String(r.enemyNeighbours).padEnd(7)}  | ${hs.padEnd(20)}  ${tr}`,
+      `${r.room.padEnd(8)}  ${String(r.total).padEnd(6)}  ${String(r.homeValue).padEnd(5)}  ${String(r.remoteValue).padEnd(6)}  ` +
+      `${String(r.skValue).padEnd(5)}  ${String(r.chokeBonus).padEnd(5)}  ${String(r.highwayBonus).padEnd(3)}  ` +
+      `${String(r.mineral || "-").padEnd(7)}  ${enemy.padEnd(10)}  | ${sk}${tr}`,
     );
   }
   mkdirSync(dirname(OUT), { recursive: true });
