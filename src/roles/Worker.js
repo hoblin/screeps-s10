@@ -28,7 +28,9 @@ export class Worker extends Role {
     const working = Role.updateWorkingState(creep);
 
     if (!working) {
-      Role.gatherEnergy(creep, colony);
+      // this.gatherEnergy (not Role.gatherEnergy) so the Worker's own
+      // gatherMovementPriority is honoured if it ever overrides it.
+      this.gatherEnergy(creep, colony);
       return;
     }
 
