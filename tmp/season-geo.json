@@ -1,0 +1,150 @@
+{
+  "shard": "shardSeason",
+  "at": "2026-06-03T02:41:10.050Z",
+  "rooms": [
+    {
+      "room": "W24S3",
+      "sources": 2,
+      "reachableSources": 2,
+      "avgSrcToController": 11.5,
+      "maxSrcToController": 21,
+      "sourceSpread": 19,
+      "mineralDist": null,
+      "mineral": "U",
+      "openRatioNearController": 0.87,
+      "geoScore": 83.9
+    },
+    {
+      "room": "W24N7",
+      "sources": 2,
+      "reachableSources": 2,
+      "avgSrcToController": 19.5,
+      "maxSrcToController": 28,
+      "sourceSpread": 17,
+      "mineralDist": 6,
+      "mineral": "H",
+      "openRatioNearController": 0.91,
+      "geoScore": 69.8
+    },
+    {
+      "room": "W27N13",
+      "sources": 2,
+      "reachableSources": 2,
+      "avgSrcToController": 31.5,
+      "maxSrcToController": 33,
+      "sourceSpread": 10,
+      "mineralDist": null,
+      "mineral": "X",
+      "openRatioNearController": 0.88,
+      "geoScore": 50.8
+    },
+    {
+      "room": "W27N15",
+      "sources": 2,
+      "reachableSources": 1,
+      "avgSrcToController": 13,
+      "maxSrcToController": 13,
+      "sourceSpread": 37,
+      "mineralDist": 20,
+      "mineral": "K",
+      "openRatioNearController": 0.71,
+      "geoScore": 47.1
+    },
+    {
+      "room": "W26N13",
+      "sources": 2,
+      "reachableSources": 1,
+      "avgSrcToController": 81,
+      "maxSrcToController": 81,
+      "sourceSpread": 59,
+      "mineralDist": null,
+      "mineral": "K",
+      "openRatioNearController": 0.43,
+      "geoScore": -101.1
+    },
+    {
+      "room": "W25N23",
+      "sources": 2,
+      "reachableSources": 1,
+      "avgSrcToController": 34,
+      "maxSrcToController": 34,
+      "sourceSpread": null,
+      "mineralDist": 22,
+      "mineral": "Z",
+      "openRatioNearController": 0.84,
+      "geoScore": null
+    },
+    {
+      "room": "W27N14",
+      "sources": 2,
+      "reachableSources": 0,
+      "avgSrcToController": null,
+      "maxSrcToController": null,
+      "sourceSpread": null,
+      "mineralDist": null,
+      "mineral": "K",
+      "openRatioNearController": 0.32,
+      "geoScore": null
+    },
+    {
+      "room": "W24S17",
+      "sources": 2,
+      "reachableSources": 1,
+      "avgSrcToController": 22,
+      "maxSrcToController": 22,
+      "sourceSpread": null,
+      "mineralDist": null,
+      "mineral": "K",
+      "openRatioNearController": 0.51,
+      "geoScore": null
+    },
+    {
+      "room": "W25S27",
+      "sources": 2,
+      "reachableSources": 1,
+      "avgSrcToController": 13,
+      "maxSrcToController": 13,
+      "sourceSpread": null,
+      "mineralDist": null,
+      "mineral": "Z",
+      "openRatioNearController": 0.52,
+      "geoScore": null
+    },
+    {
+      "room": "W26N23",
+      "sources": 2,
+      "reachableSources": 0,
+      "avgSrcToController": null,
+      "maxSrcToController": null,
+      "sourceSpread": null,
+      "mineralDist": 6,
+      "mineral": "O",
+      "openRatioNearController": 0.55,
+      "geoScore": null
+    },
+    {
+      "room": "W27N24",
+      "sources": 2,
+      "reachableSources": 1,
+      "avgSrcToController": 87,
+      "maxSrcToController": 87,
+      "sourceSpread": null,
+      "mineralDist": null,
+      "mineral": "O",
+      "openRatioNearController": 0.73,
+      "geoScore": null
+    },
+    {
+      "room": "W27S5",
+      "sources": 2,
+      "reachableSources": 0,
+      "avgSrcToController": null,
+      "maxSrcToController": null,
+      "sourceSpread": null,
+      "mineralDist": null,
+      "mineral": "Z",
+      "openRatioNearController": 0.84,
+      "geoScore": null
+    }
+  ]
+}

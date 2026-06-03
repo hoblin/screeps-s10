@@ -1,0 +1,6531 @@
+{
+  "shard": "shardSeason",
+  "scannedAt": "2026-06-03T02:37:14.134Z",
+  "candidates": [
+    {
+      "room": "W24N7",
+      "score": 25,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 17,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24S3",
+      "score": 24,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 16,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25N23",
+      "score": 24,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 16,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26N13",
+      "score": 24,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 16,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27N15",
+      "score": 24,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 16,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27N14",
+      "score": 24,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 16,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24S17",
+      "score": 23,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 15,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25S27",
+      "score": 23,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 15,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26N23",
+      "score": 23,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 15,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27N13",
+      "score": 23,
+      "ownSources": 2,
+      "mineral": "X",
+      "nbSources": 15,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27N24",
+      "score": 23,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 15,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27S5",
+      "score": 23,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 15,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S25",
+      "score": 22,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 14,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25N13",
+      "score": 22,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 17,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25N8",
+      "score": 22,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 14,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25S17",
+      "score": 22,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 17,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25S3",
+      "score": 22,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 17,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27S17",
+      "score": 22,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 14,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S26",
+      "score": 21,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 13,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24N8",
+      "score": 21,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 13,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25N27",
+      "score": 21,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 18,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W27N3",
+      "score": 21,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 13,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27S22",
+      "score": 21,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 13,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27S6",
+      "score": 21,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 16,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28N15",
+      "score": 21,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 13,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28S17",
+      "score": 21,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 13,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28S22",
+      "score": 21,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 13,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W16S12",
+      "score": 21,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 13,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23N4",
+      "score": 20,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 12,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23N5",
+      "score": 20,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 15,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24N27",
+      "score": 20,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 12,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24S18",
+      "score": 20,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 12,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24S27",
+      "score": 20,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 15,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24S8",
+      "score": 20,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 15,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24S7",
+      "score": 20,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 17,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W25N7",
+      "score": 20,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 17,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W25S8",
+      "score": 20,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 12,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25S7",
+      "score": 20,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 17,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W26S17",
+      "score": 20,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 15,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26S3",
+      "score": 20,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 15,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27N12",
+      "score": 20,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 12,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27N23",
+      "score": 20,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 15,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28N2",
+      "score": 20,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 12,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28N23",
+      "score": 20,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 12,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28N24",
+      "score": 20,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 12,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28S12",
+      "score": 20,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 12,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W16S13",
+      "score": 20,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 12,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17S16",
+      "score": 20,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 12,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23N6",
+      "score": 19,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 11,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S24",
+      "score": 19,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 14,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S4",
+      "score": 19,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 11,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24S13",
+      "score": 19,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 14,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24S23",
+      "score": 19,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 16,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W25N17",
+      "score": 19,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 16,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W25N18",
+      "score": 19,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 14,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25S2",
+      "score": 19,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 11,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26N12",
+      "score": 19,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 11,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26S12",
+      "score": 19,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 11,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26S2",
+      "score": 19,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 11,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26S7",
+      "score": 19,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 16,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W27N4",
+      "score": 19,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 16,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W27S12",
+      "score": 19,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 14,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27S16",
+      "score": 19,
+      "ownSources": 2,
+      "mineral": "X",
+      "nbSources": 16,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W27S4",
+      "score": 19,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 14,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28N14",
+      "score": 19,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 14,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28S13",
+      "score": 19,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 11,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28S5",
+      "score": 19,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 11,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17N15",
+      "score": 19,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 11,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25N9",
+      "score": 18.5,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23N3",
+      "score": 18,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 13,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23N7",
+      "score": 18,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 10,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S17",
+      "score": 18,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 10,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S14",
+      "score": 18,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 10,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S15",
+      "score": 18,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 13,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S3",
+      "score": 18,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 10,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24S2",
+      "score": 18,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 13,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26N3",
+      "score": 18,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 15,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W27S26",
+      "score": 18,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 13,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28N13",
+      "score": 18,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 13,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28N12",
+      "score": 18,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 10,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28N3",
+      "score": 18,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 13,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28S18",
+      "score": 18,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 13,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28S6",
+      "score": 18,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 13,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W16S23",
+      "score": 18,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 13,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17S13",
+      "score": 18,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 10,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N13",
+      "score": 18,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 10,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25N19",
+      "score": 17.5,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27S11",
+      "score": 17.5,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27S21",
+      "score": 17.5,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S18",
+      "score": 17,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S8",
+      "score": 17,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24N13",
+      "score": 17,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24N23",
+      "score": 17,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 12,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24N3",
+      "score": 17,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 14,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W24S28",
+      "score": 17,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 12,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25N3",
+      "score": 17,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 17,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W26N27",
+      "score": 17,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 14,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W26N8",
+      "score": 17,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 12,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26S18",
+      "score": 17,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27N16",
+      "score": 17,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 17,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W27N2",
+      "score": 17,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 12,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27S2",
+      "score": 17,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27S3",
+      "score": 17,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 12,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28S24",
+      "score": 17,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 14,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W28S26",
+      "score": 17,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 12,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28S4",
+      "score": 17,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 12,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S24",
+      "score": 17,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S23",
+      "score": 17,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S25",
+      "score": 17,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17S12",
+      "score": 17,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17S15",
+      "score": 17,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 12,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17S24",
+      "score": 17,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N14",
+      "score": 17,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25S1",
+      "score": 16.5,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26N9",
+      "score": 16.5,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26S11",
+      "score": 16.5,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S16",
+      "score": 16,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 11,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S27",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24N9",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25N12",
+      "score": 16,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 11,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25S12",
+      "score": 16,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 11,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25S13",
+      "score": 16,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 16,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W25S18",
+      "score": 16,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 11,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25S23",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 18,
+      "nbEnemies": 2,
+      "respawn": true
+    },
+    {
+      "room": "W25S28",
+      "score": 16,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 11,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26S13",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 13,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W26S22",
+      "score": 16,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 16,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W27S18",
+      "score": 16,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 11,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27S7",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 13,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W28N22",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 13,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W28N8",
+      "score": 16,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 11,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28S16",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 13,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W28S2",
+      "score": 16,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 11,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28S23",
+      "score": 16,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 16,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W28S25",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 13,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W28S28",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 13,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W29N15",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29N16",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29N18",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29N2",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29N23",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S12",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S13",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S18",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S17",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S26",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S28",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S27",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W16S21",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17N12",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17N13",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17N6",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "X",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17S17",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 13,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W17S14",
+      "score": 16,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 11,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N12",
+      "score": 16,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 11,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N15",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N22",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N6",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E18N2",
+      "score": 16,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24S9",
+      "score": 15.5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25S29",
+      "score": 15.5,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25S9",
+      "score": 15.5,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26S1",
+      "score": 15.5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28N9",
+      "score": 15.5,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28S21",
+      "score": 15.5,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W16S11",
+      "score": 15.5,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S13",
+      "score": 15,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 10,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S2",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S6",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 12,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W25N22",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 12,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W25N28",
+      "score": 15,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 10,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26N28",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26S23",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 17,
+      "nbEnemies": 2,
+      "respawn": true
+    },
+    {
+      "room": "W26S28",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 12,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W26S27",
+      "score": 15,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 15,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W27N8",
+      "score": 15,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 10,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28N7",
+      "score": 15,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 10,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28S3",
+      "score": 15,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 10,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28S8",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 12,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W29N14",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29N3",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29N8",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S22",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S6",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S5",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W16S22",
+      "score": 15,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 10,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17N16",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 12,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W17N14",
+      "score": 15,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 10,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17N17",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "X",
+      "nbSources": 12,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W17N26",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N11",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W15N17",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "X",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W15S13",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E5N7",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E14N12",
+      "score": 15,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24S1",
+      "score": 14.5,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24S19",
+      "score": 14.5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27N11",
+      "score": 14.5,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28N1",
+      "score": 14.5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28S11",
+      "score": 14.5,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17N19",
+      "score": 14.5,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23N2",
+      "score": 14,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S19",
+      "score": 14,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S7",
+      "score": 14,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 11,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W24N18",
+      "score": 14,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24N22",
+      "score": 14,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24S12",
+      "score": 14,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26N7",
+      "score": 14,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 14,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W26S8",
+      "score": 14,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 14,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W27N22",
+      "score": 14,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 14,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W27S13",
+      "score": 14,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 14,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W28N16",
+      "score": 14,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 14,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W29N1",
+      "score": 14,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29N17",
+      "score": 14,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29N24",
+      "score": 14,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29N7",
+      "score": 14,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S29",
+      "score": 14,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S9",
+      "score": 14,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17N7",
+      "score": 14,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 11,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W17S8",
+      "score": 14,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N26",
+      "score": 14,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W22S25",
+      "score": 14,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W15S22",
+      "score": 14,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W16N18",
+      "score": 14,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E2N3",
+      "score": 14,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E17N3",
+      "score": 14,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 9,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S9",
+      "score": 13.5,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24S29",
+      "score": 13.5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25S11",
+      "score": 13.5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25S19",
+      "score": 13.5,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26N11",
+      "score": 13.5,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26S21",
+      "score": 13.5,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 9,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W27N1",
+      "score": 13.5,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27N9",
+      "score": 13.5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27S1",
+      "score": 13.5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28N11",
+      "score": 13.5,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28S1",
+      "score": 13.5,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28S19",
+      "score": 13.5,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W15S21",
+      "score": 13.5,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23N8",
+      "score": 13,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S12",
+      "score": 13,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S5",
+      "score": 13,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 13,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W24N19",
+      "score": 13,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24N21",
+      "score": 13,
+      "ownSources": 2,
+      "mineral": "X",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24N28",
+      "score": 13,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26N2",
+      "score": 13,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 13,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W26N22",
+      "score": 13,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 13,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W27S23",
+      "score": 13,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 15,
+      "nbEnemies": 2,
+      "respawn": true
+    },
+    {
+      "room": "W27S27",
+      "score": 13,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 13,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W28N5",
+      "score": 13,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 10,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W28N4",
+      "score": 13,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 13,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W28S27",
+      "score": 13,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 13,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W29S19",
+      "score": 13,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S3",
+      "score": 13,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S4",
+      "score": 13,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S8",
+      "score": 13,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17S2",
+      "score": 13,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17S23",
+      "score": 13,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17S25",
+      "score": 13,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 13,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W17S7",
+      "score": 13,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N21",
+      "score": 13,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N23",
+      "score": 13,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18S7",
+      "score": 13,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W19N12",
+      "score": 13,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W22S7",
+      "score": 13,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23N26",
+      "score": 13,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W13S16",
+      "score": 13,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 8,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W14N17",
+      "score": 13,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W14S7",
+      "score": 13,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W3S16",
+      "score": 13,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W6N17",
+      "score": 13,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E18N3",
+      "score": 13,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E23S5",
+      "score": 13,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24S11",
+      "score": 12.5,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25N1",
+      "score": 12.5,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 8,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W25N11",
+      "score": 12.5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26N19",
+      "score": 12.5,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 8,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W26S19",
+      "score": 12.5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27N21",
+      "score": 12.5,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 8,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W27S19",
+      "score": 12.5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27S29",
+      "score": 12.5,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 8,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W28N19",
+      "score": 12.5,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 8,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W28N21",
+      "score": 12.5,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 8,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W28S9",
+      "score": 12.5,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 8,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W19N23",
+      "score": 12.5,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W11N3",
+      "score": 12.5,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23N1",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S23",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 12,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W23S22",
+      "score": 12,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 9,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W23S28",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S29",
+      "score": 12,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24N2",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 12,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W25S22",
+      "score": 12,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 14,
+      "nbEnemies": 2,
+      "respawn": true
+    },
+    {
+      "room": "W26N18",
+      "score": 12,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 14,
+      "nbEnemies": 2,
+      "respawn": true
+    },
+    {
+      "room": "W27N25",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 17,
+      "nbEnemies": 2,
+      "respawn": true
+    },
+    {
+      "room": "W27N28",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27S15",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 17,
+      "nbEnemies": 2,
+      "respawn": true
+    },
+    {
+      "room": "W27S25",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 17,
+      "nbEnemies": 2,
+      "respawn": true
+    },
+    {
+      "room": "W28N25",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 12,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W28N28",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W28S7",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 12,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W29N13",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29N19",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29N28",
+      "score": 12,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29N6",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29N4",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S1",
+      "score": 12,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S2",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S7",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17N1",
+      "score": 12,
+      "ownSources": 2,
+      "mineral": "X",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17N18",
+      "score": 12,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 9,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W17N22",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17N25",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17N5",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17S11",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N2",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N24",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N25",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N5",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N7",
+      "score": 12,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 9,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W22N2",
+      "score": 12,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W22N4",
+      "score": 12,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W14S17",
+      "score": 12,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W15S11",
+      "score": 12,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W16N27",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W16N8",
+      "score": 12,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W16S2",
+      "score": 12,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W3S14",
+      "score": 12,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E1N3",
+      "score": 12,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E2N4",
+      "score": 12,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E4N7",
+      "score": 12,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 7,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E19N3",
+      "score": 12,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E27N12",
+      "score": 12,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24N1",
+      "score": 11.5,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 7,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W26N1",
+      "score": 11.5,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 7,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W27N19",
+      "score": 11.5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 10,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W28S29",
+      "score": 11.5,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 10,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W17N21",
+      "score": 11.5,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W11N2",
+      "score": 11.5,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E1S25",
+      "score": 11.5,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E1S26",
+      "score": 11.5,
+      "ownSources": 2,
+      "mineral": "X",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E14S29",
+      "score": 11.5,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E28N11",
+      "score": 11.5,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24N12",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24N17",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 11,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W28N17",
+      "score": 11,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 13,
+      "nbEnemies": 2,
+      "respawn": true
+    },
+    {
+      "room": "W28N18",
+      "score": 11,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 13,
+      "nbEnemies": 2,
+      "respawn": true
+    },
+    {
+      "room": "W28N27",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 11,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W28N6",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 11,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W28S14",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 11,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W29N12",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29N5",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29N9",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S11",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29S21",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W16S29",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17N11",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17N2",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17N23",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17N8",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 11,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W17S1",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17S22",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17S3",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17S29",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N1",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N19",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18S17",
+      "score": 11,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 8,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W22S23",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W12N4",
+      "score": 11,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W12S16",
+      "score": 11,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W13S15",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W15N27",
+      "score": 11,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W15S8",
+      "score": 11,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W3N4",
+      "score": 11,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W6S23",
+      "score": 11,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E4N23",
+      "score": 11,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E11N9",
+      "score": 11,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E13N13",
+      "score": 11,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E15S28",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E16S27",
+      "score": 11,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E18N1",
+      "score": 11,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E22S16",
+      "score": 11,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E24N13",
+      "score": 11,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E26S3",
+      "score": 11,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 6,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S11",
+      "score": 10.5,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26S29",
+      "score": 10.5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 9,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W18S1",
+      "score": 10.5,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W16S9",
+      "score": 10.5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E1S18",
+      "score": 10.5,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E13N11",
+      "score": 10.5,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E19N19",
+      "score": 10.5,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S1",
+      "score": 10,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27N7",
+      "score": 10,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 10,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W27S14",
+      "score": 10,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 15,
+      "nbEnemies": 2,
+      "respawn": true
+    },
+    {
+      "room": "W29N11",
+      "score": 10,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W29N22",
+      "score": 10,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 10,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W29N25",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "X",
+      "nbSources": 7,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W29N27",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 7,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W16S17",
+      "score": 10,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 10,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W16S28",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 7,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W17N24",
+      "score": 10,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17N3",
+      "score": 10,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17N4",
+      "score": 10,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17S21",
+      "score": 10,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17S28",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 7,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W17S4",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17S6",
+      "score": 10,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N16",
+      "score": 10,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 10,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W18N3",
+      "score": 10,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N4",
+      "score": 10,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18S18",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 7,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W21S8",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W22S22",
+      "score": 10,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23N17",
+      "score": 10,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23N23",
+      "score": 10,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W13N16",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W15N18",
+      "score": 10,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W4S13",
+      "score": 10,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 5,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W7S24",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W8N15",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W8S8",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W8S9",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E2S17",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E3N2",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E3N7",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E6N22",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E7N21",
+      "score": 10,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E7S28",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E8S25",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E9N19",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E12S14",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E13S17",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E15N13",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E16N22",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E17S27",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E18N18",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E21S28",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E23S11",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E23S15",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E23S4",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E29S16",
+      "score": 10,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W25N21",
+      "score": 9.5,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 8,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W26S9",
+      "score": 9.5,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 8,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W27S9",
+      "score": 9.5,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 8,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W12N19",
+      "score": 9.5,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E8N21",
+      "score": 9.5,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E9S28",
+      "score": 9.5,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E17N11",
+      "score": 9.5,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E27N9",
+      "score": 9.5,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24N11",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W26N17",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 16,
+      "nbEnemies": 3,
+      "respawn": true
+    },
+    {
+      "room": "W27N26",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 14,
+      "nbEnemies": 2,
+      "respawn": true
+    },
+    {
+      "room": "W27N6",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 14,
+      "nbEnemies": 2,
+      "respawn": true
+    },
+    {
+      "room": "W29S16",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 9,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W17N27",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 9,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W17S9",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N18",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 9,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W22S14",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W11S25",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W15N28",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W4S17",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W5S17",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W7N16",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W8S15",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E2S26",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E2S5",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W2S3",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W3N15",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E4S27",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E7N1",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E7N4",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E8N3",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E8S11",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E8S23",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E8S29",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E8S7",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "X",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E9N5",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "X",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E9S24",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E11N23",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E11S1",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E11S17",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E12S18",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E14S18",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E15N8",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E16N2",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E17S1",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E18S25",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E18S5",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E19N1",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E21N7",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E22N6",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E26N22",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E26N8",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E27N7",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E27S14",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E28S18",
+      "score": 9,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E29S17",
+      "score": 9,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 4,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W19S9",
+      "score": 8.5,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W21N23",
+      "score": 8.5,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W21S2",
+      "score": 8.5,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W21S27",
+      "score": 8.5,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W7S19",
+      "score": 8.5,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W8S21",
+      "score": 8.5,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W9N9",
+      "score": 8.5,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W9S18",
+      "score": 8.5,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W9S29",
+      "score": 8.5,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E1N12",
+      "score": 8.5,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E3N11",
+      "score": 8.5,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E15S29",
+      "score": 8.5,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E19S24",
+      "score": 8.5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E21S29",
+      "score": 8.5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E23N11",
+      "score": 8.5,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E26S19",
+      "score": 8.5,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E28N1",
+      "score": 8.5,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E28N19",
+      "score": 8.5,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W27N27",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 13,
+      "nbEnemies": 2,
+      "respawn": true
+    },
+    {
+      "room": "W29N26",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 8,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W29S14",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 8,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W16S19",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 4,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W16S18",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 8,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W17N9",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 7,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W17S19",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 7,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W17S26",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "X",
+      "nbSources": 10,
+      "nbEnemies": 2,
+      "respawn": true
+    },
+    {
+      "room": "W17S5",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W18N27",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 8,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W18N9",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 4,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W21S16",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W21S24",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W22N19",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W22N28",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W11N5",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W13S3",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W14N27",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W3S26",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W4N7",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W4S3",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W5S22",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W7N14",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W7N8",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W8N11",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W8S27",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "X",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W9N25",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W9S11",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E1N26",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E2S15",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W1N21",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W1N5",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E4S23",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E6S1",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E6S3",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E6S29",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E7N13",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E9N2",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E9N3",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E9S15",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E9S13",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E12N13",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E12N23",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E12N28",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E12S13",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E12S9",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "X",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E13S14",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E14N21",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E15N22",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E17N13",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E17S9",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E18N5",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E19N7",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E19S7",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E21N23",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E21S17",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E22S28",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E22S26",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E22S9",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E25N3",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E28N28",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E28S14",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E29N23",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E29N8",
+      "score": 8,
+      "ownSources": 2,
+      "mineral": "U",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E29S15",
+      "score": 8,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 3,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W19N1",
+      "score": 7.5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W19S1",
+      "score": 7.5,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W21S9",
+      "score": 7.5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W11S16",
+      "score": 7.5,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W12N1",
+      "score": 7.5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E5N21",
+      "score": 7.5,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E8N19",
+      "score": 7.5,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E9S8",
+      "score": 7.5,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E15N11",
+      "score": 7.5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E19S5",
+      "score": 7.5,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E26N11",
+      "score": 7.5,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E27N21",
+      "score": 7.5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W23S21",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 6,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W29S15",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 7,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W21N2",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W11N18",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W11N8",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W12N9",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W6N18",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W9S15",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E2N8",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E2S6",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W1S3",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W2N15",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W2N26",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W2S17",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E5S28",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E7S11",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E9S26",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E12N8",
+      "score": 7,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 4,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "E13N22",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E14S19",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E14S27",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E15S19",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E17N21",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E17S2",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E18N11",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E22N5",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E23N6",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E24S11",
+      "score": 7,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 4,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "E26N13",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E29N11",
+      "score": 7,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 2,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W5S11",
+      "score": 6.5,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W6N1",
+      "score": 6.5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W6S21",
+      "score": 6.5,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W1N1",
+      "score": 6.5,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E3N21",
+      "score": 6.5,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E19S13",
+      "score": 6.5,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E19S23",
+      "score": 6.5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E21N22",
+      "score": 6.5,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 3,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "E24S21",
+      "score": 6.5,
+      "ownSources": 2,
+      "mineral": "K",
+      "nbSources": 3,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W17S27",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 11,
+      "nbEnemies": 2,
+      "respawn": true
+    },
+    {
+      "room": "W21N15",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W22N15",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W11S27",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W11S9",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W13N8",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W14N2",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W15N1",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W4N1",
+      "score": 6,
+      "ownSources": 2,
+      "mineral": "X",
+      "nbSources": 2,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W5N27",
+      "score": 6,
+      "ownSources": 2,
+      "mineral": "O",
+      "nbSources": 3,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W6S12",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W7N2",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W7N25",
+      "score": 6,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 3,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W8N13",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E2N22",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W2N27",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W2S1",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W3N25",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E4S18",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E5S17",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E9S4",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E11N12",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E11S4",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E18S14",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E22S18",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E29N15",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E29N16",
+      "score": 6,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 1,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W24S21",
+      "score": 5.5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 9,
+      "nbEnemies": 2,
+      "respawn": true
+    },
+    {
+      "room": "W21N9",
+      "score": 5.5,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W11S7",
+      "score": 5.5,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W13S29",
+      "score": 5.5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W7S29",
+      "score": 5.5,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W1N3",
+      "score": 5.5,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E9N27",
+      "score": 5.5,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E13S29",
+      "score": 5.5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 5,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "E17N9",
+      "score": 5.5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E19N21",
+      "score": 5.5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E19S21",
+      "score": 5.5,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E21N25",
+      "score": 5.5,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E21N9",
+      "score": 5.5,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W17N28",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 5,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W19S12",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W19S3",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W21N11",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W11S14",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W12S22",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W12S5",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W13N14",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W13N25",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W14N12",
+      "score": 5,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 2,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W3S28",
+      "score": 5,
+      "ownSources": 2,
+      "mineral": "L",
+      "nbSources": 2,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W4N11",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W5N13",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W5N21",
+      "score": 5,
+      "ownSources": 2,
+      "mineral": "X",
+      "nbSources": 2,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "W6S2",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W8N22",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W8N28",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W9N17",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E3S13",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E3S21",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W1N11",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W1S11",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "W3N13",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E3N26",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E3S2",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E6S13",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E6S19",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E7S15",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E7S9",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E8N7",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E8S18",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E11N21",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E12N15",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E13N6",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E15S3",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E16S13",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E17S19",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E18S17",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E21N12",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E23S24",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E23N2",
+      "score": 5,
+      "ownSources": 2,
+      "mineral": "Z",
+      "nbSources": 2,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "E26S17",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E26S28",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E27S24",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "X",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E28S29",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E29N25",
+      "score": 5,
+      "ownSources": 1,
+      "mineral": "L",
+      "nbSources": 0,
+      "nbEnemies": 0,
+      "respawn": true
+    },
+    {
+      "room": "E12S29",
+      "score": 4,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 4,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "E14N9",
+      "score": 4,
+      "ownSources": 1,
+      "mineral": "H",
+      "nbSources": 4,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "E25S22",
+      "score": 4,
+      "ownSources": 1,
+      "mineral": "K",
+      "nbSources": 4,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "E11S28",
+      "score": 3.5,
+      "ownSources": 1,
+      "mineral": "Z",
+      "nbSources": 3,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "E13S27",
+      "score": 3,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 3,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "E16S23",
+      "score": 2,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 2,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "E23N22",
+      "score": 2,
+      "ownSources": 1,
+      "mineral": "U",
+      "nbSources": 2,
+      "nbEnemies": 1,
+      "respawn": true
+    },
+    {
+      "room": "E24S13",
+      "score": 2,
+      "ownSources": 1,
+      "mineral": "O",
+      "nbSources": 2,
+      "nbEnemies": 1,
+      "respawn": true
+    }
+  ]
+}
