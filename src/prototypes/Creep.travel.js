@@ -64,11 +64,20 @@ const unpackY = (n) => n % 50;
 // (resolver shoves) only when creeps block every route. Returns the findPathTo
 // array (steps after the current tile), possibly empty (already in range).
 function computePath(creep, targetPos, pathOpts) {
-  let path = creep.pos.findPathTo(targetPos, { ...pathOpts, ignoreCreeps: false });
-  if (path.length === 0) {
-    path = creep.pos.findPathTo(targetPos, { ...pathOpts, ignoreCreeps: true });
+  // Prefer routing AROUND creeps — but only if that path actually REACHES the
+  // target. When the target is ringed by creeps there's no way around, and
+  // findPathTo returns a PARTIAL path to the closest reachable tile (a stub that
+  // dead-ends, often pointing away). Committing to that stub makes the creep hop
+  // between detour tiles every tick (#66). So if the around-path doesn't reach,
+  // go straight THROUGH (always reaches, ignoring creeps) and let the resolver
+  // shove. Completeness is checked by the path's end distance, not emptiness.
+  const around = creep.pos.findPathTo(targetPos, { ...pathOpts, ignoreCreeps: false });
+  if (around.length > 0) {
+    const end = around[around.length - 1];
+    const cheb = Math.max(Math.abs(end.x - targetPos.x), Math.abs(end.y - targetPos.y));
+    if (cheb <= Math.max(pathOpts.range, 1)) return around;
   }
-  return path;
+  return creep.pos.findPathTo(targetPos, { ...pathOpts, ignoreCreeps: true });
 }
 
 Creep.prototype.travelTo = function (target, opts = {}) {
