@@ -30,7 +30,7 @@ const SHARD = String(arg("shard", "shardSeason"));
 const RANGE = parseInt(arg("range", "35"), 10);
 const CONC = parseInt(arg("conc", "2"), 10);
 const OWNERS = arg("owners", false) === true;
-const TOKEN = proces…KEN;
+const TOKEN = process.env.SCREEPS_TOKEN;
 if (!TOKEN) { console.error("SCREEPS_TOKEN not set"); process.exit(1); }
 
 let backoff = 0; // consecutive 429s
