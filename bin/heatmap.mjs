@@ -250,9 +250,15 @@ function encodePng(width, height, rgb /* Buffer width*height*3 */) {
 }
 
 function renderPng() {
-  const BLK = 10;        // pixels per room
-  const LEG = 26;        // legend strip height
-  const LEG_PAD = 4;     // blank padding above/below the legend gradient
+  // Pixel scale: everything (block size, markers, legend) multiplies by SCALE so
+  // the map stays legible when zoomed. At SCALE=5 a room is a 50px block and the
+  // 3px corner markers become 15px dots — readable, not crapinki on a 620px grid.
+  const SCALE = 5;
+  const BLK = 10 * SCALE;   // pixels per room
+  const MK = 3 * SCALE;     // corner marker size (SK/invader/portal/mineral)
+  const TK = 2 * SCALE;     // source-count tick width; height stays thin
+  const LEG = 26 * SCALE;   // legend strip height
+  const LEG_PAD = 4 * SCALE; // blank padding above/below the legend gradient
   const W = NCOL * BLK;
   const H = NROW * BLK + LEG;
   const img = Buffer.alloc(W * H * 3);
@@ -280,12 +286,12 @@ function renderPng() {
   const markers = (cx, cy, nm) => {
     const f = feat.get(nm);
     if (!f) return;
-    if (f.keeper_lairs > 0) dot(cx, cy, 0, 0, 3, 3, M_SK);        // top-left = SK
-    if (f.invader_core) dot(cx, cy, 0, 0, 3, 3, M_INV);          // top-left = invader
-    if (f.portal) dot(cx, cy, BLK - 3, 0, 3, 3, M_PORTAL);       // top-right = portal
-    if (f.mineral) dot(cx, cy, BLK - 3, BLK - 3, 3, 3, M_MIN);   // bottom-right = mineral
-    const n = Math.min(f.sources || 0, 3);                       // bottom edge = source count
-    for (let i = 0; i < n; i++) dot(cx, cy, 1 + i * 3, BLK - 2, 2, 1, M_SRC);
+    if (f.keeper_lairs > 0) dot(cx, cy, 0, 0, MK, MK, M_SK);          // top-left = SK
+    if (f.invader_core) dot(cx, cy, 0, 0, MK, MK, M_INV);            // top-left = invader
+    if (f.portal) dot(cx, cy, BLK - MK, 0, MK, MK, M_PORTAL);        // top-right = portal
+    if (f.mineral) dot(cx, cy, BLK - MK, BLK - MK, MK, MK, M_MIN);   // bottom-right = mineral
+    const n = Math.min(f.sources || 0, 3);                           // bottom edge = source count
+    for (let i = 0; i < n; i++) dot(cx, cy, SCALE + i * (TK + SCALE), BLK - TK, TK, SCALE, M_SRC);
   };
 
   for (let r = 0; r < NROW; r++) {
