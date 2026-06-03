@@ -133,7 +133,9 @@ Creep.prototype.travelTo = function (target, opts = {}) {
   cache.last = here;
   cache.lastTick = Game.time;
 
-  const idx = cache.path.indexOf(here); // 0 right after a (re)compute
+  // After a (re)compute, `here` is path[0]; otherwise reuse the index we already
+  // found (avoids a second linear scan of the path each tick).
+  const idx = stale ? 0 : onPath;
   const nextPacked = cache.path[idx + 1];
   const nextPos = new RoomPosition(unpackX(nextPacked), unpackY(nextPacked), this.room.name);
   const priority = opts.priority ?? roleClass(this.memory.role).movementPriority;
