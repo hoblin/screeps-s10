@@ -127,15 +127,19 @@ export class TrafficManager {
       // depends on this mover's stack, so a creep that fails for one mover may
       // still move for another — sharing `failed` would wrongly deny that. Per
       // mover keeps each search complete; total work stays O(creeps²).
-      this.findRoute(creep, {
-        terrain,
-        occupantByPos,
-        movementMap,
-        assignedDest,
-        assign,
-        stack: new Set(),
-        failed: new Set(),
-      });
+      this.findRoute(
+        creep,
+        {
+          terrain,
+          occupantByPos,
+          movementMap,
+          assignedDest,
+          assign,
+          stack: new Set(),
+          failed: new Set(),
+        },
+        true // root mover: advance on its own intent or stay put (no sidestep)
+      );
     }
 
     // Commit: move each creep that ended up assigned a tile other than its own.
@@ -160,18 +164,21 @@ export class TrafficManager {
   //     targets (a creep from a dead sibling branch is not part of the active
   //     chain, so claiming its tile would strand it). This caps one search at
   //     O(creeps); per-mover sets keep it correct (see the resolve loop).
-  findRoute(creep, ctx) {
+  // `root` = this is a mover advancing on its OWN intent (not a creep being
+  // pushed out of someone's way). A root mover may only take its wanted tile or
+  // stay put — see candidateTiles.
+  findRoute(creep, ctx, root = false) {
     if (ctx.failed.has(creep.name)) return false;
     ctx.stack.add(creep.name);
-    const placed = this.searchCandidates(creep, ctx);
+    const placed = this.searchCandidates(creep, ctx, root);
     ctx.stack.delete(creep.name);
     if (!placed) ctx.failed.add(creep.name);
     return placed;
   }
 
   // Try each candidate tile in preference order; assign the first that works.
-  searchCandidates(creep, ctx) {
-    for (const pos of this.candidateTiles(creep, ctx)) {
+  searchCandidates(creep, ctx, root) {
+    for (const pos of this.candidateTiles(creep, ctx, root)) {
       const key = coordKey(pos.x, pos.y);
       if (ctx.movementMap.has(key)) continue; // tile already claimed this resolve
 
@@ -207,11 +214,18 @@ export class TrafficManager {
     return false;
   }
 
-  // Tiles `creep` is willing to occupy, in preference order. A mover prefers its
-  // requested next tile, then any walkable neighbour (so it can still be nudged
-  // aside if something more important needs that exact tile). An anchored creep
-  // offers nothing — it cannot be shoved.
-  candidateTiles(creep, ctx) {
+  // Tiles `creep` is willing to occupy, in preference order. Every creep prefers
+  // its requested next tile (`wanted`). An anchored creep offers nothing — it
+  // cannot be shoved.
+  //
+  // The neighbour tiles are offered ONLY when the creep is being PUSHED out of a
+  // higher-priority creep's way (root === false). A ROOT mover — one advancing on
+  // its own intent — must NOT sidestep to a neighbour: if it can't get `wanted`
+  // (push chain failed), it stays put and lets the stuck-counter in travelTo
+  // re-route it. Sidestepping is exactly the blocked-creep "dance" (#64): the
+  // creep shuffles to a neighbour, ends up off its path, repaths, and bounces
+  // back next tick.
+  candidateTiles(creep, ctx, root) {
     if (this.isAnchored(creep)) return [];
 
     const tiles = [];
@@ -221,6 +235,8 @@ export class TrafficManager {
     // (it would change rooms). `wanted` comes from a maxRooms:1 path so this is
     // belt-and-braces, but it keeps the invariant symmetric and explicit.
     if (wanted && this.isInteriorTile(wanted.x, wanted.y)) tiles.push(wanted);
+
+    if (root) return tiles; // advance or stay — no sidestep
 
     for (const pos of this.walkableNeighbours(creep.pos, ctx.terrain)) {
       if (wanted && pos.x === wanted.x && pos.y === wanted.y) continue;
