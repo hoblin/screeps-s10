@@ -49,10 +49,11 @@ export class Worker extends Role {
       }
     }
 
-    // 2. Build construction sites. Roads come last (below extensions and
-    //    containers, above repair — issue #14): they're a throughput nicety,
-    //    while extensions/containers gate energy capacity, so finish the
-    //    structural sites before paving. Within a tier, concentrate effort (#33).
+    // 2. Build construction sites. Containers first (#72), then the rest of the
+    //    structural sites (extensions/tower/storage), then roads (#14, above
+    //    repair): containers gate hauling and let the colony feed its
+    //    extensions, roads are a throughput nicety. Within a tier, concentrate
+    //    effort (#33).
     const sites = creep.room.find(FIND_MY_CONSTRUCTION_SITES);
     if (sites.length) {
       const site = Worker.selectBuildTarget(creep, sites);
@@ -80,17 +81,28 @@ export class Worker extends Role {
     }
   }
 
-  // Pick the next construction site. Tier first — structural sites
-  // (extensions/containers) before roads (#14) — then CONCENTRATE within the
+  // Pick the next construction site. Tier first, then CONCENTRATE within the
   // tier (#33): build the most-advanced site so it finishes (and yields its
   // capability) first. Sites tied near the lead fall back to nearest, so a
   // fresh batch (all at 0) behaves like the old nearest-first with no cross-base
   // detours. The rule is self-reinforcing: whichever site first pulls a real
   // lead becomes the magnet that draws every worker until it completes.
+  //
+  // Three tiers in priority order: containers > other structural > roads.
+  // Containers turn walking into hauling — a static miner deposits instead of
+  // dropping on the ground, a hauler feeds the upgrader — and once a
+  // container+hauler is running the haulers fill the extensions, so extensions
+  // finish FASTER when containers come first (#72). Extensions before containers
+  // just adds capacity the colony can't yet feed. Roads stay last (#14): a
+  // throughput nicety, while containers/extensions gate energy flow.
   static selectBuildTarget(creep, sites) {
     const epsilon = BUILD_POWER * 10;
-    const nonRoad = sites.filter((s) => s.structureType !== STRUCTURE_ROAD);
-    const pool = nonRoad.length ? nonRoad : sites;
+    const containers = sites.filter((s) => s.structureType === STRUCTURE_CONTAINER);
+    const roads = sites.filter((s) => s.structureType === STRUCTURE_ROAD);
+    const structural = sites.filter(
+      (s) => s.structureType !== STRUCTURE_CONTAINER && s.structureType !== STRUCTURE_ROAD,
+    );
+    const pool = containers.length ? containers : structural.length ? structural : roads;
     const maxProgress = Math.max(...pool.map((s) => s.progress));
     const leaders = pool.filter((s) => s.progress >= maxProgress - epsilon);
     return creep.pos.findClosestByPath(leaders);
