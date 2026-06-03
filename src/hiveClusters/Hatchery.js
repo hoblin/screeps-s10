@@ -3,6 +3,7 @@ import { ExtensionPlanner } from "../lib/ExtensionPlanner.js";
 import { RoadPlanner } from "../lib/RoadPlanner.js";
 import { stageAtLeast } from "../lib/Stages.js";
 import { log } from "../lib/Logger.js";
+import { Hauler } from "../roles/Hauler.js";
 
 // How often (ticks) to run the road backlog. Roads aren't urgent and the layout
 // is cached, so a periodic sweep keeps steady-state CPU flat (no per-tick look()
@@ -145,28 +146,43 @@ export class Hatchery extends HiveCluster {
   }
 
   // Where a source leg ends: the source's container (the hauler's load tile) if
-  // its structure OR site exists yet, else the source itself.
+  // its structure OR site exists yet, else the source itself. The source
+  // container hugs the source, so range 1 finds it.
   sourceRoadEndpoint(source) {
-    return this.containerEndpoint(source.pos, source.pos);
+    return this.containerEndpoint(source.pos, source.pos, 1);
   }
 
   // Where the controller leg ends: the controller container (the hauler's
   // delivery / upgrader parking tile) if its structure OR site exists yet, else
-  // the controller.
+  // the controller. Unlike a source container, this one sits TWO tiles short of
+  // the controller (ContainerPlanner.controllerContainerTile), so we search
+  // range 3 and exclude source containers — matching how Hauler identifies it.
+  // Without the wider range the endpoint would never settle, the road layout
+  // would never cache, and the road would keep targeting the controller tile
+  // instead of the real drop-off.
   controllerRoadEndpoint() {
     const ctrl = this.colony.controller;
-    return this.containerEndpoint(ctrl.pos, ctrl.pos);
+    return this.containerEndpoint(
+      ctrl.pos,
+      ctrl.pos,
+      3,
+      (s) => !Hauler.isSourceContainer(s, this.colony)
+    );
   }
 
-  // A road endpoint that prefers the container hugging `anchorPos` (built
-  // structure first, then its construction site) and falls back to `fallbackPos`.
-  // Returns { pos, settled }: settled flags that the container exists, so the
-  // route through this endpoint is its final hot path and safe to cache.
-  containerEndpoint(anchorPos, fallbackPos) {
-    const isContainer = (s) => s.structureType === STRUCTURE_CONTAINER;
-    const built = anchorPos.findInRange(FIND_STRUCTURES, 1, { filter: isContainer })[0];
+  // A road endpoint that prefers the container near `anchorPos` (built structure
+  // first, then its construction site) within `range`, optionally narrowed by
+  // `extraFilter`, and falls back to `fallbackPos`. Returns { pos, settled }:
+  // settled flags that the container exists, so the route through this endpoint
+  // is its final hot path and safe to cache.
+  containerEndpoint(anchorPos, fallbackPos, range, extraFilter = null) {
+    const isContainer = (s) =>
+      s.structureType === STRUCTURE_CONTAINER && (!extraFilter || extraFilter(s));
+    const built = anchorPos.findInRange(FIND_STRUCTURES, range, {
+      filter: isContainer,
+    })[0];
     if (built) return { pos: built.pos, settled: true };
-    const site = anchorPos.findInRange(FIND_CONSTRUCTION_SITES, 1, {
+    const site = anchorPos.findInRange(FIND_CONSTRUCTION_SITES, range, {
       filter: isContainer,
     })[0];
     if (site) return { pos: site.pos, settled: true };

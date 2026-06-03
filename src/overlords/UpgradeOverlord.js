@@ -8,12 +8,15 @@ import { ContainerPlanner } from "../lib/ContainerPlanner.js";
 // ============================================================================
 //  UpgradeOverlord — keeps the room controller leveling.
 //
-//  It also owns the CONTROLLER CONTAINER: a container hugging the controller
-//  that haulers keep filled, so upgraders park beside it and pull energy from
-//  one tile away instead of walking all the way back to a source container each
-//  cycle (the round-trip walk is pure idle time). This mirrors how a
-//  MiningOverlord owns its source container — same ContainerPlanner geometry,
-//  inverted: there the miner fills the container, here the hauler does.
+//  It also owns the CONTROLLER CONTAINER: a container two tiles short of the
+//  controller (on the source->controller approach) that haulers keep filled, so
+//  upgraders park on/beside it — withdrawing at range 1 and upgrading at range 3
+//  — instead of walking all the way back to a source container each cycle (the
+//  round-trip walk is pure idle time). The hauler drops off at the edge of the
+//  upgrader cluster, not its centre. This mirrors how a MiningOverlord owns its
+//  source container — shared ContainerPlanner geometry, inverted: there the miner
+//  fills the container, here the hauler does (and the source case hugs its
+//  anchor, this one offsets).
 //
 //  Planning is gated on the 2b:Hauling stage: a source container is finished, so
 //  haulers exist to keep this one stocked. Before that, upgraders self-serve.
@@ -73,12 +76,13 @@ export class UpgradeOverlord extends Overlord {
     Memory.colonyData[this.colony.name].controllerContainerPos = value;
   }
 
-  // Walkable controller-adjacent tile nearest (by path) to the hauler's origin,
-  // so the hauler round-trip that fills this container is as short as possible.
+  // Two tiles short of the controller on the hauler's approach (NOT hugging it):
+  // the hauler drops off before entering the upgrader cluster, and upgraders
+  // still pull from range — see ContainerPlanner.controllerContainerTile.
   computeControllerContainerPosition() {
     const controller = this.colony.controller;
     if (!controller) return { position: null, reachedByPath: false };
-    return ContainerPlanner.bestContainerTile(
+    return ContainerPlanner.controllerContainerTile(
       this.room,
       controller.pos,
       this.haulerAnchor().pos

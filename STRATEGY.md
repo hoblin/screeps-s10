@@ -61,12 +61,15 @@ the current stage AND whether we're `READY` for the next one.
 - `LogisticsOverlord` + `Hauler` role: container → spawn/extensions → tower →
   controller-container → storage. Activates ONLY on the trigger above; before it,
   workers self-serve and 0 haulers spawn.
-- **Controller container:** `UpgradeOverlord` plans a container hugging the
-  controller (shared `ContainerPlanner` geometry with the source containers) and
-  keeps its site alive. Haulers fill it (deliver priority 3); upgraders park
-  beside it and pull from range 1 — the static-miner trick, inverted, turning the
-  upgrader into a near-zero-walk static upgrader. The RCL-5 controller link later
-  replaces hauler delivery to this same parking spot (link→link, zero hauling).
+- **Controller container:** `UpgradeOverlord` plans a container **two tiles short
+  of the controller** on the source→controller approach (shared `ContainerPlanner`
+  geometry — the source case hugs its anchor, this one offsets so the hauler drops
+  off at the edge of the upgrader cluster, not its centre) and keeps its site
+  alive. Haulers fill it (deliver priority 3); upgraders park on/beside it,
+  withdrawing at range 1 and upgrading the controller at range 3 — the
+  static-miner trick, inverted, turning the upgrader into a near-zero-walk static
+  upgrader. The RCL-5 controller link later replaces hauler delivery to this same
+  parking spot (link→link, zero hauling).
 - **Roads on hot paths:** the `Hatchery` (base anchor) plans roads along each
   source↔spawn and spawn↔controller route via the shared `RoadPlanner`, after
   extensions so the layout weaves through the final base shape. Roads halve move
