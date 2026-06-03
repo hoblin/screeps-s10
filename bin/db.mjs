@@ -21,6 +21,45 @@ import { DatabaseSync } from "node:sqlite";
 
 export const DB_PATH = new URL("../tmp/season.db", import.meta.url).pathname;
 
+// Current room-scan schema version. Bump when fetchRoom starts capturing new
+// object fields; rooms with a lower `scan_v` (or NULL, the pre-versioned v1
+// scan) lack those columns and must be re-crawled (`collect.mjs --rescan`).
+export const SCAN_V = 2;
+
+// v2 columns — richer scout data added on top of the original v1 room facts.
+// All nullable so a v1 DB upgrades in place: ALTER ADD COLUMN backfills NULLs,
+// and analytics treats NULL as "unknown / not rescanned" rather than "absent".
+const V2_COLUMNS = [
+  ["keeper_lairs",          "INTEGER"], // count of Source-Keeper lairs (>0 => SK room)
+  ["keeper_lairs_json",     "TEXT"],    // [[x,y],...]
+  ["extractor",             "INTEGER"], // 1 if a mineral extractor is built
+  ["invader_core",          "INTEGER"], // 1 if an NPC invader core is present
+  ["invader_core_level",    "INTEGER"], // stronghold level 0..5
+  ["controller_level",      "INTEGER"], // RCL 0..8 (0 = unowned)
+  ["controller_owner",      "TEXT"],    // owner user id (username via ownership)
+  ["controller_owner_name", "TEXT"],    // owner username if the objects payload carried it
+  ["reservation_owner",     "TEXT"],    // reserver user id, or NULL
+  ["reservation_owner_name","TEXT"],    // reserver username if known
+  ["reservation_end",       "INTEGER"], // reservation end tick
+  ["safe_mode",             "INTEGER"], // safeMode end tick (0/NULL = inactive)
+  ["mineral_density",       "INTEGER"], // 1..4
+  ["portal",                "INTEGER"], // 1 if a portal is present
+  ["portal_json",           "TEXT"],    // [{x,y,dest}]
+  ["deposit",               "INTEGER"], // 1 if a highway deposit is present
+  ["deposit_type",          "TEXT"],    // mist|biomass|metal|silicon
+  ["power_bank",            "INTEGER"], // 1 if a power bank is present
+  ["scan_v",                "INTEGER"], // scan schema version (see SCAN_V)
+];
+
+// Ordered column list backing the data-driven upsert. fetchRoom produces an
+// object whose keys match these column names exactly, so writes stay a flat
+// map with no per-column plumbing as the schema grows.
+const ROOM_COLUMNS = [
+  "name", "sx", "sy", "status", "sources", "sources_json", "mineral",
+  "mineral_xy", "controller", "controller_xy", "terrain", "scanned_at",
+  ...V2_COLUMNS.map(([c]) => c),
+];
+
 export function openDb(path = DB_PATH) {
   const db = new DatabaseSync(path);
   db.exec(`
@@ -67,7 +106,17 @@ export function openDb(path = DB_PATH) {
     db.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS rooms_rtree USING rtree(
       id, minX, maxX, minY, maxY );`);
   } catch { /* rtree unavailable -> rely on idx_rooms_xy */ }
+  migrateRooms(db);
   return db;
+}
+
+// Add any missing v2 columns to an existing rooms table. SQLite has no
+// "ADD COLUMN IF NOT EXISTS", so we diff against PRAGMA table_info and ALTER in
+// the gaps. Idempotent: a v2 DB is a no-op, a v1 DB gains NULL-filled columns.
+function migrateRooms(db) {
+  const have = new Set(db.prepare(`PRAGMA table_info(rooms)`).all().map((c) => c.name));
+  for (const [col, type] of V2_COLUMNS)
+    if (!have.has(col)) db.exec(`ALTER TABLE rooms ADD COLUMN ${col} ${type}`);
 }
 
 // ---- terrain ---------------------------------------------------------------
@@ -82,15 +131,25 @@ export function parseTerrain(str) {
 }
 
 // ---- offline room loader ---------------------------------------------------
-//  Returns the SAME shape region-score's live fetchRoom produces, read purely
-//  from the SQLite mirror. Returns null if the room is not yet collected (no
-//  terrain row) so callers can fall back to the API.
+//  Returns a decoded room read purely from the SQLite mirror. Returns null if
+//  the room is not yet collected (no terrain row) so callers can fall back to
+//  the API. The v2 fields are NULL for rooms scanned before the schema bump
+//  (or never rescanned) — callers treat NULL/undefined as "unknown".
 //
-//    { g, sources:[{x,y}], controller:{x,y}|null, mineral:{x,y,t}|null, owner }
+//    { g, sources:[{x,y}], controller:{x,y,level,owner}|null,
+//      mineral:{x,y,t,density}|null, owner,
+//      keeperLairs:[{x,y}], extractor, invaderCore:{level}|null,
+//      reservation:{owner,end}|null, safeMode, portals:[{x,y,dest}],
+//      deposit:{type}|null, powerBank, scanV }
 //
 export function loadRoom(db, name) {
   const row = db.prepare(`
-    SELECT sources_json, mineral, mineral_xy, controller, controller_xy, terrain
+    SELECT sources_json, mineral, mineral_xy, mineral_density,
+           controller, controller_xy, controller_level, controller_owner,
+           controller_owner_name, reservation_owner, reservation_owner_name,
+           reservation_end, safe_mode, keeper_lairs, keeper_lairs_json,
+           extractor, invader_core, invader_core_level, portal, portal_json,
+           deposit, deposit_type, power_bank, scan_v, terrain
       FROM rooms WHERE name = ? AND terrain IS NOT NULL
   `).get(name);
   if (!row) return null;
@@ -101,18 +160,39 @@ export function loadRoom(db, name) {
   let controller = null;
   if (row.controller && row.controller_xy) {
     const [x, y] = row.controller_xy.split(",").map(Number);
-    controller = { x, y };
+    controller = { x, y, level: row.controller_level ?? null, owner: row.controller_owner ?? null };
   }
   let mineral = null;
   if (row.mineral && row.mineral_xy) {
     const [x, y] = row.mineral_xy.split(",").map(Number);
-    mineral = { x, y, t: row.mineral };
+    mineral = { x, y, t: row.mineral, density: row.mineral_density ?? null };
   }
-  // ownership is mutable and refreshed separately; absent until --owners runs.
-  const own = db.prepare(`SELECT owner FROM ownership WHERE name = ?`).get(name);
-  const owner = own?.owner ?? null;
+  const keeperLairs = JSON.parse(row.keeper_lairs_json || "[]").map(([x, y]) => ({ x, y }));
+  const reservation = row.reservation_owner
+    ? { owner: row.reservation_owner, name: row.reservation_owner_name ?? null, end: row.reservation_end ?? null }
+    : null;
+  const invaderCore = row.invader_core ? { level: row.invader_core_level ?? 0 } : null;
+  const portals = JSON.parse(row.portal_json || "[]");
+  const deposit = row.deposit ? { type: row.deposit_type ?? null } : null;
 
-  return { g, sources, controller, mineral, owner };
+  // ownership is mutable and refreshed separately; absent until --owners runs.
+  // The room-objects scan also captures the controller owner inline; prefer the
+  // ownership table (fresher) but fall back to the scanned controller owner.
+  const own = db.prepare(`SELECT owner FROM ownership WHERE name = ?`).get(name);
+  const owner = own?.owner ?? row.controller_owner ?? null;
+
+  return {
+    g, sources, controller, mineral, owner,
+    keeperLairs,
+    extractor: !!row.extractor,
+    invaderCore,
+    reservation,
+    safeMode: row.safe_mode ?? null,
+    portals,
+    deposit,
+    powerBank: !!row.power_bank,
+    scanV: row.scan_v ?? 1,
+  };
 }
 
 // ---- room name <-> signed coords ------------------------------------------
@@ -129,23 +209,21 @@ export function roomName(sx, sy) {
   return `${ew}${ns}`;
 }
 
+// Data-driven upsert over ROOM_COLUMNS: fetchRoom hands us an object keyed by
+// column name, so adding scout fields means extending V2_COLUMNS only — the
+// SQL and value mapping follow automatically. ON CONFLICT updates every column
+// except the primary key; normal collection never re-touches a scanned room
+// (it only fetches gaps), so a v2 scan can't be clobbered by a stale v1 row.
+const UPSERT_SQL = `INSERT INTO rooms (${ROOM_COLUMNS.join(",")})
+  VALUES (${ROOM_COLUMNS.map(() => "?").join(",")})
+  ON CONFLICT(name) DO UPDATE SET
+    ${ROOM_COLUMNS.filter((c) => c !== "name").map((c) => `${c}=excluded.${c}`).join(", ")}`;
+
 export function upsertRoom(db, r) {
-  db.prepare(`
-    INSERT INTO rooms (name,sx,sy,status,sources,sources_json,mineral,mineral_xy,
-                       controller,controller_xy,terrain,scanned_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-    ON CONFLICT(name) DO UPDATE SET
-      status=excluded.status, sources=excluded.sources,
-      sources_json=excluded.sources_json, mineral=excluded.mineral,
-      mineral_xy=excluded.mineral_xy, controller=excluded.controller,
-      controller_xy=excluded.controller_xy, terrain=excluded.terrain,
-      scanned_at=excluded.scanned_at
-  `).run(
-    r.name, r.sx, r.sy, r.status ?? null, r.sources ?? 0,
-    r.sources_json ?? null, r.mineral ?? null, r.mineral_xy ?? null,
-    r.controller ? 1 : 0, r.controller_xy ?? null, r.terrain ?? null,
-    r.scanned_at ?? Date.now(),
-  );
+  const row = { ...r };
+  row.controller = r.controller ? 1 : 0; // store claimable-ness as 0/1
+  row.scanned_at ??= Date.now();
+  db.prepare(UPSERT_SQL).run(...ROOM_COLUMNS.map((c) => row[c] ?? null));
   // keep rtree in sync (point room => 1x1 box at sx,sy)
   try {
     const id = rtreeId(r.sx, r.sy);
