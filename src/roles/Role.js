@@ -36,13 +36,16 @@ export class Role {
   // default — a missing colony must never let the controller downgrade).
   static gatherEnergy(creep, colony) {
     // A source container is reserved for the hauler ONLY while a hauler is alive
-    // to drain it — that's who we must not out-compete. With no hauler living
-    // (pre-2b self-serve, or the #37 emergency where the whole hauler fleet has
-    // died), the pipeline is broken and survival outranks the no-racing rule:
-    // workers/upgraders may drain source containers directly, else a colony
-    // whose last hauler dies right after a spawn can't refill and spirals out.
+    // AND able to drain it — that's who we must not out-compete. A hauler still
+    // spawning can't withdraw yet, so it doesn't count: reserving on its behalf
+    // would re-lock the source container for its whole ~spawn window, starving
+    // the very #37 recovery that's trying to fund it. With no drain-capable
+    // hauler (pre-2b self-serve, or the emergency where the fleet has died) the
+    // pipeline is broken and survival outranks the no-racing rule: workers/
+    // upgraders may drain source containers directly, else a colony whose last
+    // hauler dies right after a spawn can't refill and spirals out.
     const reserveSourceContainers =
-      colony && colony.creepsWithRole("hauler").length > 0;
+      colony && colony.creepsWithRole("hauler").some((h) => !h.spawning);
 
     // 1. Dropped energy nearby
     const dropped = creep.pos.findClosestByPath(FIND_DROPPED_RESOURCES, {
@@ -83,12 +86,12 @@ export class Role {
     }
 
     // 4. Hauling is active but nothing is drainable this tick. Park beside the
-    //    nearest container and wait for it to refill. While a hauler owns the
-    //    source containers we skip them — idling on one would let us snatch
-    //    energy the instant a miner drops it, the exact starvation we're
-    //    avoiding — and wait at the controller container / storage where
-    //    delivered energy lands. In the #37 emergency (no hauler) the source
-    //    container is where energy will actually arrive, so we wait there.
+    //    nearest eligible container and wait for it to refill. While a hauler
+    //    owns the source containers we exclude them — idling on one would let us
+    //    snatch energy the instant a miner drops it, the exact starvation we're
+    //    avoiding — leaving the controller container / storage, where delivered
+    //    energy lands. In the #37 emergency (no hauler) that exclusion lifts, so
+    //    a source container becomes an eligible wait target again.
     const container = creep.pos.findClosestByPath(FIND_STRUCTURES, {
       filter: (s) =>
         (s.structureType === STRUCTURE_CONTAINER || s.structureType === STRUCTURE_STORAGE) &&
@@ -97,15 +100,18 @@ export class Role {
     if (container && !creep.pos.inRangeTo(container, 1)) creep.travelTo(container);
   }
 
-  // Is this container a SOURCE container — one a static miner sits on/fills,
-  // i.e. within range 1 of a source? The hauler is its sole legitimate consumer;
-  // every other role must steer clear so the miner → container → hauler →
-  // consumer pipeline doesn't stall. Lives on the base Role so workers,
-  // upgraders and the Hauler share one definition (Hauler.isSourceContainer
-  // resolves here via static inheritance). Returns false without a colony — pre
-  // colony there are no source containers to avoid.
+  // Is this structure a SOURCE container — a STRUCTURE_CONTAINER a static miner
+  // sits on/fills, i.e. within range 1 of a source? The hauler is its sole
+  // legitimate consumer; every other role must steer clear so the miner →
+  // container → hauler → consumer pipeline doesn't stall. The container-type
+  // guard matters: callers pass storage too (it's a valid pickup), and a storage
+  // that happens to sit beside a source is NOT a source container — only drop-
+  // mined containers are. Lives on the base Role so workers, upgraders and the
+  // Hauler share one definition (Hauler.isSourceContainer resolves here via
+  // static inheritance). Returns false without a colony — pre-colony there are
+  // no source containers to avoid.
   static isSourceContainer(container, colony) {
-    if (!colony) return false;
+    if (!colony || container.structureType !== STRUCTURE_CONTAINER) return false;
     return colony.sources.some((source) => source.pos.getRangeTo(container.pos) <= 1);
   }
 }
