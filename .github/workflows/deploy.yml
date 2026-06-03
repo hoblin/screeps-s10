@@ -24,7 +24,12 @@ jobs:
       - name: Build bundle
         run: npm run build
 
-      - name: Deploy to Screeps
+      - name: Deploy to Screeps (main / shard2)
         run: npm run deploy
+        env:
+          SCREEPS_TOKEN: ${{ secrets.SCREEPS_TOKEN }}
+
+      - name: Deploy to Screeps (season)
+        run: node deploy.mjs --branch default --server https://screeps.com/season
         env:
           SCREEPS_TOKEN: ${{ secrets.SCREEPS_TOKEN }}
