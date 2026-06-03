@@ -27,21 +27,28 @@ import { roleClass } from "../roles/index.js";
 //    priority  — movement priority for tile contention (lower wins). Defaults to
 //                the creep's Role.movementPriority; pass to override per-call
 //                (the hook a future Behavior uses to re-rank a single creep).
-//    pathOpts  — extra options forwarded to findPathTo (rarely needed).
+//    pathOpts  — extra options forwarded to findPathTo for tuning (e.g.
+//                plainCost/swampCost). Cannot override the resolver's invariants
+//                (ignoreCreeps / maxRooms) — those are locked below.
+//    visualize — draw a faint debug line to the requested tile (default true;
+//                pass false to silence it in busy rooms).
 // ============================================================================
 Creep.prototype.travelTo = function (target, opts = {}) {
   const targetPos = target.pos || target;
   if (this.pos.isEqualTo(targetPos)) return;
 
-  // One path step toward the target, creep-agnostic (traffic resolver handles
-  // creeps). An empty path means we're already as close as we can get — the
-  // caller's range check / action will handle it; we simply don't move.
-  // maxRooms:1 keeps resolution per-room (multi-room routing is out of scope).
+  // One path step toward the target. An empty path means we're already as close
+  // as we can get — the caller's range check / action handles it; we don't move.
+  // `ignoreCreeps` and `maxRooms` are spread LAST so caller pathOpts can tune
+  // costs but never break the two invariants the resolver depends on:
+  //   - ignoreCreeps: the traffic resolver, not the pathfinder, avoids creeps
+  //     (keeps paths short and stable; priority decides who yields).
+  //   - maxRooms: 1: resolution is per-room (multi-room routing is out of scope).
   const path = this.pos.findPathTo(targetPos, {
-    ignoreCreeps: true,
-    maxRooms: 1,
     range: opts.range ?? 0,
     ...opts.pathOpts,
+    ignoreCreeps: true,
+    maxRooms: 1,
   });
   if (path.length === 0) return;
 
@@ -51,8 +58,10 @@ Creep.prototype.travelTo = function (target, opts = {}) {
   TrafficManager.for(this.room).register(this, nextPos, priority);
 
   // Light debug viz: a faint line to the tile we're requesting this tick.
-  new RoomVisual(this.room.name).line(this.pos, nextPos, {
-    color: "#ffaa00",
-    opacity: 0.3,
-  });
+  if (opts.visualize !== false) {
+    new RoomVisual(this.room.name).line(this.pos, nextPos, {
+      color: "#ffaa00",
+      opacity: 0.3,
+    });
+  }
 };

@@ -48,6 +48,12 @@ export class TrafficManager {
   constructor(room) {
     this.room = room;
     this.intents = new Map(); // creepName -> { creep, target: RoomPosition, priority }
+    // coordKey -> boolean: is this tile blocked by an obstacle structure? Filled
+    // lazily during resolve and reused, so a tile checked by many overlapping
+    // shove-chains costs one lookForAt. Safe to memoize for the manager's whole
+    // life because it's tick-scoped (one manager per room per tick, structures
+    // don't move mid-tick).
+    this.obstacleCache = new Map();
   }
 
   // Get (or lazily create) the manager for a room, scoped to the current tick.
@@ -174,8 +180,9 @@ export class TrafficManager {
         ctx.assign(creep, pos);
         return true;
       }
-      // The occupant already decided to move elsewhere → its tile is freeing up.
-      // (If it were staying put, movementMap.has(key) above would be true.)
+      // The occupant has already been assigned a move (assignedDest), so it's
+      // vacating this tile — we can take it. It can't be staying here: a creep is
+      // never assigned to its own tile, so assignedDest always points elsewhere.
       if (ctx.assignedDest.has(occupant.name)) {
         ctx.assign(creep, pos);
         return true;
@@ -261,11 +268,23 @@ export class TrafficManager {
   }
 
   hasObstacleStructure(x, y) {
+    const key = coordKey(x, y);
+    const cached = this.obstacleCache.get(key);
+    if (cached !== undefined) return cached;
+
+    let blocked = false;
     for (const structure of this.room.lookForAt(LOOK_STRUCTURES, x, y)) {
-      if (OBSTACLE_OBJECT_TYPES.includes(structure.structureType)) return true;
+      if (OBSTACLE_OBJECT_TYPES.includes(structure.structureType)) {
+        blocked = true;
+        break;
+      }
       // A rampart we don't own blocks us; our own ramparts are walkable.
-      if (structure.structureType === STRUCTURE_RAMPART && !structure.my) return true;
+      if (structure.structureType === STRUCTURE_RAMPART && !structure.my) {
+        blocked = true;
+        break;
+      }
     }
-    return false;
+    this.obstacleCache.set(key, blocked);
+    return blocked;
   }
 }
