@@ -44,8 +44,9 @@ import { roleClass } from "../roles/index.js";
 //                the creep's Role.movementPriority; pass to override per-call
 //                (the hook a future Behavior uses to re-rank a single creep).
 //    pathOpts  — extra options forwarded to findPathTo for tuning (e.g.
-//                plainCost/swampCost). Cannot override maxRooms (single-room is
-//                an invariant the resolver depends on) — that's locked below.
+//                plainCost/swampCost). Cannot override ignoreCreeps or maxRooms
+//                — travelTo locks both: creep-avoidance is the resolver's job and
+//                resolution is per-room.
 //    visualize — draw the intended path as a dashed line (default true; pass
 //                false to silence it in busy rooms).
 // ============================================================================
@@ -73,7 +74,9 @@ Creep.prototype.travelTo = function (target, opts = {}) {
   // maxRooms is spread LAST so caller pathOpts can tune costs but never break the
   // per-room invariant the resolver depends on.
   const pathOpts = { range: opts.range ?? 0, ...opts.pathOpts, maxRooms: 1 };
-  const destKey = `${pack(targetPos.x, targetPos.y)}:${targetPos.roomName}`;
+  // range is part of the cache identity: the same target tile with a different
+  // stop distance is a different path.
+  const destKey = `${pack(targetPos.x, targetPos.y)}:${targetPos.roomName}:${pathOpts.range}`;
   const here = pack(this.pos.x, this.pos.y);
 
   // The cached path is packed tiles INCLUDING our start, so our current tile sits
@@ -81,13 +84,26 @@ Creep.prototype.travelTo = function (target, opts = {}) {
   let cache = this.memory._t;
   let idx = cache && cache.dest === destKey ? cache.path.indexOf(here) : -1;
 
+  // "Stuck" = we were able to move LAST tick but our position is unchanged since
+  // then — a new blocker on the cached route, so re-route around it. Guards:
+  //   - Game.time > cache.lastTick: a second travelTo in the SAME tick doesn't
+  //     count as "didn't move".
+  //   - fatigue === 0 && !spawning: merely being unable to move isn't a blocker,
+  //     so we don't burn a repath every tick of fatigue (defeating the cache).
+  const stuck =
+    cache &&
+    here === cache.last &&
+    Game.time > cache.lastTick &&
+    this.fatigue === 0 &&
+    !this.spawning;
+
   const stale =
     !cache ||
     cache.dest !== destKey || // new destination
     Game.time - cache.time >= REUSE_TICKS || // cache expired
     idx === -1 || // off-path: shoved by the resolver, or first compute
     idx + 1 >= cache.path.length || // reached the end of the route
-    here === cache.last; // didn't move since last call → blocked, re-route around
+    stuck;
 
   if (stale) {
     const path = computePath(this, targetPos, pathOpts);
@@ -105,7 +121,9 @@ Creep.prototype.travelTo = function (target, opts = {}) {
     idx = 0;
   }
 
-  cache.last = here; // remember position, to detect "didn't move" next tick
+  // Record where/when we are, to detect "didn't move since last tick" next time.
+  cache.last = here;
+  cache.lastTick = Game.time;
 
   const nextPacked = cache.path[idx + 1];
   const nextPos = new RoomPosition(unpackX(nextPacked), unpackY(nextPacked), this.room.name);
