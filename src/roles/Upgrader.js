@@ -3,9 +3,10 @@ import { Hauler } from "./Hauler.js";
 
 // Upgrader: keeps the controller leveled. Once a controller container exists (a
 // container two tiles short of the controller that haulers keep filled), it parks
-// on/beside it and pulls energy from range — never walking back to a source
-// container, and still within upgradeController range 3 of the controller.
-// Before that container is built, it falls back to the generic gather logic.
+// on/beside it — withdrawing energy at range 1 — and upgrades the controller at
+// range 3, never walking back to a source container. The dist-2 placement keeps
+// both ranges satisfied from one parking tile. Before that container is built, it
+// falls back to the generic gather logic.
 export class Upgrader extends Role {
   static run(creep, colony) {
     const working = Role.updateWorkingState(creep);

@@ -10,12 +10,13 @@ import { ContainerPlanner } from "../lib/ContainerPlanner.js";
 //
 //  It also owns the CONTROLLER CONTAINER: a container two tiles short of the
 //  controller (on the source->controller approach) that haulers keep filled, so
-//  upgraders park beside it and pull energy from range instead of walking all
-//  the way back to a source container each cycle (the round-trip walk is pure
-//  idle time). The hauler drops off at the edge of the upgrader cluster, not its
-//  centre. This mirrors how a MiningOverlord owns its source container — shared
-//  ContainerPlanner geometry, inverted: there the miner fills the container,
-//  here the hauler does (and the source case hugs its anchor, this one offsets).
+//  upgraders park on/beside it — withdrawing at range 1 and upgrading at range 3
+//  — instead of walking all the way back to a source container each cycle (the
+//  round-trip walk is pure idle time). The hauler drops off at the edge of the
+//  upgrader cluster, not its centre. This mirrors how a MiningOverlord owns its
+//  source container — shared ContainerPlanner geometry, inverted: there the miner
+//  fills the container, here the hauler does (and the source case hugs its
+//  anchor, this one offsets).
 //
 //  Planning is gated on the 2b:Hauling stage: a source container is finished, so
 //  haulers exist to keep this one stocked. Before that, upgraders self-serve.

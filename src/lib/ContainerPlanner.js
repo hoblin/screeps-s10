@@ -108,20 +108,27 @@ export const ContainerPlanner = {
   },
 
   // A tile we can drop a container on: inside the buildable interior (1..48),
-  // not a wall, and not already occupied by a blocking structure. Path tiles
-  // already route around spawns/sources, but a road may share the tile (legal)
-  // so we only reject structures that truly can't coexist with a container.
+  // not a wall, and not occupied by anything that can't coexist with a container
+  // — checking BOTH built structures AND pending construction sites (a tile may
+  // already hold a planned road site on the hot path; only one site lives per
+  // tile, so a conflicting site would silently block ours forever). Roads and
+  // ramparts share the tile fine, and an EXISTING container is allowed on
+  // purpose: if memory is reset we want to re-pick the tile the container is
+  // already on, not orphan it and build a second one elsewhere.
   isBuildableTile(room, terrain, x, y) {
     if (x < 1 || x > 48 || y < 1 || y > 48) return false;
     if (terrain.get(x, y) === TERRAIN_MASK_WALL) return false;
-    const blocked = room
+    const coexists = (type) =>
+      type === STRUCTURE_ROAD ||
+      type === STRUCTURE_RAMPART ||
+      type === STRUCTURE_CONTAINER;
+    const structureBlocks = room
       .lookForAt(LOOK_STRUCTURES, x, y)
-      .some(
-        (s) =>
-          s.structureType !== STRUCTURE_ROAD &&
-          s.structureType !== STRUCTURE_RAMPART
-      );
-    return !blocked;
+      .some((s) => !coexists(s.structureType));
+    const siteBlocks = room
+      .lookForAt(LOOK_CONSTRUCTION_SITES, x, y)
+      .some((s) => !coexists(s.structureType));
+    return !structureBlocks && !siteBlocks;
   },
 
   // Keep a container construction site alive on `position` until it's built.
