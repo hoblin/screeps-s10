@@ -4,8 +4,13 @@ Hoblin's Screeps AI for **Season 10** (10-year anniversary world, Jun 1 → Aug 
 Clean modern JS (no TypeScript), bundled with esbuild and uploaded to Screeps.
 
 ## Read these first
-- **`README.md`** — architecture overview (`Kernel → Colony → Overlord → Role`, `HiveCluster` for physical infra).
+- **`README.md`** — architecture overview (`Kernel → Colony → Overlord → Role`, `HiveCluster` for physical infra) + two-server deploy + scout pipeline.
 - **`STRATEGY.md`** — the game plan: the stage-machine doctrine ("prepare ahead, don't firefight"), per-stage triggers (Stage 1 Bootstrap → 2 StaticMining → 2b Hauling → 3 Storage&Links → 4 Industry → 5 Endgame), and the architecture roadmap. **Every gameplay/feature decision must be justified against STRATEGY.md.**
+
+**`bin/` is offline scout tooling, NOT bot runtime** — it scans the world into a
+local SQLite mirror (`tmp/season.db`) and scores spawn candidates (`region-score.mjs`,
+`heatmap.mjs`). Never bundled into `dist/main.js`. The crawler (`collect.mjs`) is
+the sole API caller; analytics is DB-only (SOLID).
 
 ## Architecture in one breath
 - `Kernel` drives the tick (CPU guard, discovers colonies). `Colony` is the per-room aggregate that wires `HiveCluster`s + `Overlord`s.
@@ -17,12 +22,23 @@ Clean modern JS (no TypeScript), bundled with esbuild and uploaded to Screeps.
 
 ## Build / deploy
 - `npm run build` — esbuild bundle → `dist/main.js`. MUST compile cleanly before any PR.
-- `npm run watch` — rebuild on change. `npm run deploy` — upload to Screeps (`deploy.mjs`).
+- `npm run watch` — rebuild on change. `npm run deploy` — upload to the MAIN server (`deploy.mjs`).
+- `deploy.mjs` POSTs the built modules directly to `${server}/api/user/code`
+  (default `--server https://screeps.com`, `--branch default`). For season:
+  `node deploy.mjs --server https://screeps.com/season`. **Do NOT switch back to
+  the screeps-api client's `code.set()`** — it caches its host and ignores the
+  `--server` override, silently deploying to main while reporting `{ok:1}`
+  (this left season empty; fixed in PR #43). A real success = `{ok:1}` AND the
+  code reads back non-empty.
 - No test framework and no real linter yet (`npm run lint` is a stub). Verify by building + reasoning through edge cases; keep functions small and pure where possible.
 - The bundle is built with esbuild `charset: "utf8"` (keeps unicode raw). Don't switch it back to ascii: esbuild's ascii output emits `\u{...}` escapes that Screeps rejects as invalid JSON on upload (learned the hard way — PR #2 set ascii, PR #3 reverted to utf8).
 
-## Deploy pipeline — ONLY master deploys
-`push to master → GitHub Actions (.github/workflows, on: push: branches:[master]) → npm run build → npm run deploy → Screeps default branch`.
+## Deploy pipeline — ONLY master deploys, to TWO servers
+`push to master → GitHub Actions (.github/workflows/deploy.yml, on: push: branches:[master]) → npm run build → deploy to the `default` branch on BOTH servers`:
+- **Main** (`https://screeps.com`, shard2 `W55S43`) via `npm run deploy`.
+- **Season** (`https://screeps.com/season`, shardSeason `E15S7`) via `node deploy.mjs --server https://screeps.com/season`.
+
+The same universal bot runs on both; one `SCREEPS_TOKEN` works for each.
 Feature branches NEVER touch the live game until their PR merges to master.
 
 ## Git flow (strict)

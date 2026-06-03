@@ -34,21 +34,70 @@ npm run watch      # rebuild on change (local dev)
 
 ## Deploy (Git Flow + GitHub Actions)
 
-- `develop` → Screeps **develop** branch (sandbox)
-- `master`  → Screeps **default** branch (prod / Season 10)
+**Single branch, single deploy.** Push to `master` → GitHub Actions builds the
+bundle and ships it to the Screeps **`default`** branch on **two servers**:
 
-Uses [`kskitek/screeps-pusher`](https://github.com/kskitek/screeps-pusher).
+| Server | URL | Where |
+|--------|-----|-------|
+| Main (MMO) | `https://screeps.com` | shard2 test bot — `W55S43` |
+| Season | `https://screeps.com/season` | Season 10 world — `shardSeason` |
+
+The **same universal bot** runs on both. `.github/workflows/deploy.yml` runs
+two steps on every master push:
+
+```yaml
+- run: npm run deploy                                            # main server
+- run: node deploy.mjs --branch default --server https://screeps.com/season
+```
+
+`deploy.mjs` POSTs the built modules straight to `${server}/api/user/code`
+(it does NOT use the screeps-api client's `code.set()`, which caches its host
+and silently ignored the `--server` override — that bug once left season
+empty while reporting `{ok:1}`). Success = server returns `{ok:1}` **and** the
+code reads back non-empty.
+
+```bash
+# manual local deploy (verifies {ok:1})
+SCREEPS_TOKEN=*** npm run deploy                                 # -> main
+SCREEPS_TOKEN=*** node deploy.mjs --server https://screeps.com/season  # -> season
+```
 
 ### One-time setup
 1. Add repo secret **`SCREEPS_TOKEN`** — a full-access auth token from
-   <https://screeps.com/a/#!/account/auth-tokens>.
-2. In Screeps, **create the `develop` and `default` branches manually**
-   (the pusher does not auto-create branches).
-3. Push to `develop` to deploy to sandbox; merge to `master` for prod.
+   <https://screeps.com/a/#!/account/auth-tokens> (one token, account `hoblin`,
+   works on both servers).
+2. The `default` branch exists by default on each server; no manual branch
+   creation needed.
+3. Push to `master` → CI deploys to both servers automatically.
+
+## Scout pipeline (`bin/`)
+
+Offline tooling to decide **which room to claim**. Scans the whole world once
+into a local SQLite mirror, then runs all analysis with zero API calls.
+
+- `scan-season.mjs` — source-count scan of the room grid.
+- `geo-season.mjs` — home-room layout geometry for candidates.
+- `collect.mjs` — resilient background crawler (gap-fills, 429 backoff); the
+  **sole owner of API access**. Mirrors terrain/sources/controller/mineral
+  into `tmp/season.db`. Run in tmux: `SCREEPS_TOKEN=*** node bin/collect.mjs --range 31`.
+- `db.mjs` — SQLite schema + `loadRoom(db,name)` + single-sourced `parseTerrain`.
+- `region-score.mjs` — full economic valuation (terrain-weighted haul cost,
+  cross-border remote mining, mineral bonus, enemy-neighbour penalty).
+  **DB-only, no API** (SOLID: crawler fills the DB, analytics is read-only).
+- `heatmap.mjs` — scores the whole grid offline, renders an ANSI heat map +
+  `tmp/season-heatmap.png`, prints the top-10 rooms.
+
+Map is a **±30 square** (`W30..E30 × N30..S30`, ~3721 game rooms). Season 10
+spawn was chosen this way: **E15S7**.
 
 ## Roadmap
-- [ ] Hauler role + container mining (decouple mine/haul)
+- [x] Hauler role + container mining (LogisticsOverlord, static mining)
+- [x] Road planning on hot paths (source↔spawn↔controller)
+- [x] Extension placement + auto-build (snowball 300→550 spawn energy)
+- [x] Defense overlord + towers (RCL3 auto-placement, attack/heal/repair)
+- [x] Season scout pipeline + offline DB analytics & heat map
 - [ ] Custom Traveler pathing in `creep.travelTo`
 - [ ] CommandCenter HiveCluster (storage/links/terminal)
-- [x] Defense overlord + towers (RCL3 auto-placement, attack/heal/repair)
-- [ ] Port logic from old `Hob-screepers` (Overlord-era reference)
+- [ ] Remote mining (reserve + harvest adjacent rooms)
+- [ ] Labs + boosts, terminal logistics (Stage 4)
+- [ ] Score collection fleet (Stage 5 — S10 win condition)
