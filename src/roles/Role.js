@@ -35,6 +35,15 @@ export class Role {
   // stage; without it we assume early game and keep the fallback (the safe
   // default — a missing colony must never let the controller downgrade).
   static gatherEnergy(creep, colony) {
+    // A source container is reserved for the hauler ONLY while a hauler is alive
+    // to drain it — that's who we must not out-compete. With no hauler living
+    // (pre-2b self-serve, or the #37 emergency where the whole hauler fleet has
+    // died), the pipeline is broken and survival outranks the no-racing rule:
+    // workers/upgraders may drain source containers directly, else a colony
+    // whose last hauler dies right after a spawn can't refill and spirals out.
+    const reserveSourceContainers =
+      colony && colony.creepsWithRole("hauler").length > 0;
+
     // 1. Dropped energy nearby
     const dropped = creep.pos.findClosestByPath(FIND_DROPPED_RESOURCES, {
       filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount >= 50,
@@ -44,17 +53,19 @@ export class Role {
       return;
     }
 
-    // 2. Containers / storage with energy — but NEVER a source container. That
-    //    one is the hauler's pickup point: a static miner fills it and the
-    //    hauler exists solely to drain it and push the energy outward. A
-    //    worker/upgrader withdrawing here competes with (and beats) the hauler,
-    //    stalling logistics. Legitimate sinks are delivered energy: the
-    //    controller container, storage, dropped piles.
+    // 2. Containers / storage with energy — but skip a source container while a
+    //    hauler owns it. That container is the hauler's pickup point: a static
+    //    miner fills it and the hauler exists solely to drain it and push the
+    //    energy outward. A worker/upgrader withdrawing here competes with (and
+    //    beats) the hauler, stalling logistics — so we leave it alone and draw
+    //    from delivered energy (controller container, storage, dropped piles).
+    //    If no hauler is alive (reserveSourceContainers false) the source
+    //    container is fair game — see the note above.
     const store = creep.pos.findClosestByPath(FIND_STRUCTURES, {
       filter: (s) =>
         (s.structureType === STRUCTURE_CONTAINER || s.structureType === STRUCTURE_STORAGE) &&
         s.store[RESOURCE_ENERGY] > 0 &&
-        !Role.isSourceContainer(s, colony),
+        !(reserveSourceContainers && Role.isSourceContainer(s, colony)),
     });
     if (store) {
       if (creep.withdraw(store, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) creep.travelTo(store);
@@ -72,15 +83,16 @@ export class Role {
     }
 
     // 4. Hauling is active but nothing is drainable this tick. Park beside the
-    //    nearest NON-source container and wait for a hauler to refill it — never
-    //    a source container (that's the hauler's pickup point; idling on it
-    //    would let us snatch the energy the instant a miner drops it, the exact
-    //    starvation we're avoiding). The controller container / storage is
-    //    where delivered energy lands, so waiting there is correct.
+    //    nearest container and wait for it to refill. While a hauler owns the
+    //    source containers we skip them — idling on one would let us snatch
+    //    energy the instant a miner drops it, the exact starvation we're
+    //    avoiding — and wait at the controller container / storage where
+    //    delivered energy lands. In the #37 emergency (no hauler) the source
+    //    container is where energy will actually arrive, so we wait there.
     const container = creep.pos.findClosestByPath(FIND_STRUCTURES, {
       filter: (s) =>
         (s.structureType === STRUCTURE_CONTAINER || s.structureType === STRUCTURE_STORAGE) &&
-        !Role.isSourceContainer(s, colony),
+        !(reserveSourceContainers && Role.isSourceContainer(s, colony)),
     });
     if (container && !creep.pos.inRangeTo(container, 1)) creep.travelTo(container);
   }
