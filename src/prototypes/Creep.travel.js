@@ -23,14 +23,17 @@ import { roleClass } from "../roles/index.js";
 //  the go-around tile. The straight-through fallback preserves the #55 ring-break
 //  (a fully-ringed target has no path around, so we go straight and shove).
 //
-//  PATH CACHING (restores moveTo's reusePath, lost when we swapped to findPathTo):
-//  the path is cached in creep.memory and reused — we just read the next tile
-//  along it each tick, no re-pathfind while the creep stays on its route. We
-//  recompute only when the target changes, the cache expires (REUSE_TICKS), the
-//  creep is OFF its path (the resolver shoved it, or a new blocker stalled it),
-//  or it reached the end. That's reusePath semantics plus one invalidation the
-//  traffic layer needs (off-path = shoved), cutting pathfinding from once-per-
-//  tick back toward once-per-~20-ticks.
+//  PATH COMMITMENT (restores moveTo's reusePath; mirrors Overmind's Movement):
+//  the path is cached in creep.memory and COMMITTED — we just read the next tile
+//  along it each tick, and we do NOT re-pathfind just because we didn't move.
+//  This is what kills the left-right "dance": a blocked creep stays on its
+//  committed path (the resolver keeps it in place — see candidateTiles' root
+//  rule) instead of recomputing a different route every tick. We repath only
+//  when: target changed, cache expired (REUSE_TICKS), we got shoved OFF the path,
+//  reached the end, or we've been STUCK past STUCK_THRESHOLD ticks — then we
+//  ESCALATE to a re-route, gated by a coin flip so two mutually-stuck creeps
+//  desync instead of re-colliding. Also cuts pathfinding ~20× vs recompute-each-
+//  tick.
 //
 //  Unlike moveTo, this returns nothing — it's purely side-effectful (registers an
 //  intent). Callers infer "did I move?" from next tick's position, never a return
@@ -51,7 +54,8 @@ import { roleClass } from "../roles/index.js";
 //                false to silence it in busy rooms).
 // ============================================================================
 
-const REUSE_TICKS = 20; // recompute a reused path at least this often (like moveTo)
+const REUSE_TICKS = 20; // recompute a committed path at least this often (like moveTo)
+const STUCK_THRESHOLD = 2; // ticks without moving before we re-route (Overmind's DEFAULT_STUCK_VALUE)
 const pack = (x, y) => x * 50 + y; // tile -> unique int (rooms are 50×50)
 const unpackX = (n) => Math.floor(n / 50);
 const unpackY = (n) => n % 50;
@@ -70,6 +74,10 @@ function computePath(creep, targetPos, pathOpts) {
 Creep.prototype.travelTo = function (target, opts = {}) {
   const targetPos = target.pos || target;
   if (this.pos.isEqualTo(targetPos)) return;
+  // Can't move this tick — don't spend a pathfind or register an intent (the
+  // resolver ignores fatigued/spawning creeps anyway). The committed path in
+  // memory is preserved untouched, so we resume it when able.
+  if (this.spawning || this.fatigue > 0) return;
 
   // maxRooms is spread LAST so caller pathOpts can tune costs but never break the
   // per-room invariant the resolver depends on.
@@ -82,28 +90,28 @@ Creep.prototype.travelTo = function (target, opts = {}) {
   // The cached path is packed tiles INCLUDING our start, so our current tile sits
   // at some index along it while we're on-route. indexOf < 0 means we're off it.
   let cache = this.memory._t;
-  let idx = cache && cache.dest === destKey ? cache.path.indexOf(here) : -1;
+  const sameDest = cache && cache.dest === destKey;
 
-  // "Stuck" = we were able to move LAST tick but our position is unchanged since
-  // then — a new blocker on the cached route, so re-route around it. Guards:
-  //   - Game.time > cache.lastTick: a second travelTo in the SAME tick doesn't
-  //     count as "didn't move".
-  //   - fatigue === 0 && !spawning: merely being unable to move isn't a blocker,
-  //     so we don't burn a repath every tick of fatigue (defeating the cache).
-  const stuck =
-    cache &&
-    here === cache.last &&
-    Game.time > cache.lastTick &&
-    this.fatigue === 0 &&
-    !this.spawning;
+  // Stuck counter (Overmind's model): count CONSECUTIVE ticks we didn't move. We
+  // commit to the cached path — we do NOT repath just because we didn't move —
+  // and only after STUCK_THRESHOLD ticks do we ESCALATE to a re-route, gated by a
+  // coin flip so two mutually-stuck creeps desync instead of re-colliding. This
+  // is what stops the left-right "dance": a blocked creep stays on its committed
+  // path (the resolver keeps it in place — see candidateTiles root rule) and
+  // patiently waits, rather than recomputing a different path every tick.
+  if (sameDest && Game.time > cache.lastTick) {
+    cache.stuck = here === cache.last ? (cache.stuck || 0) + 1 : 0;
+  }
+  const escalate =
+    sameDest && (cache.stuck || 0) >= STUCK_THRESHOLD && Math.random() < 0.5;
 
+  const onPath = sameDest ? cache.path.indexOf(here) : -1;
   const stale =
-    !cache ||
-    cache.dest !== destKey || // new destination
-    Game.time - cache.time >= REUSE_TICKS || // cache expired
-    idx === -1 || // off-path: shoved by the resolver, or first compute
-    idx + 1 >= cache.path.length || // reached the end of the route
-    stuck;
+    !sameDest || // no cache / new destination
+    Game.time - cache.time >= REUSE_TICKS || // periodic refresh
+    onPath === -1 || // shoved off our committed path → repath from here
+    onPath + 1 >= cache.path.length || // reached the end of the route
+    escalate; // stuck too long → re-route around the blocker
 
   if (stale) {
     const path = computePath(this, targetPos, pathOpts);
@@ -116,15 +124,16 @@ Creep.prototype.travelTo = function (target, opts = {}) {
       dest: destKey,
       path: [here, ...path.map((s) => pack(s.x, s.y))],
       time: Game.time,
+      stuck: 0,
     };
     this.memory._t = cache;
-    idx = 0;
   }
 
   // Record where/when we are, to detect "didn't move since last tick" next time.
   cache.last = here;
   cache.lastTick = Game.time;
 
+  const idx = cache.path.indexOf(here); // 0 right after a (re)compute
   const nextPacked = cache.path[idx + 1];
   const nextPos = new RoomPosition(unpackX(nextPacked), unpackY(nextPacked), this.room.name);
   const priority = opts.priority ?? roleClass(this.memory.role).movementPriority;
