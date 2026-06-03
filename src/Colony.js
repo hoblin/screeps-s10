@@ -78,10 +78,14 @@ export class Colony {
 
     const byId = new Map(sources.map((source) => [source.id, source]));
     const cached = Memory.colonyData?.[this.name]?.sourceOrder;
-    if (cached) {
-      const ordered = cached.map((id) => byId.get(id)).filter(Boolean);
-      // Trust the cache only while it still covers exactly the room's sources.
-      if (ordered.length === sources.length) return ordered;
+    if (Array.isArray(cached) && cached.length === sources.length) {
+      const ordered = cached.map((id) => byId.get(id));
+      // Trust the cache only when it maps 1:1 onto the room's current sources —
+      // every id resolves AND there are no duplicates. A corrupt cache (e.g.
+      // [id1, id1]) would otherwise drop a source and starve a MiningOverlord.
+      if (ordered.every(Boolean) && new Set(cached).size === sources.length) {
+        return ordered;
+      }
     }
 
     const anchor = this.spawns[0] || this.controller;
@@ -108,6 +112,10 @@ export class Colony {
   // tile itself is an obstacle — the miner stands at range 1). Infinity when the
   // source can't be reached, so unreachable sources sort last.
   pathCostTo(anchorPos, source) {
+    // Anchor already adjacent: nearest possible, and findPathTo(range:1) returns
+    // an empty path when already in range — which would otherwise read as
+    // unreachable (Infinity) and mis-sort an adjacent source last.
+    if (anchorPos.getRangeTo(source.pos) <= 1) return 0;
     const path = anchorPos.findPathTo(source.pos, { ignoreCreeps: true, range: 1 });
     const last = path[path.length - 1];
     const reaches = last && source.pos.getRangeTo(last.x, last.y) <= 1;
