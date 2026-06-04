@@ -52,18 +52,21 @@ export class Miner extends Role {
     // source directly — walk into range and harvest. This guarantees a miner is
     // never stuck doing nothing while waiting for a position.
     if (!miningPosition) {
+      this.note(creep, "mine:src-fallback");
       if (creep.harvest(source) === ERR_NOT_IN_RANGE) creep.travelTo(source);
       return;
     }
 
     // Phase 1: walk to the mining position if we're not already standing on it.
     if (!creep.pos.isEqualTo(miningPosition)) {
+      this.note(creep, "mine:to-post");
       creep.travelTo(miningPosition);
       return;
     }
 
     // Phase 2: we're parked — harvest forever. Energy drops onto the container
     // (or the ground) beneath us; haulers pick it up.
+    this.note(creep, "mine:harvest");
     creep.harvest(source);
 
     // Opportunistic top-up: if a container is right under us and the miner

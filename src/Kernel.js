@@ -3,6 +3,11 @@ import { log } from "./lib/Logger.js";
 import { Dashboard } from "./lib/Dashboard.js";
 import { TrafficManager } from "./lib/TrafficManager.js";
 
+// How many ticks of behaviour to keep per creep (#103). A capped ring buffer —
+// tiny against the 2 MB Memory cap (a few dozen creeps × a handful of small
+// entries) — that turns "why is this creep doing that?" into one get_memory read.
+const CREEP_TRACE_LEN = 5;
+
 // ============================================================================
 //  Kernel — the top-level orchestrator (think: the Rails app object).
 //  Responsibilities:
@@ -46,6 +51,10 @@ export class Kernel {
       log.error(`TrafficManager.resolveAll crashed: ${err.stack || err}`);
     }
 
+    // Behaviour trace: now that movement is resolved (positions are final), fold
+    // each creep's intent tag + final position into its rolling log (#103).
+    this.recordCreepTraces();
+
     // Telemetry: write Memory.status every tick (instant pull), log summary
     // periodically. Always run — status is cheap and most useful when starved.
     Dashboard.run(this.colonies);
@@ -59,6 +68,34 @@ export class Kernel {
       if (room.controller && room.controller.my) {
         this.colonies[name] = new Colony(room);
       }
+    }
+  }
+
+  // Append one behaviour breadcrumb per living creep to its capped rolling log
+  // (#103). Runs after TrafficManager.resolveAll so positions are the committed
+  // final tiles, not pre-move intents. Each entry pairs the creep's final
+  // position + working state with the intent tag a role stamped via Role.note
+  // this tick (cleared after, so a tick with no note() just records where it
+  // ended up). Iterates Game.creeps so remote creeps in unowned rooms — the ones
+  // hardest to debug — are covered too. Dead creeps' memory (and their logs) is
+  // reaped by cleanupMemory next tick.
+  recordCreepTraces() {
+    for (const name in Game.creeps) {
+      const creep = Game.creeps[name];
+      if (creep.spawning) continue; // not on the field yet — nothing to trace
+      const m = creep.memory;
+      const log = m.log || [];
+      log.push({
+        tick: Game.time,
+        room: creep.pos.roomName,
+        x: creep.pos.x,
+        y: creep.pos.y,
+        working: !!m.working,
+        act: m._act,
+      });
+      if (log.length > CREEP_TRACE_LEN) log.splice(0, log.length - CREEP_TRACE_LEN);
+      m.log = log;
+      m._act = undefined; // consumed — don't carry a stale tag into next tick
     }
   }
 

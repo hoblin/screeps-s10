@@ -77,12 +77,14 @@ export class Hauler extends Role {
       // that re-pick IS the oscillation. Only pick a fresh target when empty.
       if (creep.store[RESOURCE_ENERGY] > 0) {
         creep.memory.working = true;
+        this.note(creep, "haul:deliver-partial");
         return this.deliver(creep, colony);
       }
       container = this.fullestSourceContainer(creep, colony);
       creep.memory.haulTarget = container ? container.id : null;
     }
     if (container) {
+      this.note(creep, "haul:withdraw");
       if (creep.withdraw(container, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
         creep.travelTo(container);
       }
@@ -90,6 +92,7 @@ export class Hauler extends Role {
     }
 
     // Nothing to haul yet — idle near the first spawn so we're ready.
+    this.note(creep, "haul:idle");
     if (colony.spawns[0]) creep.travelTo(colony.spawns[0]);
   }
 
@@ -135,6 +138,7 @@ export class Hauler extends Role {
         s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
     });
     if (spawnOrExtension) {
+      this.note(creep, "deliver:spawn");
       if (creep.transfer(spawnOrExtension, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
         creep.travelTo(spawnOrExtension);
       }
@@ -148,6 +152,7 @@ export class Hauler extends Role {
         s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
     });
     if (tower) {
+      this.note(creep, "deliver:tower");
       if (creep.transfer(tower, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
         creep.travelTo(tower);
       }
@@ -162,6 +167,7 @@ export class Hauler extends Role {
       controllerContainer &&
       controllerContainer.store.getFreeCapacity(RESOURCE_ENERGY) > 0
     ) {
+      this.note(creep, "deliver:ctrl-container");
       if (creep.transfer(controllerContainer, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
         creep.travelTo(controllerContainer);
       }
@@ -171,6 +177,7 @@ export class Hauler extends Role {
     // 4. Storage buffer (mid-game) — park surplus there.
     const storage = colony.room.storage;
     if (storage && storage.store.getFreeCapacity(RESOURCE_ENERGY) > 0) {
+      this.note(creep, "deliver:storage");
       if (creep.transfer(storage, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
         creep.travelTo(storage);
       }
@@ -185,12 +192,14 @@ export class Hauler extends Role {
     //    pick dropped energy up.
     const anyControllerContainer = this.controllerContainer(colony);
     if (anyControllerContainer) {
+      this.note(creep, "deliver:ctrl-container-full");
       if (creep.transfer(anyControllerContainer, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
         creep.travelTo(anyControllerContainer);
       }
       return;
     }
     if (colony.controller) {
+      this.note(creep, "deliver:drop");
       if (creep.pos.inRangeTo(colony.controller, 3)) {
         creep.drop(RESOURCE_ENERGY);
       } else {
