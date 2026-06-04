@@ -96,11 +96,14 @@ function isHighway(nm) {
   return !!m && (+m[1] % 10 === 0 || +m[2] % 10 === 0);
 }
 
-// ---- terrain (this season server stores it transposed: index = x*50 + y) -----
-// VERIFIED against live object coords: sources/controller/mineral land on non-wall
-// tiles ONLY with x*50+y (y*50+x puts them inside walls — impossible). So x*50+y is
-// correct, despite the standard Screeps encoding being y*50+x.
-const idx = (x, y) => x * 50 + y;
+// ---- terrain (standard Screeps row-major: index = y*50 + x) ------------------
+// Matches the live engine's getTerrain().get(x,y), verified against the season
+// server: a real PathFinder path is wall-free only under y*50+x, and the built
+// spawn (which cannot occupy a wall) lands on a non-wall tile only under y*50+x.
+// The earlier x*50+y "fix" rested on a false premise — natural objects (controller,
+// sources, mineral) CAN sit on wall tiles, so "objects on non-walls" proved nothing.
+// See thoughts/shared/notes/2026-06-04/screeps-terrain-standard-not-transposed.md (#111).
+const idx = (x, y) => y * 50 + x;
 const isWall = (g, x, y) => x < 0 || y < 0 || x > 49 || y > 49 || (g[idx(x, y)] & 1) === 1;
 const tcost = (g, x, y) => ((g[idx(x, y)] & 2) === 2 ? 5 : 1);
 // Terrain decoding lives in db.mjs (parseTerrain) so loadRoom is the single
@@ -155,31 +158,30 @@ function requireRoom(nm) {
 }
 
 // Passable border tiles on the home edge that faces a neighbour in room-direction
-// `dir`, as [x,y]. ⚠️ This season server stores terrain TRANSPOSED (idx = x*50+y),
-// which swaps the room-adjacency axes vs. standard Screeps: the room to the W/E
-// shares our terrain N/S edge, and the room to the N/S shares our terrain W/E edge.
-// Verified empirically against live borders (E15S7.E == E15S8.W, E15S7.N == E14S7.S,
-// E15S7.S == E16S7.N). Mapping the room-direction to the STANDARD edge silently
-// walled off real remotes (E15S8 reported unreachable when it's open).
+// `dir`, as [x,y]. Standard Screeps adjacency: the room to the W/E shares our
+// x=0 / x=49 edge (same y), the room to the N/S shares our y=0 / y=49 edge (same x)
+// — confirmed against the season server's native PathFinder exit tiles (a west
+// crossing leaves home at x=0 and re-enters the neighbour at x=49, same y).
 function borderTiles(g, dir) {
   const tiles = [];
   for (let i = 1; i < 49; i++) {
     let x, y;
-    if (dir === "W") [x, y] = [i, 0]; // room W <-> our N edge (y=0)
-    else if (dir === "E") [x, y] = [i, 49]; // room E <-> our S edge (y=49)
-    else if (dir === "N") [x, y] = [0, i]; // room N <-> our W edge (x=0)
-    else [x, y] = [49, i]; // room S <-> our E edge (x=49)
+    if (dir === "W") [x, y] = [0, i]; // room W <-> our W edge (x=0)
+    else if (dir === "E") [x, y] = [49, i]; // room E <-> our E edge (x=49)
+    else if (dir === "N") [x, y] = [i, 0]; // room N <-> our N edge (y=0)
+    else [x, y] = [i, 49]; // room S <-> our S edge (y=49)
     if (!isWall(g, x, y)) tiles.push([x, y]);
   }
   return tiles;
 }
-// Map a home border tile to the shared tile in the neighbour (same transposed-axis
-// correspondence as borderTiles): the open border patterns match index-for-index.
+// Map a home border tile to the shared tile in the neighbour. Standard exit-tile
+// mechanic: a creep leaving at x=0 re-enters the west neighbour at x=49 (same y),
+// and leaving at y=0 re-enters the north neighbour at y=49 (same x).
 function mirror(dir, x, y) {
-  if (dir === "W") return [x, 49]; // home (i,0) -> neighbour (i,49)
-  if (dir === "E") return [x, 0]; // home (i,49) -> neighbour (i,0)
-  if (dir === "N") return [49, y]; // home (0,i) -> neighbour (49,i)
-  return [0, y]; // S: home (49,i) -> neighbour (0,i)
+  if (dir === "W") return [49, y]; // home (0,i) -> neighbour (49,i)
+  if (dir === "E") return [0, y]; // home (49,i) -> neighbour (0,i)
+  if (dir === "N") return [x, 49]; // home (i,0) -> neighbour (i,49)
+  return [x, 0]; // S: home (i,49) -> neighbour (i,0)
 }
 
 const valueOf = (base, d) => (isFinite(d) ? base / (1 + K * d) : 0);

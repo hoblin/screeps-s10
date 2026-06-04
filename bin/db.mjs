@@ -74,7 +74,7 @@ export function openDb(path = DB_PATH) {
       mineral_xy  TEXT,            -- "x,y" or NULL
       controller  INTEGER DEFAULT 0, -- 1 if claimable
       controller_xy TEXT,
-      terrain     TEXT,            -- 2500-char encoded blob (transposed x*50+y)
+      terrain     TEXT,            -- 2500-char encoded blob (standard row-major y*50+x)
       scanned_at  INTEGER
     );
     CREATE INDEX IF NOT EXISTS idx_rooms_xy ON rooms(sx, sy);
@@ -120,9 +120,9 @@ function migrateRooms(db) {
 }
 
 // ---- terrain ---------------------------------------------------------------
-//  Single source of truth for decoding the stored terrain blob. Season server
-//  stores it transposed: the i-th char maps to tile (x = i/50, y = i%50), i.e.
-//  index = x*50 + y. Each char is '0'..'3' (bit0 = wall, bit1 = swamp).
+//  Single source of truth for decoding the stored terrain blob. Standard Screeps
+//  row-major layout: the i-th char maps to tile (x = i%50, y = i/50), i.e.
+//  index = y*50 + x. Each char is '0'..'3' (bit0 = wall, bit1 = swamp).
 //  region-score and any heat-map consumer MUST reuse this — never re-derive.
 export function parseTerrain(str) {
   const g = new Uint8Array(2500);

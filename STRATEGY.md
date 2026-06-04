@@ -205,7 +205,8 @@ container, roads, RCL-3 tower). Economy is self-running on E15S7 (RCL 3, climbin
    better E15S8 source we currently ignore), self-built remote container.
 2. **Stage 3 infra (prepare ahead for RCL 4):** #16 Storage, then #17 Links.
 3. **Robustness bugs:** #54 emergency self-harvest, #63 workers abandon when clustered.
-4. **#97 follow-up:** audit `bin/geo-season.mjs` for the transposed-coord bug.
+4. **#111 (done):** reverted the offline tooling to standard `y*50+x` terrain +
+   standard adjacency (the "transposed-coord" belief was false); resolves #97.
 5. **Architecture:** #25 Directives layer, once a 2nd directive (defense/score) appears.
 
 ## Sources

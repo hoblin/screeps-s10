@@ -1,6 +1,6 @@
 {
   "E15S7": {
-    "generatedAt": "2026-06-04T08:00:29.966Z",
+    "generatedAt": "2026-06-04T14:56:09.633Z",
     "shard": "shardSeason",
     "home": "E15S7",
     "remotes": [
@@ -13,20 +13,20 @@
         },
         "mineral": "Z",
         "reservedByOther": false,
-        "score": 19.5,
+        "score": 23.1,
         "sources": [
           {
             "x": 27,
             "y": 29,
-            "dist": 54,
-            "value": 10.3,
+            "dist": 62,
+            "value": 9.2,
             "reachable": true
           },
           {
             "x": 3,
             "y": 42,
-            "dist": 62,
-            "value": 9.2,
+            "dist": 37,
+            "value": 13.9,
             "reachable": true
           }
         ]
@@ -40,20 +40,20 @@
         },
         "mineral": "Z",
         "reservedByOther": false,
-        "score": 14.2,
+        "score": 21.5,
         "sources": [
           {
             "x": 29,
             "y": 3,
-            "dist": 88,
-            "value": 6.8,
+            "dist": 47,
+            "value": 11.6,
             "reachable": true
           },
           {
             "x": 35,
             "y": 19,
-            "dist": 81,
-            "value": 7.4,
+            "dist": 57,
+            "value": 9.9,
             "reachable": true
           }
         ]
@@ -67,13 +67,13 @@
         },
         "mineral": "Z",
         "reservedByOther": false,
-        "score": 12,
+        "score": 17.4,
         "sources": [
           {
             "x": 11,
             "y": 7,
-            "dist": 45,
-            "value": 12,
+            "dist": 27,
+            "value": 17.4,
             "reachable": true
           }
         ]
