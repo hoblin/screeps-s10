@@ -28,7 +28,7 @@ The live bot uses game coords + native pathfinding and was never affected.
 - Container lifecycle pattern lives in `MiningOverlord` (`computeMiningPosition` / `ensureContainerSite` / `walkableTilesAround`, cached in `Memory.colonyData[colony.name]`). **Mirror or extract-and-share this pattern — don't copy-paste it.**
 
 ## Build / deploy
-- `npm run build` — esbuild bundle → `dist/main.js`. MUST compile cleanly before any PR.
+- `npm run build` — esbuild bundle → `dist/main.js`. esbuild only **bundles** (this is plain JS, not TS — no type-check), so it catches little: don't rebuild after every edit. Run it **once before opening a PR** as a bundle-sanity check (a typo'd import / syntax slip would crash the live bot, since the bundle ships straight to master→both servers). Quality comes from reading the diff + reasoning through edge cases, not from the build.
 - `npm run watch` — rebuild on change. `npm run deploy` — upload to the MAIN server (`deploy.mjs`).
 - `deploy.mjs` POSTs the built modules directly to `${server}/api/user/code`
   (default `--server https://screeps.com`, `--branch default`). For season:
@@ -37,7 +37,7 @@ The live bot uses game coords + native pathfinding and was never affected.
   `--server` override, silently deploying to main while reporting `{ok:1}`
   (this left season empty; fixed in PR #43). A real success = `{ok:1}` AND the
   code reads back non-empty.
-- No test framework and no real linter yet (`npm run lint` is a stub). Verify by building + reasoning through edge cases; keep functions small and pure where possible.
+- No test framework and no real linter yet (`npm run lint` is a stub). Verify by reasoning through edge cases (+ the one pre-PR build above); keep functions small and pure where possible.
 - The bundle is built with esbuild `charset: "utf8"` (keeps unicode raw). Don't switch it back to ascii: esbuild's ascii output emits `\u{...}` escapes that Screeps rejects as invalid JSON on upload (learned the hard way — PR #2 set ascii, PR #3 reverted to utf8).
 
 ## Deploy pipeline — ONLY master deploys, to TWO servers

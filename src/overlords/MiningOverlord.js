@@ -1,5 +1,6 @@
 import { Overlord } from "./Overlord.js";
 import { Miner } from "../roles/Miner.js";
+import { LinkedMiner } from "../roles/LinkedMiner.js";
 import { ContainerPlanner } from "../lib/ContainerPlanner.js";
 import { stageAtLeast } from "../lib/Stages.js";
 
@@ -48,10 +49,17 @@ export class MiningOverlord extends Overlord {
     return 1;
   }
 
-  // The static-miner body lives on the Miner role (its own nature, with the
-  // WORK/MOVE rationale); the overlord just asks for it.
+  // The role class to field for this source: LinkedMiner (a Miner + CARRY that feeds
+  // an adjacent source link) once that link is built, else the plain drop-mining
+  // Miner (#17). The body + behaviour both come from this one choice.
+  minerClass() {
+    return this.colony.sourceLink(this.source.id) ? LinkedMiner : Miner;
+  }
+
+  // The static-miner body lives on the role (its own nature, with the WORK/MOVE
+  // rationale); the overlord just asks the right class for it.
   bodyFor(energyBudget) {
-    return Miner.bodyFor(energyBudget);
+    return this.minerClass().bodyFor(energyBudget);
   }
 
   // --------------------------------------------------------------------------
@@ -126,7 +134,7 @@ export class MiningOverlord extends Overlord {
   }
 
   runCreep(creep) {
-    Miner.run(creep, this.colony);
+    this.minerClass().run(creep, this.colony);
   }
 
   // Called by Colony each tick. Keeps the container site alive even before any

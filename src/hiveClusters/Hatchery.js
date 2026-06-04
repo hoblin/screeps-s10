@@ -1,6 +1,5 @@
 import { HiveCluster } from "./HiveCluster.js";
 import { ExtensionPlanner } from "../lib/ExtensionPlanner.js";
-import { StoragePlanner } from "../lib/StoragePlanner.js";
 import { RoadPlanner } from "../lib/RoadPlanner.js";
 import { stageAtLeast } from "../lib/Stages.js";
 import { log } from "../lib/Logger.js";
@@ -37,10 +36,10 @@ export class Hatchery extends HiveCluster {
   }
 
   // requests: [{ priority, role, body, memory }]
+  // Storage is placed by the CommandCenter (run just before us in Colony.run), so its
+  // central tile is already claimed when the extension spiral (which skips occupied
+  // tiles) lays down around it (#16/#17).
   run(requests) {
-    // Storage before extensions: it claims its central tile first, so the extension
-    // spiral (which skips occupied tiles) flows around it (#16).
-    this.planStorage();
     this.planExtensions();
     // Roads after extensions: sampling excludes the structure-checkerboard tiles,
     // so roads land on the walkways the extension spiral leaves open (#116).
@@ -57,46 +56,6 @@ export class Hatchery extends HiveCluster {
       const role = Game.creeps[spawn.spawning.name]?.memory.role;
       this.room.visual.text(roleIcon(role), spawn.pos.x, spawn.pos.y - 0.9, { font: 0.7, opacity: 0.8 });
     }
-  }
-
-  // --------------------------------------------------------------------------
-  //  Storage placement: at RCL4 (Stage 3) place the single central Storage — the
-  //  mid-game energy buffer. Gated on the RCL structure cap exactly like extensions
-  //  and towers; once built, room.storage exists and Hauler.deliver / gatherEnergy
-  //  use it as the surplus sink + dry-container fallback with no further wiring (#16).
-  // --------------------------------------------------------------------------
-  planStorage() {
-    if (!stageAtLeast(this.colony, "3:Storage&Links")) return;
-    const rcl = this.colony.controller.level;
-    const cap = (CONTROLLER_STRUCTURES[STRUCTURE_STORAGE] || {})[rcl] || 0;
-    if (cap === 0) return; // storage not unlocked yet (RCL < 4)
-    if (this.room.storage) return; // already built — nothing to place
-    const anchor = this.spawns[0];
-    if (!anchor) return;
-    const position = this.storagePosition(anchor);
-    if (position) StoragePlanner.ensureSite(this.room, position);
-  }
-
-  // The planned storage tile, computed once via StoragePlanner and cached in colony
-  // memory (mirrors extensionLayout). Null until a central buildable tile is found.
-  storagePosition(anchor) {
-    const cached = this.storagePositionCache;
-    if (cached) return new RoomPosition(cached.x, cached.y, cached.roomName);
-    const position = StoragePlanner.planPosition(this.room, anchor.pos, this.colony.controller.pos);
-    if (position) {
-      this.storagePositionCache = { x: position.x, y: position.y, roomName: position.roomName };
-    }
-    return position;
-  }
-
-  get storagePositionCache() {
-    return Memory.colonyData?.[this.colony.name]?.storagePosition;
-  }
-
-  set storagePositionCache(value) {
-    Memory.colonyData ||= {};
-    Memory.colonyData[this.colony.name] ||= {};
-    Memory.colonyData[this.colony.name].storagePosition = value;
   }
 
   // --------------------------------------------------------------------------

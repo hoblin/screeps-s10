@@ -1,4 +1,5 @@
 import { Hatchery } from "./hiveClusters/Hatchery.js";
+import { CommandCenter } from "./hiveClusters/CommandCenter.js";
 import { MiningOverlord } from "./overlords/MiningOverlord.js";
 import { LogisticsOverlord } from "./overlords/LogisticsOverlord.js";
 import { UpgradeOverlord } from "./overlords/UpgradeOverlord.js";
@@ -42,6 +43,8 @@ export class Colony {
 
     // HiveClusters (physical infrastructure)
     this.hatchery = new Hatchery(this);
+    // Central structures: Storage (moved here from Hatchery) + the Link network (#17).
+    this.commandCenter = new CommandCenter(this);
 
     // Overlords (goal managers). Order matters for spawn priority.
     //
@@ -223,6 +226,47 @@ export class Colony {
     return this.sources.some((source) => source.pos.getRangeTo(pos) <= 1);
   }
 
+  // The CommandCenter-planned links (#17), resolved from the cached layout to live
+  // structures (null until built). The controller link is the upgrade receiver; the
+  // source links are the LinkedMiner-fed senders.
+  controllerLink() {
+    return this.linkByRole("controller");
+  }
+
+  // The built source link for a given source id (the LinkedMiner transfers into it),
+  // or null. Keyed by source so a per-source overlord/role can find its own link.
+  sourceLink(sourceId) {
+    const entry = this.linkEntries().find((e) => e.role === "source" && e.sourceId === sourceId);
+    return entry ? this.linkAt(entry) : null;
+  }
+
+  // Every built source (sender) link — the senders CommandCenter.operateLinks drains.
+  sourceLinks() {
+    return this.linkEntries()
+      .filter((e) => e.role === "source")
+      .map((e) => this.linkAt(e))
+      .filter(Boolean);
+  }
+
+  linkEntries() {
+    return Memory.colonyData?.[this.name]?.linkPositions || [];
+  }
+
+  linkByRole(role) {
+    const entry = this.linkEntries().find((e) => e.role === role);
+    return entry ? this.linkAt(entry) : null;
+  }
+
+  // The live link structure on a cached layout tile, or null if not built yet. A
+  // single-tile lookFor — cheap enough to skip per-tick memoization.
+  linkAt(entry) {
+    return (
+      new RoomPosition(entry.x, entry.y, entry.roomName)
+        .lookFor(LOOK_STRUCTURES)
+        .find((s) => s.structureType === STRUCTURE_LINK) || null
+    );
+  }
+
   // Every remote source we can mine, value-ranked best-first (#102). One flat list
   // across all safe neighbours from the static map (#88): a source qualifies if its
   // room isn't reserved by someone else and the source is reachable with a finite
@@ -268,8 +312,10 @@ export class Colony {
       }
     }
 
-    // 2. Hatchery fulfils the highest-priority spawn request.
+    // 2. CommandCenter places Storage (before the extension spiral) + operates the
+    //    link network; then the Hatchery fulfils the highest-priority spawn request.
     if (!lowBucket) {
+      this.commandCenter.run();
       this.hatchery.run(spawnRequests);
     }
   }
