@@ -43,6 +43,17 @@ export class Upgrader extends Role {
     // it role-overridable.
     const move = (target) => creep.travelTo(target, { priority: this.gatherMovementPriority });
 
+    // Controller link (#17): once the link network is live, energy teleports to the
+    // controller link (beside the parking) — withdraw from it first, zero-haul. Null
+    // until built, so this is inert before RCL5/links and falls through to the container.
+    const controllerLink = colony.controllerLink();
+    if (controllerLink && controllerLink.store[RESOURCE_ENERGY] > 0) {
+      if (creep.withdraw(controllerLink, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+        move(controllerLink);
+      }
+      return;
+    }
+
     if (controllerContainer && controllerContainer.store[RESOURCE_ENERGY] > 0) {
       if (creep.withdraw(controllerContainer, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
         move(controllerContainer);

@@ -41,7 +41,7 @@ export class Miner extends Role {
     return Math.min(SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME, workParts * HARVEST_POWER);
   }
 
-  static run(creep, _colony) {
+  static run(creep, colony) {
     const source = Game.getObjectById(creep.memory.sourceId);
     if (!source) return; // source out of vision (shouldn't happen in owned room)
 
@@ -68,10 +68,14 @@ export class Miner extends Role {
     // (or the ground) beneath us; haulers pick it up.
     this.note(creep, "mine:harvest");
     creep.harvest(source);
+    this.afterHarvest(creep, colony);
+  }
 
-    // Opportunistic top-up: if a container is right under us and the miner
-    // somehow holds energy (it won't without CARRY, but future bodies might),
-    // repair the container so it doesn't decay. Cheap insurance.
+  // Hook: what to do with the harvest beyond the auto-drop into the container under
+  // our feet. The base static miner is CARRY-less so it only keeps that container
+  // repaired when it happens to hold energy; LinkedMiner overrides this to ferry the
+  // harvest one tile into an adjacent source link (#17).
+  static afterHarvest(creep, _colony) {
     this.maybeRepairContainerUnderfoot(creep);
   }
 
