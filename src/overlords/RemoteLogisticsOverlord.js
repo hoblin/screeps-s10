@@ -13,8 +13,12 @@ import { Threat } from "../lib/Threat.js";
 //  r = a remote miner's output, d = that source's one-way haul (static map), C =
 //  hauler capacity. Demand is summed only over sources with a LIVE miner in a
 //  non-hot room — so the fleet tracks real production (it grows as miners come
-//  online, not ahead of them) and ignores contested rooms. expansionReady gates and
-//  self-throttles the whole expansion. Haulers pool across sources by need, picking
+//  online, not ahead of them) and ignores contested rooms. Sustaining this haul of
+//  already-committed production is NOT expansion (it collects a return on a remote we
+//  already paid for), so it is NOT expansionReady-gated (#131): expansionReady is the
+//  "start a NEW remote" trigger and self-throttles to false when the spawn is busy —
+//  exactly when active miners need haulers most. Demand follows the active miners; only
+//  the recovering crisis floor zeroes it. Haulers pool across sources by need, picking
 //  the fullest remote pile each trip (RemoteHauler) rather than welding to one.
 // ============================================================================
 const HAULER_SPEED = 1; // tiles/tick on roads/plains for a 1:1 CARRY:MOVE body
@@ -30,7 +34,7 @@ export class RemoteLogisticsOverlord extends Overlord {
   }
 
   desiredCount() {
-    if (!this.colony.health.expansionReady) return 0;
+    if (this.colony.health.recovering) return 0; // crisis floor only — sustaining active production isn't expansion (#131)
     const cap = this.colony.room.energyCapacityAvailable;
     const carry = Hauler.capacityAt(cap);
     if (!carry) return 0;
