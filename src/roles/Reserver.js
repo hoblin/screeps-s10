@@ -36,6 +36,7 @@ export class Reserver extends Role {
     // delegates the inter-room leg to the engine's moveTo, then resumes in-room.
     if (creep.room.name !== targetRoom) {
       const cp = creep.memory.controllerPos;
+      if (!cp) return this.retreatHome(creep, colony); // memory lost — pull home, don't crash
       creep.travelTo(new RoomPosition(cp.x, cp.y, targetRoom), { range: 1 });
       return;
     }
@@ -48,9 +49,15 @@ export class Reserver extends Role {
     }
 
     const controller = creep.room.controller;
-    if (!controller) return; // map only targets rooms with a controller
-    if (creep.reserveController(controller) === ERR_NOT_IN_RANGE) {
+    if (!controller) return this.retreatHome(creep, colony); // map only targets rooms with a controller
+    const result = creep.reserveController(controller);
+    if (result === ERR_NOT_IN_RANGE) {
       creep.travelTo(controller, { range: 1 });
+    } else if (result !== OK) {
+      // Controller became owned/invalid since the map was generated (e.g. someone
+      // claimed it), or we lack a CLAIM part — don't spam reserveController forever;
+      // pull home so the overlord can re-target when the map next updates.
+      this.retreatHome(creep, colony);
     }
   }
 
