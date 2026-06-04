@@ -87,6 +87,7 @@ export class RemoteMiningOverlord extends Overlord {
       const free = safe.find((s) => !covered.has(key(s)));
       if (free) {
         creep.memory.remoteSource = { room: free.room, x: free.x, y: free.y, dist: free.dist };
+        creep.memory.miningPos = null; // invalidate the old source's parking tile on re-home
         covered.add(key(free));
       } else if (!a || !mapKeys.has(key(a))) {
         creep.memory.remoteSource = null; // orphan/off-map → role recycles it
