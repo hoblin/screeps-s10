@@ -4,8 +4,11 @@ import { LogisticsOverlord } from "./overlords/LogisticsOverlord.js";
 import { UpgradeOverlord } from "./overlords/UpgradeOverlord.js";
 import { WorkOverlord } from "./overlords/WorkOverlord.js";
 import { ReserveOverlord } from "./overlords/ReserveOverlord.js";
+import { RemoteMiningOverlord } from "./overlords/RemoteMiningOverlord.js";
+import { RemoteLogisticsOverlord } from "./overlords/RemoteLogisticsOverlord.js";
 import { DefenseOverlord } from "./overlords/DefenseOverlord.js";
 import { RoomHealthCheck } from "./lib/RoomHealthCheck.js";
+import expansionMap from "./data/expansionMap.json";
 import { log } from "./lib/Logger.js";
 
 // ============================================================================
@@ -51,6 +54,8 @@ export class Colony {
       new LogisticsOverlord(this), // requests 0 haulers until 2b:Hauling stage
       new UpgradeOverlord(this),
       new ReserveOverlord(this), // 0 reservers until health.expansionReady (#18 C1)
+      new RemoteMiningOverlord(this), // 0 until expansionReady — mines the remote target (#18 C2)
+      new RemoteLogisticsOverlord(this), // 0 until expansionReady — hauls it home (#18 C2)
       new DefenseOverlord(this), // places + operates towers (no-op until RCL3)
     ];
   }
@@ -184,6 +189,26 @@ export class Colony {
   // A container tile is a source container iff it's adjacent to one of our sources.
   isSourceContainerTile(pos) {
     return this.sources.some((source) => source.pos.getRangeTo(pos) <= 1);
+  }
+
+  // The remote room we're expanding into: the top-ranked safe neighbour from the
+  // static map (#88) not already reserved by someone else. One target in v1, so
+  // ReserveOverlord + the remote mining/logistics overlords all act on the SAME
+  // room. Memoized per tick (the map is bundled at build time).
+  remoteTarget() {
+    if (this._remoteTarget !== undefined) return this._remoteTarget;
+    const remotes = expansionMap[this.name]?.remotes;
+    this._remoteTarget = (remotes && remotes.find((r) => !r.reservedByOther)) || null;
+    return this._remoteTarget;
+  }
+
+  // The remote source we mine: the highest-value reachable source of the target.
+  // One source in v1 (the MVP) — { room, x, y, dist, value } or null.
+  remoteSource() {
+    const target = this.remoteTarget();
+    if (!target || !target.sources.length) return null;
+    const best = target.sources.reduce((a, b) => (b.value > a.value ? b : a));
+    return { room: target.room, x: best.x, y: best.y, dist: best.dist, value: best.value };
   }
 
   run(lowBucket) {

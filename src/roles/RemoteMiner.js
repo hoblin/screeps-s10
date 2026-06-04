@@ -1,0 +1,69 @@
+import { Role } from "./Role.js";
+import { ContainerPlanner } from "../lib/ContainerPlanner.js";
+import { bodyFromTemplate } from "../lib/BodyGenerator.js";
+
+// ============================================================================
+//  RemoteMiner — a static miner in an ADJACENT room (#18, slice C2).
+//
+//  Like the home Miner it has no CARRY and drop-mines: it parks on a fixed
+//  source-adjacent tile and harvests forever, so the energy piles on that tile
+//  for the RemoteHauler to pick up. The difference is geography — it first
+//  crosses the border to the target room (multi-room travelTo, #92) and, with no
+//  remote WorkOverlord to plan for it, picks its own parking tile on arrival.
+//
+//  v1 drops on the ground (no container) — simplest, and the hauler grabs the
+//  pile; a self-built container (less decay over the long haul) is a later
+//  refinement. The target room + source tile are stamped by RemoteMiningOverlord.
+//  The map already excluded SK/enemy rooms; this role adds the live hostile check.
+// ============================================================================
+export class RemoteMiner extends Role {
+  // Low priority: it lives parked on a foreign source, far from home traffic.
+  static movementPriority = 5;
+
+  // WORK to harvest + MOVE to make the trip; no CARRY (drop-mining). Scale WORK
+  // with the budget up to a source's full drain (5 WORK = 10/tick).
+  static bodyFor(energyBudget) {
+    return bodyFromTemplate([WORK, MOVE, MOVE], { extra: [WORK], max: 4, energy: energyBudget });
+  }
+
+  static run(creep, colony) {
+    const { targetRoom, sourcePos } = creep.memory;
+    if (!targetRoom || !sourcePos) return;
+
+    // Cross the border first (the foreign-room branch of travelTo, #92).
+    if (creep.room.name !== targetRoom) {
+      creep.travelTo(new RoomPosition(sourcePos.x, sourcePos.y, targetRoom), { range: 1 });
+      return;
+    }
+
+    // In the target room. Live safety: pull out if an invader showed up.
+    if (creep.room.find(FIND_HOSTILE_CREEPS).length > 0) {
+      this.retreatHome(creep, colony);
+      return;
+    }
+
+    const source = creep.room.lookForAt(LOOK_SOURCES, sourcePos.x, sourcePos.y)[0];
+    if (!source) return; // out of vision / wrong tile — shouldn't happen once here
+
+    // Pick a fixed parking tile adjacent to the source once (cached), so the
+    // dropped energy always piles in the same spot for the hauler.
+    if (!creep.memory.miningPos) {
+      const tile = ContainerPlanner.walkableTilesAround(creep.room, source.pos)[0];
+      if (!tile) return; // source walled in — nothing to do
+      creep.memory.miningPos = { x: tile.x, y: tile.y, roomName: targetRoom };
+    }
+    const mp = creep.memory.miningPos;
+    if (creep.pos.x !== mp.x || creep.pos.y !== mp.y) {
+      creep.travelTo(new RoomPosition(mp.x, mp.y, targetRoom));
+      return;
+    }
+
+    creep.harvest(source); // no CARRY → energy drops on this tile for the hauler
+  }
+
+  // Pull back home out of the hostile room until it's safe again.
+  static retreatHome(creep, colony) {
+    const anchor = colony.spawns[0] || colony.controller;
+    if (anchor) creep.travelTo(anchor, { range: 3 });
+  }
+}
