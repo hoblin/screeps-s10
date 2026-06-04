@@ -84,8 +84,8 @@ export class Kernel {
       const creep = Game.creeps[name];
       if (creep.spawning) continue; // not on the field yet — nothing to trace
       const m = creep.memory;
-      const log = m.log || [];
-      log.push({
+      const trace = m.log || []; // not `log` — that's the module-level logger import
+      trace.push({
         tick: Game.time,
         room: creep.pos.roomName,
         x: creep.pos.x,
@@ -93,8 +93,8 @@ export class Kernel {
         working: !!m.working,
         act: m._act,
       });
-      if (log.length > CREEP_TRACE_LEN) log.splice(0, log.length - CREEP_TRACE_LEN);
-      m.log = log;
+      if (trace.length > CREEP_TRACE_LEN) trace.splice(0, trace.length - CREEP_TRACE_LEN);
+      m.log = trace;
       m._act = undefined; // consumed — don't carry a stale tag into next tick
     }
   }

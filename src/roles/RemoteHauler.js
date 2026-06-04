@@ -40,8 +40,7 @@ export class RemoteHauler extends Hauler {
     if (creep.room.find(FIND_HOSTILE_CREEPS).length > 0) {
       if (creep.store[RESOURCE_ENERGY] > 0) {
         creep.memory.working = true;
-        this.note(creep, "rhaul:flee-deliver");
-        return this.deliver(creep, colony);
+        return this.deliver(creep, colony); // deliver() stamps its own note this tick
       }
       this.note(creep, "rhaul:flee");
       creep.travelTo(new RoomPosition(25, 25, colony.name), { range: 20 });
@@ -61,8 +60,7 @@ export class RemoteHauler extends Hauler {
     // hauler waits by the source for the next drop.
     if (creep.store[RESOURCE_ENERGY] > 0) {
       creep.memory.working = true;
-      this.note(creep, "rhaul:home-partial");
-      return this.deliver(creep, colony);
+      return this.deliver(creep, colony); // deliver() stamps its own note this tick
     }
     this.note(creep, "rhaul:to-source");
     creep.travelTo(new RoomPosition(sourcePos.x, sourcePos.y, targetRoom), { range: 2 });

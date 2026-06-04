@@ -77,8 +77,7 @@ export class Hauler extends Role {
       // that re-pick IS the oscillation. Only pick a fresh target when empty.
       if (creep.store[RESOURCE_ENERGY] > 0) {
         creep.memory.working = true;
-        this.note(creep, "haul:deliver-partial");
-        return this.deliver(creep, colony);
+        return this.deliver(creep, colony); // deliver() stamps its own note this tick
       }
       container = this.fullestSourceContainer(creep, colony);
       creep.memory.haulTarget = container ? container.id : null;
