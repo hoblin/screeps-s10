@@ -55,6 +55,7 @@ import { roleClass } from "../roles/index.js";
 // ============================================================================
 
 const REUSE_TICKS = 20; // recompute a committed path at least this often (like moveTo)
+const ROOM_TRANSIT_REUSE = 50; // foreign-room transit paths span rooms — repath far less often
 const STUCK_THRESHOLD = 2; // ticks without moving before we re-route (Overmind's DEFAULT_STUCK_VALUE)
 const pack = (x, y) => x * 50 + y; // tile -> unique int (rooms are 50×50)
 const unpackX = (n) => Math.floor(n / 50);
@@ -98,9 +99,18 @@ Creep.prototype.travelTo = function (target, opts = {}) {
   // acceptable v1 trade (full integration is #57). Only remote creeps ever have a
   // foreign-room target, so home movement is completely untouched. (#92)
   if (targetPos.roomName !== this.room.name) {
+    // Forward caller pathOpts (plainCost/swampCost/costCallback) so tuning is
+    // consistent across the border, but strip maxRooms (moveTo MUST stay multi-
+    // room) and ignoreCreeps (moveTo manages its own). A longer reusePath than the
+    // in-room REUSE_TICKS: transit paths span many rooms, so re-pathing every 20
+    // ticks would burn CPU in empty corridors for no benefit.
+    const tuning = { ...(opts.pathOpts || {}) };
+    delete tuning.maxRooms;
+    delete tuning.ignoreCreeps;
     this.moveTo(targetPos, {
       range: opts.range ?? 0,
-      reusePath: REUSE_TICKS,
+      reusePath: ROOM_TRANSIT_REUSE,
+      ...tuning,
       visualizePathStyle:
         opts.visualize === false ? undefined : { stroke: "#ffaa00", opacity: 0.2, lineStyle: "dashed" },
     });
