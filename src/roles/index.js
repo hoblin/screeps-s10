@@ -4,6 +4,7 @@ import { Hauler } from "./Hauler.js";
 import { Harvester } from "./Harvester.js";
 import { Worker } from "./Worker.js";
 import { Upgrader } from "./Upgrader.js";
+import { Reserver } from "./Reserver.js";
 
 // ============================================================================
 //  Role registry — the one place that maps a creep's role STRING (as stored in
@@ -18,6 +19,7 @@ export const ROLES = {
   harvester: Harvester,
   worker: Worker,
   upgrader: Upgrader,
+  reserver: Reserver,
 };
 
 // Resolve a role string to its class, defaulting to the base Role (so an unknown
