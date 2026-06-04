@@ -44,6 +44,20 @@ const EXPANSION_READY_ON = 0.5; // spawn idle ≥ half the time → spare capaci
 const EXPANSION_READY_OFF = 0.2; // ...below this it's busy again → back off (hysteresis)
 const DOWNGRADE_CRISIS = 5000; // controller this near downgrade → focus home, don't expand
 
+// Road-build readiness (#135): a road costs ENERGY + worker build-time, NOT spawn
+// time, so — unlike expansionReady — its gate ignores spawn-idle and tracks sustained
+// energy headroom (spawn+extensions near-topped). Dedicated thresholds, NOT a reuse of
+// the expansion ones, so road gating tunes independently (the lesson of one gate reused
+// everywhere). Shares IDLE_ALPHA — a generic EWMA memory window, no expansion meaning.
+const ROAD_BUILD_READY_ON = 0.5; // near-full ≥ half the time → headroom to build roads
+const ROAD_BUILD_READY_OFF = 0.2; // ...below this, hold off (hysteresis)
+// "Near-full" tolerance: extensions count as topped at ≥90% of cap. A busy colony's
+// spawn debits the body cost the instant it starts, so energyAvailable sits a spawn-
+// cost BELOW cap almost every tick (live: ~1260/1300) — a strict ==cap test would
+// never latch in exactly the colony this gate targets. 90% reads the SUSTAINED
+// headroom through that transient drain. Tunable from live behaviour.
+const ROAD_BUILD_FULL_FRAC = 0.9;
+
 // Recovery hysteresis (#54): a developed colony whose workforce has collapsed can't
 // put energy back into its own spawn (at 2b+ static miners are gated off and self-
 // harvest is banned) — a death spiral with no exit. We latch a `recovering` signal
@@ -76,8 +90,17 @@ export const RoomHealthCheck = {
     // Story log: only the latch flip (#107) — prior is last tick's persisted value.
     if (!prior.recovering && recovering) RoomLog.record(colony.name, "🆘 recovery on");
     else if (prior.recovering && !recovering) RoomLog.record(colony.name, "✅ recovery off");
-    const expansion = this.expansionReadiness(colony, prior, recovering);
-    this.saveState(colony, { energyRich, recovering, ...expansion.persist });
+    // Home-crisis flags both readiness latches gate off on — computed ONCE so the
+    // hostile scan (Threat.assess) isn't repeated per signal.
+    const crisis = this.homeCrisis(colony);
+    const expansion = this.expansionReadiness(colony, prior, recovering, crisis);
+    const roadBuild = this.roadBuildReadiness(colony, prior, recovering, crisis);
+    this.saveState(colony, {
+      energyRich,
+      recovering,
+      ...expansion.persist,
+      ...roadBuild.persist,
+    });
 
     return {
       // observations
@@ -91,6 +114,9 @@ export const RoomHealthCheck = {
       // the expansion-readiness dial the remote-mining overlord reads (#18/#89)
       expansionReady: expansion.ready,
       spawnIdle: Math.round(expansion.idleRatio * 100) / 100,
+      // the road-build dial Hatchery.planRoads reads (#135) — energy headroom, not
+      // spawn-idle (a road costs energy + worker time, not spawn time)
+      roadBuildReady: roadBuild.ready,
       // blocker flags — informational in v1 (surfaced in telemetry for review),
       // future consumers can act on them.
       blockers: {
@@ -100,13 +126,27 @@ export const RoomHealthCheck = {
     };
   },
 
+  // Home-crisis flags both readiness latches gate off on (`{ decaying, attacked }`),
+  // computed once per tick so the hostile scan isn't repeated per signal.
+  //  • decaying — controller near downgrade: focus home, don't invest.
+  //  • attacked — combat-assessed, not a raw hostile count (#120, aligning with #105):
+  //    a harmless transiting scout (0 combat power) must NOT suppress investment — only
+  //    a genuinely armed attacker in the home room does.
+  homeCrisis(colony) {
+    const ctrl = colony.controller;
+    return {
+      decaying: ctrl?.ticksToDowngrade != null && ctrl.ticksToDowngrade < DOWNGRADE_CRISIS,
+      attacked: Threat.assess(colony.room) > 0,
+    };
+  },
+
   // Spare-spawn-capacity latch — the expansion-readiness signal (#89). The spawn is
   // "idle" (spare) when none of our spawns is mid-spawn AND energy sits at cap (a
   // busy spawn drains it). We smooth that into a ratio (EWMA) and Schmitt-latch it,
   // gated off during a home crisis — controller decaying, room attacked, or we can't
   // even afford a reserver body. Spawn-idle subsumes "home staffed": an understaffed
   // colony keeps its spawn busy, so the ratio only climbs once targets are met.
-  expansionReadiness(colony, prior, recovering) {
+  expansionReadiness(colony, prior, recovering, crisis) {
     const room = colony.room;
     const idleNow =
       colony.spawns.length > 0 &&
@@ -114,23 +154,45 @@ export const RoomHealthCheck = {
       room.energyAvailable >= room.energyCapacityAvailable;
     const idleRatio = (prior.idleRatio ?? 0) * (1 - IDLE_ALPHA) + (idleNow ? 1 : 0) * IDLE_ALPHA;
 
-    const ctrl = colony.controller;
-    const decaying = ctrl?.ticksToDowngrade != null && ctrl.ticksToDowngrade < DOWNGRADE_CRISIS;
-    // Combat-assessed, not a raw hostile count (#120, aligning with #105): a harmless
-    // transiting scout (0 combat power) must NOT suppress expansion/defense — only a
-    // genuinely armed attacker in the home room does.
-    const attacked = Threat.assess(room) > 0;
     const canAffordReserver =
       room.energyCapacityAvailable >= BODYPART_COST[CLAIM] + BODYPART_COST[MOVE];
 
     let ready = prior.expansionReady || false;
     // Recovery is the ultimate home crisis — never expand while clawing back from a
     // workforce collapse (it would steal the spawn time recovery needs).
-    if (decaying || attacked || !canAffordReserver || recovering) ready = false;
+    if (crisis.decaying || crisis.attacked || !canAffordReserver || recovering) ready = false;
     else if (idleRatio >= EXPANSION_READY_ON) ready = true;
     else if (idleRatio <= EXPANSION_READY_OFF) ready = false;
 
     return { ready, idleRatio, persist: { expansionReady: ready, idleRatio } };
+  },
+
+  // Road-build readiness (#135): may we fund road construction NOW? A road costs
+  // energy + worker build-time, not spawn time — so this is deliberately NOT
+  // expansionReady. It tracks sustained ENERGY HEADROOM: spawn+extensions sitting
+  // NEAR-topped (≥ROAD_BUILD_FULL_FRAC of cap) means the immediate spawn demand is met
+  // and the next energy has room to fund a road. The near-full tolerance is the crux:
+  // a busy spawn debits its body cost the instant it starts, so energy sits a spawn-
+  // cost below cap almost every tick — a strict ==cap test would never latch in exactly
+  // the busy colony this gate targets. Same EWMA + Schmitt machinery as
+  // expansionReadiness, but the raw signal drops the spawn-idle term (and the reserver-
+  // affordability gate — irrelevant to a structure). So roads extend whenever income
+  // outpaces the spawn, even while it stays busy — exactly when expansionReady (spawn-
+  // idle) wrongly reads false. Crisis-gated like the rest. Road-scoped on purpose:
+  // other construction gets its own gate.
+  roadBuildReadiness(colony, prior, recovering, crisis) {
+    const room = colony.room;
+    const fullNow =
+      room.energyCapacityAvailable > 0 &&
+      room.energyAvailable >= room.energyCapacityAvailable * ROAD_BUILD_FULL_FRAC;
+    const fullRatio = (prior.roadFullRatio ?? 0) * (1 - IDLE_ALPHA) + (fullNow ? 1 : 0) * IDLE_ALPHA;
+
+    let ready = prior.roadBuildReady || false;
+    if (crisis.decaying || crisis.attacked || recovering) ready = false;
+    else if (fullRatio >= ROAD_BUILD_READY_ON) ready = true;
+    else if (fullRatio <= ROAD_BUILD_READY_OFF) ready = false;
+
+    return { ready, fullRatio, persist: { roadBuildReady: ready, roadFullRatio: fullRatio } };
   },
 
   // Workforce-collapse latch (#54). ENTER when a DEVELOPED colony (past bootstrap —
