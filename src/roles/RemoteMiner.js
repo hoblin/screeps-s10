@@ -80,8 +80,21 @@ export class RemoteMiner extends Role {
       return;
     }
 
+    // Sensor for the container infra (#114): the miner is permanently parked on the
+    // container tile, so it's the continuous eyes on it. Publish the tile + the live
+    // container hits (null = none built yet) per source, so RemoteWorkOverlord can
+    // size build/repair work and RemoteHauler can withdraw from the container.
+    const container = creep.pos.lookFor(LOOK_STRUCTURES).find((s) => s.structureType === STRUCTURE_CONTAINER);
+    Memory.colonyData ||= {};
+    (Memory.colonyData[colony.name] ||= {}).remoteContainers ||= {};
+    Memory.colonyData[colony.name].remoteContainers[`${targetRoom}:${x}:${y}`] = {
+      x: mp.x, y: mp.y, roomName: targetRoom,
+      hits: container ? container.hits : null,
+      hitsMax: container ? container.hitsMax : null,
+    };
+
     this.note(creep, "rmine:harvest");
-    creep.harvest(source); // no CARRY → energy drops on this tile for the hauler
+    creep.harvest(source); // no CARRY → energy drops on this tile (into the container once built)
   }
 
   // Pull back home out of the hostile room until it's safe again.
