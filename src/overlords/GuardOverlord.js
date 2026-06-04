@@ -4,24 +4,31 @@ import { Threat } from "../lib/Threat.js";
 
 // ============================================================================
 //  GuardOverlord — owns the combat-clearing domain (#118, Levels 2-3 of the
-//  threat ladder). A cheap enemy harasser can deny a remote room and kill our
-//  static economy creeps; passive retreat (#105, Level 1) only reroutes elsewhere
-//  and abandons the room. This controller dispatches a dynamically-built Guard to
-//  CLEAR a contested remote we want — but only when the fight is WINNABLE.
+//  threat ladder; home defense added in #122). A cheap enemy harasser can deny a
+//  remote room and kill our static economy creeps; passive retreat (#105, Level 1)
+//  only reroutes and abandons the room. This controller dispatches dynamically-built
+//  Guards to clear contested rooms, HOME first, then remotes.
 //
-//  Singleton domain controller (mirrors RemoteMiningOverlord): reads the shared
-//  Threat intel and considers the rooms in our remote footprint. Two-axis decision
-//  — threat (what's needed) × economy (what's affordable): a room is winnable when
-//  the guard we can afford RIGHT NOW out-guns the room's assessed threat. As the
-//  economy grows the affordable guard grows, so we reclaim progressively bigger
-//  threats; a threat beyond our weight class stays Level-1 (we never feed a guard to
-//  a real army). Once a guard clears a room, our vision drops the intel to 0 and the
-//  whole remote stack (mine/reserve/work/haul) flows back on its own.
+//  Singleton domain controller (mirrors RemoteMiningOverlord), reading the shared
+//  Threat intel. Priority ladder + gating (#122 — defense is the GATE for expansion,
+//  so it outranks the economy, NOT the other way round):
+//   • HOME (top priority): if the home room has a real combat threat, field the best
+//     AFFORDABLE guard unconditionally — no winnability filter (never abandon the
+//     core; even a losing guard buys time + tower focus), no expansionReady gate, no
+//     recovering veto. Defending the core is the survival floor.
+//   • REMOTES: clear a contested remote only when WINNABLE (the guard we can afford
+//     out-guns the assessed threat — never feed a guard to a real army) and we're not
+//     in a workforce-collapse recovery (no economy to protect then). NOT gated on
+//     expansionReady: a denied remote blocks expansion, so reclaiming it precedes
+//     expansion rather than waiting on spare spawn-idle.
+//  Two-axis sizing throughout: body scaled to the threat × energyCapacityAvailable.
+//  Once a guard clears a room, our vision drops the intel to 0 and the economy flows
+//  back on its own.
 // ============================================================================
 export class GuardOverlord extends Overlord {
   constructor(colony) {
-    // Priority 4: ahead of the remote economy (5) — one guard unblocks the whole
-    // remote footprint, so it's worth spawning before more remote miners.
+    // Priority 4: a guard unblocks a whole room (home or a remote), so it spawns
+    // ahead of the remote economy (5). Defense precedes expansion.
     super(colony, { priority: 4 });
   }
 
@@ -29,19 +36,19 @@ export class GuardOverlord extends Overlord {
     return "guard";
   }
 
-  // Distinct remote rooms that are hot AND winnable: the guard we can afford this
-  // spawn out-guns the room's assessed threat. Reads intel (threat + profile) — no
-  // live vision needed, it was recorded when a creep last saw the room.
+  // Distinct remote rooms that are hot AND winnable: the guard we can afford out-guns
+  // the room's assessed threat. Reads intel (threat + profile) — no live vision
+  // needed, it was recorded when a creep last saw the room. Memoized per tick.
   hotWinnableRooms() {
-    if (this._hotWinnable !== undefined) return this._hotWinnable; // per-tick memo (instance is rebuilt each tick)
+    if (this._hotWinnable !== undefined) return this._hotWinnable;
     const budget = this.colony.spawnEnergyBudget();
     const rooms = [...new Set(this.colony.remoteSources().map((s) => s.room))];
     this._hotWinnable = rooms.filter((room) => {
       if (!Threat.isHot(room)) return false;
       const profile = Threat.profileFor(room);
       // Need a MOBILE enemy to kill: a guard targets creeps, so a threat that's only
-      // an invader core (threat=1, no attack/ranged parts) can't be cleared by it —
-      // leave those Level-1 (clearing a core is a later capability).
+      // an invader core (no attack/ranged parts) can't be cleared by it — leave those
+      // Level-1 (clearing a core is a later capability).
       if (!profile || profile.attack + profile.ranged === 0) return false;
       const body = Guard.bodyFor(budget, profile);
       return Threat.guardCombatPower(body) > Threat.threatOf(room);
@@ -49,28 +56,52 @@ export class GuardOverlord extends Overlord {
     return this._hotWinnable;
   }
 
-  // Informational headcount (the real dispatch logic is covered-room-based below).
-  desiredCount() {
-    if (!this.colony.health.expansionReady) return 0;
-    return this.hotWinnableRooms().length;
+  // The home room as a guard target, or null. UNCONDITIONAL within affordability —
+  // no winnability filter, no expansionReady / recovering gate (home defense is the
+  // survival floor). Requires a mobile combat threat (a guard can't kill a lone core)
+  // and that we can field a real combat body.
+  homeTarget() {
+    const home = this.colony.name;
+    if (!Threat.isHot(home)) return null;
+    const profile = Threat.profileFor(home);
+    if (!profile || profile.attack + profile.ranged === 0) return null;
+    const body = Guard.bodyFor(this.colony.spawnEnergyBudget(), profile);
+    return Threat.guardCombatPower(body) > 0 ? home : null;
   }
 
-  // Rooms already held by a live guard whose assignment is still hot-winnable.
+  // Every room wanting a guard, HOME FIRST then winnable remotes. Memoized per tick.
+  targets() {
+    if (this._targets !== undefined) return this._targets;
+    const out = [];
+    const home = this.homeTarget();
+    if (home) out.push(home);
+    // Remotes wait out a workforce-collapse recovery (nothing to protect then), but
+    // are NOT expansionReady-gated — remote defense precedes expansion.
+    if (!this.colony.health.recovering) {
+      for (const room of this.hotWinnableRooms()) if (room !== home) out.push(room);
+    }
+    this._targets = out;
+    return out;
+  }
+
+  desiredCount() {
+    return this.targets().length;
+  }
+
+  // Rooms already held by a live guard whose assignment is still a current target.
   coveredRooms() {
-    const win = new Set(this.hotWinnableRooms());
+    const want = new Set(this.targets());
     return new Set(
-      this.assignedCreeps.map((c) => c.memory.guardRoom).filter((r) => r && win.has(r))
+      this.assignedCreeps.map((c) => c.memory.guardRoom).filter((r) => r && want.has(r))
     );
   }
 
-  // Spawn one guard for the best uncovered hot-winnable room. Built directly (not via
-  // the base count gate) so a guard recycling from a just-cleared room never blocks
-  // dispatching one to a still-contested room. Gated on expansionReady (and thus the
-  // recovering crisis veto) — never spawn a guard the core can't afford.
+  // Spawn one guard for the best uncovered target (home first). Built directly (not
+  // via the base count gate) so a guard recycling from a just-cleared room never
+  // blocks dispatching one to a still-contested room.
   generateSpawnRequest() {
-    if (!this.colony.health.expansionReady) return null;
     const covered = this.coveredRooms();
-    const room = this.hotWinnableRooms().find((r) => !covered.has(r));
+    const room = this.targets().find((r) => !covered.has(r));
     if (!room) return null;
     const profile = Threat.profileFor(room);
     if (!profile) return null; // intel went stale between filter and here → don't spawn blind
@@ -88,13 +119,13 @@ export class GuardOverlord extends Overlord {
     };
   }
 
-  // Release a guard whose room is no longer hot-winnable (cleared, cooled, or now out
-  // of our weight class) so the role recycles it; a guard in a still-winnable room
-  // keeps fighting.
+  // Release a guard whose room is no longer a target (cleared, cooled, or — for a
+  // remote — now out of our weight class) so the role recycles it; a guard in a
+  // still-targeted room keeps fighting.
   run() {
-    const win = new Set(this.hotWinnableRooms());
+    const want = new Set(this.targets());
     for (const creep of this.assignedCreeps) {
-      if (creep.memory.guardRoom && !win.has(creep.memory.guardRoom)) {
+      if (creep.memory.guardRoom && !want.has(creep.memory.guardRoom)) {
         creep.memory.guardRoom = null;
       }
     }
