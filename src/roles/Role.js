@@ -39,6 +39,20 @@ export class Role {
     creep.memory._act = action;
   }
 
+  // Send a creep with no valid assignment home to be recycled — reclaiming part of
+  // its body cost instead of letting it idle until it dies. Used when a remote creep
+  // is ORPHANED: e.g. a deploy that changed the overlord set leaves an old creep with
+  // a stale `memory.overlord` and no stamped target (no overlord drives it). It walks
+  // to a spawn and recycles. NOT for a temporary retreat (hot room) — that creep must
+  // come back when the room cools, so those callers use their own retreatHome.
+  static recycleAtHome(creep, colony) {
+    const spawn = colony.spawns[0];
+    if (!spawn) return;
+    this.note(creep, "recycle");
+    if (creep.pos.isNearTo(spawn)) spawn.recycleCreep(creep);
+    else creep.travelTo(spawn, { range: 1 });
+  }
+
   // Toggle creep.memory.working between gathering and spending energy.
   // Returns true if the creep should be DOING WORK (spending), false if gathering.
   static updateWorkingState(creep) {

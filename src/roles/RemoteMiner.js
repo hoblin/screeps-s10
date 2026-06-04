@@ -1,6 +1,7 @@
 import { Role } from "./Role.js";
 import { ContainerPlanner } from "../lib/ContainerPlanner.js";
 import { bodyFromTemplate } from "../lib/BodyGenerator.js";
+import { Threat } from "../lib/Threat.js";
 
 // ============================================================================
 //  RemoteMiner — a static miner in an ADJACENT room (#18, slice C2).
@@ -13,8 +14,9 @@ import { bodyFromTemplate } from "../lib/BodyGenerator.js";
 //
 //  v1 drops on the ground (no container) — simplest, and the hauler grabs the
 //  pile; a self-built container (less decay over the long haul) is a later
-//  refinement. The target room + source tile are stamped by RemoteMiningOverlord.
-//  The map already excluded SK/enemy rooms; this role adds the live hostile check.
+//  refinement. The target room + source tile are stamped by RemoteMiningOverlord
+//  (#102 — one miner per source). The map already excluded SK/enemy rooms; if its
+//  room turns hot (shared intel #105) the miner retreats home until it cools.
 // ============================================================================
 export class RemoteMiner extends Role {
   // Low priority: it lives parked on a foreign source, far from home traffic.
@@ -27,23 +29,23 @@ export class RemoteMiner extends Role {
   }
 
   static run(creep, colony) {
-    // The remote source is read LIVE from the colony, not stamped at spawn (#105):
-    // remoteSource() skips contested (hot) rooms, so when our target is invaded this
-    // resolves to the next SAFE remote and the miner re-routes there automatically;
-    // null means no safe remote remains → wait at home (the safe fallback). Threat
-    // avoidance lives in target selection — no per-tick hostile scan/flee here, which
-    // is what used to flee a harmless scout and oscillate at the border.
-    const target = colony.remoteSource();
+    // The miner just executes its assignment: RemoteMiningOverlord (the domain
+    // controller, #102) decides WHICH source this creep serves and stamps it here —
+    // and re-homes it when rooms go hot. The role only reads its current target.
+    // If its room is contested it holds home, reading the SHARED threat intel
+    // (Threat.isHot, #105) — not a per-tick local hostile scan, which is what used to
+    // flee a harmless scout and oscillate at the border.
+    const target = creep.memory.remoteSource;
     if (!target) {
-      this.note(creep, "rmine:no-target");
-      return this.retreatHome(creep, colony);
+      // No assignment → the controller has no safe source for it (or it's a legacy
+      // creep from before #102). Recycle rather than idle until death.
+      return this.recycleAtHome(creep, colony);
     }
     const { room: targetRoom, x, y } = target;
 
-    // Re-routed to a different room? Drop the stale parking tile so we recompute one
-    // in the NEW room rather than walking to a tile that no longer applies.
-    if (creep.memory.miningPos && creep.memory.miningPos.roomName !== targetRoom) {
-      creep.memory.miningPos = null;
+    if (Threat.isHot(targetRoom)) {
+      this.note(creep, "rmine:hot");
+      return this.retreatHome(creep, colony);
     }
 
     // Cross the border first (the foreign-room branch of travelTo, #92).

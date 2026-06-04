@@ -2,17 +2,20 @@ import { Overlord } from "./Overlord.js";
 import { RemoteHauler } from "../roles/RemoteHauler.js";
 import { Hauler } from "../roles/Hauler.js";
 import { Miner } from "../roles/Miner.js";
+import { Threat } from "../lib/Threat.js";
 
 // ============================================================================
-//  RemoteLogisticsOverlord — hauls the remote target source home (#18, C2).
+//  RemoteLogisticsOverlord — hauls ALL mined remote sources home (#18 C2, #102).
 //
-//  Singleton, health-gated like RemoteMiningOverlord. Sizes the hauler fleet with
-//  the SAME freight-turnover model as the home logistics (#84), just over the long
-//  remote haul: N = ceil( 2·r·d·margin / (C·v) ), where r is the remote source's
-//  output (≈ what our miner extracts), d is the one-way path from home (from the
-//  static map), C the hauler capacity. Long hauls need several haulers — that's
-//  the real cost of remoting a far room, and expansionReady self-throttles it so
-//  it never spawns beyond our spare spawn capacity.
+//  ONE shared fleet (mirroring the single home LogisticsOverlord), sized with the
+//  SAME freight-turnover model (#84) summed over every source we're actually mining:
+//    N = ceil( 2·Σ(r·d)·margin / (C·v) )
+//  r = a remote miner's output, d = that source's one-way haul (static map), C =
+//  hauler capacity. Demand is summed only over sources with a LIVE miner in a
+//  non-hot room — so the fleet tracks real production (it grows as miners come
+//  online, not ahead of them) and ignores contested rooms. expansionReady gates and
+//  self-throttles the whole expansion. Haulers pool across sources by need, picking
+//  the fullest remote pile each trip (RemoteHauler) rather than welding to one.
 // ============================================================================
 const HAULER_SPEED = 1; // tiles/tick on roads/plains for a 1:1 CARRY:MOVE body
 const FREIGHT_MARGIN = 1.3; // same headroom as the home freight model (#84)
@@ -28,22 +31,33 @@ export class RemoteLogisticsOverlord extends Overlord {
 
   desiredCount() {
     if (!this.colony.health.expansionReady) return 0;
-    const s = this.colony.remoteSource();
-    if (!s || !isFinite(s.dist)) return 0;
     const cap = this.colony.room.energyCapacityAvailable;
     const carry = Hauler.capacityAt(cap);
     if (!carry) return 0;
-    const rate = Miner.harvestRateAt(cap); // energy/tick the remote miner produces
-    return Math.max(1, Math.ceil((2 * rate * s.dist * FREIGHT_MARGIN) / (carry * HAULER_SPEED)));
+    const rate = Miner.harvestRateAt(cap); // energy/tick one remote miner produces
+
+    // Only count sources whose miner has actually ARRIVED at its source room (not
+    // spawning, not still crossing the border, not retreating) — sizing for miners
+    // that aren't producing yet would spawn haulers ahead of any energy to carry.
+    const mined = new Set(
+      this.colony.creepsWithRole("remoteMiner")
+        .filter((c) => !c.spawning && c.memory.remoteSource && c.room.name === c.memory.remoteSource.room)
+        .map((c) => `${c.memory.remoteSource.room}:${c.memory.remoteSource.x}:${c.memory.remoteSource.y}`)
+    );
+    const demand = this.colony.remoteSources()
+      .filter((s) => isFinite(s.dist) && !Threat.isHot(s.room) && mined.has(`${s.room}:${s.x}:${s.y}`))
+      .reduce((sum, s) => sum + rate * s.dist, 0); // Σ r·d (tonne-tiles/tick)
+    if (demand === 0) return 0;
+    return Math.max(1, Math.ceil((2 * demand * FREIGHT_MARGIN) / (carry * HAULER_SPEED)));
   }
 
   bodyFor(energyBudget) {
     return RemoteHauler.bodyFor(energyBudget);
   }
 
-  // No target stamp needed: RemoteHauler reads colony.remoteSource() live each tick
-  // (#105) and re-routes when the target room is contested. The base
-  // generateSpawnRequest (role/colony/overlord tags) is enough.
+  // No per-creep target stamp: the fleet is shared and each hauler picks its remote
+  // pickup live from colony.remoteSources() (the fullest active pile), re-routing off
+  // a contested room on its own (#105). The base spawn tags are enough.
   runCreep(creep) {
     RemoteHauler.run(creep, this.colony);
   }
