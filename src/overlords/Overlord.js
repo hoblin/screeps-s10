@@ -93,7 +93,9 @@ export class Overlord {
     const targetCount = this.desiredCount();
     if (currentCount >= targetCount) return null;
 
-    const energyBudget = this.room.energyCapacityAvailable;
+    // Recovery-aware (#54): the colony sizes bodies to spendable energy while
+    // clawing back from a workforce collapse, else to the full spawn capacity.
+    const energyBudget = this.colony.spawnEnergyBudget();
     return {
       priority: this.priority,
       role: this.role,

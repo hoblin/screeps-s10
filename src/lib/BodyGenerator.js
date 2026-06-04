@@ -25,3 +25,9 @@ export function bodyFromTemplate(template, { extra = [], max = 0, energy } = {})
   // Screeps spawns parts in array order; MOVE parts mixed in is fine for early game.
   return body;
 }
+
+// Energy cost of a body array — the price the spawn pays for it. Shared so callers
+// reason about affordability without re-summing BODYPART_COST by hand.
+export function bodyCost(body) {
+  return body.reduce((sum, part) => sum + BODYPART_COST[part], 0);
+}

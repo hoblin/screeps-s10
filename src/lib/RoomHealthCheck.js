@@ -1,3 +1,5 @@
+import { hasSourceContainer } from "./Stages.js";
+
 // ============================================================================
 //  RoomHealthCheck — a per-tick read of the colony's economic DYNAMICS.
 //
@@ -40,6 +42,15 @@ const EXPANSION_READY_ON = 0.5; // spawn idle ≥ half the time → spare capaci
 const EXPANSION_READY_OFF = 0.2; // ...below this it's busy again → back off (hysteresis)
 const DOWNGRADE_CRISIS = 5000; // controller this near downgrade → focus home, don't expand
 
+// Recovery hysteresis (#54): a developed colony whose workforce has collapsed can't
+// put energy back into its own spawn (at 2b+ static miners are gated off and self-
+// harvest is banned) — a death spiral with no exit. We latch a `recovering` signal
+// the Recovery override stage reads, so the colony reverts to self-harvesting
+// bootstrap workers until it can sustain specialists again. The enter/exit
+// predicates differ (not one threshold), so it never flaps during a normal miner
+// respawn gap: ENTER only when nothing can refill the spawn, EXIT only once a worker
+// is alive AND the spawn can again afford the static miner 2b will immediately want.
+
 export const RoomHealthCheck = {
   compute(colony) {
     const room = colony.room;
@@ -59,8 +70,9 @@ export const RoomHealthCheck = {
     if (saturation >= SATURATION_RICH_ON) energyRich = true;
     else if (saturation <= SATURATION_RICH_OFF) energyRich = false;
 
-    const expansion = this.expansionReadiness(colony, prior);
-    this.saveState(colony, { energyRich, ...expansion.persist });
+    const recovering = this.recovering(colony, prior);
+    const expansion = this.expansionReadiness(colony, prior, recovering);
+    this.saveState(colony, { energyRich, recovering, ...expansion.persist });
 
     return {
       // observations
@@ -69,6 +81,8 @@ export const RoomHealthCheck = {
       buildBacklog: room.find(FIND_MY_CONSTRUCTION_SITES).length,
       // the surplus dial overlords read
       energyRich,
+      // workforce-collapse latch the Recovery override stage reads (#54)
+      recovering,
       // the expansion-readiness dial the remote-mining overlord reads (#18/#89)
       expansionReady: expansion.ready,
       spawnIdle: Math.round(expansion.idleRatio * 100) / 100,
@@ -87,7 +101,7 @@ export const RoomHealthCheck = {
   // gated off during a home crisis — controller decaying, room attacked, or we can't
   // even afford a reserver body. Spawn-idle subsumes "home staffed": an understaffed
   // colony keeps its spawn busy, so the ratio only climbs once targets are met.
-  expansionReadiness(colony, prior) {
+  expansionReadiness(colony, prior, recovering) {
     const room = colony.room;
     const idleNow =
       colony.spawns.length > 0 &&
@@ -102,11 +116,36 @@ export const RoomHealthCheck = {
       room.energyCapacityAvailable >= BODYPART_COST[CLAIM] + BODYPART_COST[MOVE];
 
     let ready = prior.expansionReady || false;
-    if (decaying || attacked || !canAffordReserver) ready = false;
+    // Recovery is the ultimate home crisis — never expand while clawing back from a
+    // workforce collapse (it would steal the spawn time recovery needs).
+    if (decaying || attacked || !canAffordReserver || recovering) ready = false;
     else if (idleRatio >= EXPANSION_READY_ON) ready = true;
     else if (idleRatio <= EXPANSION_READY_OFF) ready = false;
 
     return { ready, idleRatio, persist: { expansionReady: ready, idleRatio } };
+  },
+
+  // Workforce-collapse latch (#54). ENTER when a DEVELOPED colony (past bootstrap —
+  // a fresh room legitimately has no creeps, and Stage 1 already self-harvests) has
+  // neither a worker nor a miner alive: nothing can refill the spawn. EXIT only once
+  // a worker is alive AND the spawn can again afford the static miner 2b will request
+  // the instant we leave — exiting any sooner would re-request an unaffordable body
+  // and respiral. Latching between the two predicates means a normal miner-respawn
+  // gap (workers still alive) never trips it. Spawning creeps count as alive
+  // (creepsWithRole includes them), so a worker mid-spawn correctly holds recovery on
+  // rather than re-entering.
+  recovering(colony, prior) {
+    const ctrl = colony.controller;
+    const developed = !!ctrl && (ctrl.level >= 2 || hasSourceContainer(colony));
+    if (!developed) return false;
+
+    const workerAlive = colony.creepsWithRole("worker").length > 0;
+    if (prior.recovering) {
+      const minerAffordable = colony.room.energyAvailable >= colony.staticMinerCost();
+      return !(workerAlive && minerAffordable); // hold until solidly recovered
+    }
+    const minerAlive = colony.creepsWithRole("miner").length > 0;
+    return !workerAlive && !minerAlive; // nothing can put energy back into the spawn
   },
 
   // A blocker: this RCL unlocks extensions we haven't built, so the spawn energy
