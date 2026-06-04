@@ -9,6 +9,15 @@ import { ContainerPlanner } from "../lib/ContainerPlanner.js";
 // the controller instead of letting source regen burn.
 const UPGRADERS_RICH = 3;
 
+// Storage-proportional upgrader scaling (#137), ADDED on top of the #81 baseline. The
+// controller is the only meaningful sink for surplus before a 2nd spawn (RCL7) lets us
+// expand, so banked energy should drain into RCL rather than sit. Self-regulating via
+// storage LEVEL: storage is the lowest hauler-delivery priority, so its depth is the
+// true post-consumption surplus. All tunable from live behaviour.
+const UPGRADE_STORAGE_RESERVE = 20000; // bank this cushion before adding any extra upgrader
+const ENERGY_PER_UPGRADER = 30000; // surplus above the reserve that justifies one extra upgrader
+const UPGRADE_EXTRA_MAX = 4; // ceiling on the bonus so the single spawn isn't swamped
+
 // ============================================================================
 //  UpgradeOverlord — keeps the room controller leveling.
 //
@@ -35,11 +44,34 @@ export class UpgradeOverlord extends Overlord {
   }
 
   desiredCount() {
-    // Burn idle energy into the controller when there's a surplus (#81): with
-    // nowhere else for it to go, more upgraders turn waste into RCL progress.
-    // Otherwise the baseline: 1, or 2 once extensions give us capacity to feed two.
+    return this.baseCount() + this.storageDelta();
+  }
+
+  // The #81 baseline, unchanged: burn idle energy into the controller when sources
+  // back up (energyRich), else 1, or 2 once extensions can feed two. The storage delta
+  // rides ON TOP of this, so pre-storage early game behaves exactly as before.
+  baseCount() {
     if (this.colony.health.energyRich) return UPGRADERS_RICH;
     return this.room.energyCapacityAvailable >= 550 ? 2 : 1;
+  }
+
+  // Extra upgraders proportional to the banked storage surplus (#137). Self-regulating:
+  // storage is the LOWEST hauler-delivery priority (after spawn/extensions/tower/the
+  // controller container), so a rising storage means the controller container is already
+  // kept fed — the extra upgraders are guaranteed energy. As they consume the surplus,
+  // storage stops climbing and the count settles at equilibrium (consumption ≈ source
+  // surplus). Reserve-gated (bank a cushion first), capped (so the single spawn isn't
+  // swamped), and the DELTA is zeroed during recovery (no EXTRA burn while clawing out of
+  // a workforce collapse — the baseline upgraders still run; NOT gated on `decaying`,
+  // since upgrading is the FIX for a decaying controller).
+  // Read live, not smoothed: the per-upgrader granularity dwarfs per-tick storage jitter,
+  // so the count can't chatter (same live-read sizing idiom as WorkOverlord's backlog).
+  storageDelta() {
+    if (this.colony.health.recovering) return 0;
+    const storage = this.colony.room.storage;
+    if (!storage) return 0; // pre-storage (early game) → no delta
+    const surplus = storage.store[RESOURCE_ENERGY] - UPGRADE_STORAGE_RESERVE;
+    return Math.min(Math.max(Math.floor(surplus / ENERGY_PER_UPGRADER), 0), UPGRADE_EXTRA_MAX);
   }
 
   bodyFor(energy) {
