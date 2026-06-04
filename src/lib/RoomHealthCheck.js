@@ -90,8 +90,11 @@ export const RoomHealthCheck = {
     // Story log: only the latch flip (#107) — prior is last tick's persisted value.
     if (!prior.recovering && recovering) RoomLog.record(colony.name, "🆘 recovery on");
     else if (prior.recovering && !recovering) RoomLog.record(colony.name, "✅ recovery off");
-    const expansion = this.expansionReadiness(colony, prior, recovering);
-    const roadBuild = this.roadBuildReadiness(colony, prior, recovering);
+    // Home-crisis flags both readiness latches gate off on — computed ONCE so the
+    // hostile scan (Threat.assess) isn't repeated per signal.
+    const crisis = this.homeCrisis(colony);
+    const expansion = this.expansionReadiness(colony, prior, recovering, crisis);
+    const roadBuild = this.roadBuildReadiness(colony, prior, recovering, crisis);
     this.saveState(colony, {
       energyRich,
       recovering,
@@ -123,13 +126,27 @@ export const RoomHealthCheck = {
     };
   },
 
+  // Home-crisis flags both readiness latches gate off on (`{ decaying, attacked }`),
+  // computed once per tick so the hostile scan isn't repeated per signal.
+  //  • decaying — controller near downgrade: focus home, don't invest.
+  //  • attacked — combat-assessed, not a raw hostile count (#120, aligning with #105):
+  //    a harmless transiting scout (0 combat power) must NOT suppress investment — only
+  //    a genuinely armed attacker in the home room does.
+  homeCrisis(colony) {
+    const ctrl = colony.controller;
+    return {
+      decaying: ctrl?.ticksToDowngrade != null && ctrl.ticksToDowngrade < DOWNGRADE_CRISIS,
+      attacked: Threat.assess(colony.room) > 0,
+    };
+  },
+
   // Spare-spawn-capacity latch — the expansion-readiness signal (#89). The spawn is
   // "idle" (spare) when none of our spawns is mid-spawn AND energy sits at cap (a
   // busy spawn drains it). We smooth that into a ratio (EWMA) and Schmitt-latch it,
   // gated off during a home crisis — controller decaying, room attacked, or we can't
   // even afford a reserver body. Spawn-idle subsumes "home staffed": an understaffed
   // colony keeps its spawn busy, so the ratio only climbs once targets are met.
-  expansionReadiness(colony, prior, recovering) {
+  expansionReadiness(colony, prior, recovering, crisis) {
     const room = colony.room;
     const idleNow =
       colony.spawns.length > 0 &&
@@ -137,19 +154,13 @@ export const RoomHealthCheck = {
       room.energyAvailable >= room.energyCapacityAvailable;
     const idleRatio = (prior.idleRatio ?? 0) * (1 - IDLE_ALPHA) + (idleNow ? 1 : 0) * IDLE_ALPHA;
 
-    const ctrl = colony.controller;
-    const decaying = ctrl?.ticksToDowngrade != null && ctrl.ticksToDowngrade < DOWNGRADE_CRISIS;
-    // Combat-assessed, not a raw hostile count (#120, aligning with #105): a harmless
-    // transiting scout (0 combat power) must NOT suppress expansion/defense — only a
-    // genuinely armed attacker in the home room does.
-    const attacked = Threat.assess(room) > 0;
     const canAffordReserver =
       room.energyCapacityAvailable >= BODYPART_COST[CLAIM] + BODYPART_COST[MOVE];
 
     let ready = prior.expansionReady || false;
     // Recovery is the ultimate home crisis — never expand while clawing back from a
     // workforce collapse (it would steal the spawn time recovery needs).
-    if (decaying || attacked || !canAffordReserver || recovering) ready = false;
+    if (crisis.decaying || crisis.attacked || !canAffordReserver || recovering) ready = false;
     else if (idleRatio >= EXPANSION_READY_ON) ready = true;
     else if (idleRatio <= EXPANSION_READY_OFF) ready = false;
 
@@ -169,19 +180,15 @@ export const RoomHealthCheck = {
   // outpaces the spawn, even while it stays busy — exactly when expansionReady (spawn-
   // idle) wrongly reads false. Crisis-gated like the rest. Road-scoped on purpose:
   // other construction gets its own gate.
-  roadBuildReadiness(colony, prior, recovering) {
+  roadBuildReadiness(colony, prior, recovering, crisis) {
     const room = colony.room;
     const fullNow =
       room.energyCapacityAvailable > 0 &&
       room.energyAvailable >= room.energyCapacityAvailable * ROAD_BUILD_FULL_FRAC;
     const fullRatio = (prior.roadFullRatio ?? 0) * (1 - IDLE_ALPHA) + (fullNow ? 1 : 0) * IDLE_ALPHA;
 
-    const ctrl = colony.controller;
-    const decaying = ctrl?.ticksToDowngrade != null && ctrl.ticksToDowngrade < DOWNGRADE_CRISIS;
-    const attacked = Threat.assess(room) > 0;
-
     let ready = prior.roadBuildReady || false;
-    if (decaying || attacked || recovering) ready = false;
+    if (crisis.decaying || crisis.attacked || recovering) ready = false;
     else if (fullRatio >= ROAD_BUILD_READY_ON) ready = true;
     else if (fullRatio <= ROAD_BUILD_READY_OFF) ready = false;
 
