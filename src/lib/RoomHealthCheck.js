@@ -1,5 +1,6 @@
 import { hasSourceContainer } from "./Stages.js";
 import { RoomLog } from "./RoomLog.js";
+import { Threat } from "./Threat.js";
 
 // ============================================================================
 //  RoomHealthCheck — a per-tick read of the colony's economic DYNAMICS.
@@ -115,7 +116,10 @@ export const RoomHealthCheck = {
 
     const ctrl = colony.controller;
     const decaying = ctrl?.ticksToDowngrade != null && ctrl.ticksToDowngrade < DOWNGRADE_CRISIS;
-    const attacked = room.find(FIND_HOSTILE_CREEPS).length > 0;
+    // Combat-assessed, not a raw hostile count (#120, aligning with #105): a harmless
+    // transiting scout (0 combat power) must NOT suppress expansion/defense — only a
+    // genuinely armed attacker in the home room does.
+    const attacked = Threat.assess(room) > 0;
     const canAffordReserver =
       room.energyCapacityAvailable >= BODYPART_COST[CLAIM] + BODYPART_COST[MOVE];
 
