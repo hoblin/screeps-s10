@@ -23,6 +23,7 @@ export const ACTION_ICON = {
   repair: "🔧",
   upgrade: "🎮", pump: "🎮", // controller
   melee: "⚔️", ranged: "🏹", // guard combat
+  park: "🛡️", // guard garrisoning a cleared room's controller
   recycle: "♻️",
   "no-target": "❔",
 };

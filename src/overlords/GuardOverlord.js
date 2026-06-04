@@ -119,13 +119,17 @@ export class GuardOverlord extends Overlord {
     };
   }
 
-  // Release a guard whose room is no longer a target (cleared, cooled, or — for a
-  // remote — now out of our weight class) so the role recycles it; a guard in a
-  // still-targeted room keeps fighting.
+  // Release a guard ONLY when its room has left our footprint (no longer home, not in
+  // the remoteSources map) — then the role recycles it. A guard whose room merely
+  // cooled is NOT released: it garrisons there (#128), staying as a standing defender
+  // and counting as coverage so we don't re-dispatch a duplicate.
   run() {
-    const want = new Set(this.targets());
+    const footprint = new Set([
+      this.colony.name,
+      ...this.colony.remoteSources().map((s) => s.room),
+    ]);
     for (const creep of this.assignedCreeps) {
-      if (creep.memory.guardRoom && !want.has(creep.memory.guardRoom)) {
+      if (creep.memory.guardRoom && !footprint.has(creep.memory.guardRoom)) {
         creep.memory.guardRoom = null;
       }
     }
