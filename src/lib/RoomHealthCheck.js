@@ -1,4 +1,5 @@
 import { hasSourceContainer } from "./Stages.js";
+import { RoomLog } from "./RoomLog.js";
 
 // ============================================================================
 //  RoomHealthCheck — a per-tick read of the colony's economic DYNAMICS.
@@ -71,6 +72,9 @@ export const RoomHealthCheck = {
     else if (saturation <= SATURATION_RICH_OFF) energyRich = false;
 
     const recovering = this.recovering(colony, prior);
+    // Story log: only the latch flip (#107) — prior is last tick's persisted value.
+    if (!prior.recovering && recovering) RoomLog.record(colony.name, "🆘 recovery on");
+    else if (prior.recovering && !recovering) RoomLog.record(colony.name, "✅ recovery off");
     const expansion = this.expansionReadiness(colony, prior, recovering);
     this.saveState(colony, { energyRich, recovering, ...expansion.persist });
 

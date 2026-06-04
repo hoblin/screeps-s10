@@ -3,6 +3,8 @@ import { log } from "./lib/Logger.js";
 import { Dashboard } from "./lib/Dashboard.js";
 import { TrafficManager } from "./lib/TrafficManager.js";
 import { Threat } from "./lib/Threat.js";
+import { RoomLog } from "./lib/RoomLog.js";
+import { currentStageKey } from "./lib/Stages.js";
 
 // How many ticks of behaviour to keep per creep (#103). A capped ring buffer —
 // tiny against the 2 MB Memory cap (a few dozen creeps × a handful of small
@@ -67,6 +69,9 @@ export class Kernel {
     // each creep's intent tag + final position into its rolling log (#103).
     this.recordCreepTraces();
 
+    // Story log: RCL / stage milestones (health is computed by now). (#107)
+    this.recordProgressEvents();
+
     // Telemetry: write Memory.status every tick (instant pull), log summary
     // periodically. Always run — status is cheap and most useful when starved.
     Dashboard.run(this.colonies);
@@ -90,13 +95,46 @@ export class Kernel {
   updateRoomIntel() {
     for (const name in Game.rooms) {
       try {
+        // Capture the prior threat BEFORE observe() overwrites it, so we can log
+        // only the EDGE (raw threat>0, not isHot — a long-unseen room re-observed
+        // shouldn't re-fire "hostiles" if it was never actually fought). (#107)
+        const prior = Memory.roomIntel?.[name];
         Threat.observe(Game.rooms[name]);
+        const wasHot = !!prior && prior.threat > 0;
+        const threat = Memory.roomIntel[name].threat;
+        if (!wasHot && threat > 0) RoomLog.record(name, "⚔️ hostiles", { threat });
+        else if (wasHot && threat === 0) RoomLog.record(name, "🕊️ clear");
       } catch (err) {
         log.error(`Threat.observe(${name}) crashed: ${err.stack || err}`);
       }
     }
     // Occasionally forget long-abandoned rooms so the intel overlay stays bounded.
     if (Game.time % INTEL_PRUNE_INTERVAL === 0) Threat.prune(INTEL_MAX_AGE);
+  }
+
+  // Log colony progress milestones — RCL up and stage advance (#107). Runs after
+  // the colony loop so colony.health (and thus currentStage) is computed. Last-seen
+  // values persist in Memory.colonyData so we fire only on the edge.
+  recordProgressEvents() {
+    Memory.colonyData ||= {};
+    for (const name in this.colonies) {
+      try {
+        const colony = this.colonies[name];
+        const cd = (Memory.colonyData[name] ||= {});
+        const rcl = colony.controller.level;
+        const stage = currentStageKey(colony);
+        if (cd.lastRcl !== undefined && rcl > cd.lastRcl) {
+          RoomLog.record(name, "📈 RCL up", { to: rcl });
+        }
+        if (cd.lastStage !== undefined && stage !== cd.lastStage) {
+          RoomLog.record(name, "🏗️ stage", { to: stage });
+        }
+        cd.lastRcl = rcl;
+        cd.lastStage = stage;
+      } catch (err) {
+        log.error(`recordProgressEvents(${name}) crashed: ${err.stack || err}`);
+      }
+    }
   }
 
   // Append one behaviour breadcrumb per living creep to its capped rolling log

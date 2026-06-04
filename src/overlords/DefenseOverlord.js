@@ -1,5 +1,6 @@
 import { Overlord } from "./Overlord.js";
 import { TowerPlanner } from "../lib/TowerPlanner.js";
+import { RoomLog } from "../lib/RoomLog.js";
 
 // ============================================================================
 //  DefenseOverlord — owns the colony's Towers: places them and operates them.
@@ -54,7 +55,12 @@ export class DefenseOverlord extends Overlord {
   run() {
     this.planTowers();
     const towers = this.towers();
-    if (towers.length === 0) return;
+    const prevEngaged = this.engagedCache; // { id: { hits, owner } } we fired at last tick
+    if (towers.length === 0) {
+      // No towers fired, so nothing was killed — just clear stale tracking.
+      if (Object.keys(prevEngaged).length) this.engagedCache = {};
+      return;
+    }
 
     const hostiles = this.room.find(FIND_HOSTILE_CREEPS);
     const wounded = hostiles.length
@@ -66,9 +72,49 @@ export class DefenseOverlord extends Overlord {
     const repairTarget =
       hostiles.length === 0 && !healTarget ? this.repairTarget() : null;
 
+    // Collect who each tower fired at this tick, so we can log engagements and
+    // kills against last tick's set (#107).
+    const engaged = {};
     for (const tower of towers) {
-      this.operateTower(tower, hostiles, healTarget, repairTarget);
+      const target = this.operateTower(tower, hostiles, healTarget, repairTarget);
+      if (target) engaged[target.id] = { hits: target.hits, owner: target.owner.username };
     }
+    this.logEngagements(prevEngaged, engaged, towers.length);
+    this.engagedCache = engaged;
+  }
+
+  // Story-log tower combat (#107): a target we just started firing at → "engaged";
+  // a target we were firing at that vanished → "killed" if it COULD have died to our
+  // towers (last hits ≤ the max damage they can deal), else "fled". The fled/killed
+  // split is a heuristic — the API gives no kill signal (a dead and a border-crossed
+  // creep both just disappear) — but last-hits-vs-max-damage is a sound bound: a
+  // creep above our max damage definitely didn't die to us.
+  logEngagements(prev, current, towerCount) {
+    for (const id in current) {
+      if (!(id in prev)) {
+        const c = current[id];
+        RoomLog.record(this.room.name, "🗼 engaged", { owner: c.owner, hp: c.hits });
+      }
+    }
+    const maxDamage = towerCount * TOWER_POWER_ATTACK;
+    for (const id in prev) {
+      if (id in current) continue;
+      const c = prev[id];
+      if (c.hits <= maxDamage) RoomLog.record(this.room.name, "💀 killed", { owner: c.owner });
+      else RoomLog.record(this.room.name, "🏃 fled", { owner: c.owner, hp: c.hits });
+    }
+  }
+
+  // Cross-tick set of hostiles our towers fired at last tick (the overlord is
+  // rebuilt each tick, so this lives in Memory) — mirrors MiningOverlord's caches.
+  get engagedCache() {
+    return Memory.colonyData?.[this.colony.name]?.towerEngaged || {};
+  }
+
+  set engagedCache(value) {
+    Memory.colonyData ||= {};
+    Memory.colonyData[this.colony.name] ||= {};
+    Memory.colonyData[this.colony.name].towerEngaged = value;
   }
 
   towers() {
@@ -127,19 +173,21 @@ export class DefenseOverlord extends Overlord {
   //  Operation: one action per tower per tick, attack > heal > repair. Targets
   //  are gathered once per tick by run() and passed in (see its comment).
   // --------------------------------------------------------------------------
+  // Returns the hostile this tower attacked (for engagement logging), else null.
   operateTower(tower, hostiles, healTarget, repairTarget) {
     // 1. Attack the closest hostile (closest = least range falloff). Always
     //    fires, regardless of the energy reserve — fighting is the point.
     if (hostiles.length > 0) {
-      tower.attack(tower.pos.findClosestByRange(hostiles));
-      return;
+      const target = tower.pos.findClosestByRange(hostiles);
+      tower.attack(target);
+      return target;
     }
 
     // 2. Heal the most-damaged friendly creep. Also unreserved — keeping our own
     //    creeps alive is defensive.
     if (healTarget) {
       tower.heal(healTarget);
-      return;
+      return null;
     }
 
     // 3. Idle repair — only while we hold more than the combat reserve, so a
@@ -148,6 +196,7 @@ export class DefenseOverlord extends Overlord {
     if (repairTarget && tower.store[RESOURCE_ENERGY] > TOWER_ENERGY_RESERVE) {
       tower.repair(repairTarget);
     }
+    return null;
   }
 
   // The most-worn structure worth a tower's energy (a road/container/etc.):
