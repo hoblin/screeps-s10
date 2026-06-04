@@ -59,6 +59,7 @@ export const Dashboard = {
   snapshot(colony) {
     const c = colony;
     const ctrl = c.controller;
+    const health = c.health; // per-tick economy signals; also the single source for the site count
 
     const pop = {};
     for (const role in c.creepsByRole) pop[role] = c.creepsByRole[role].length;
@@ -100,11 +101,12 @@ export const Dashboard = {
       sourceEnergy: sourceEnergy(c),
       pop,
       overlords,
-      // Construction sites pending (useful once we start building).
-      sites: c.room.find(FIND_MY_CONSTRUCTION_SITES).length,
+      // Construction sites pending — same count health derives buildBacklog from,
+      // so reuse it (one room.find/tick, no drift between the two).
+      sites: health.buildBacklog,
       // Economic-dynamics signals driving creep counts (#81) — visible live so
       // the control loop is debuggable.
-      health: c.health,
+      health,
     };
   },
 
