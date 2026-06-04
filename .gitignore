@@ -5,3 +5,4 @@ dist/
 .env
 # scratch dir: local SQLite mirror, generated images, scan/score JSON dumps
 tmp/
+/thoughts/
