@@ -39,9 +39,13 @@ export class Role {
   static note(creep, action) {
     creep.memory._act = action;
     // Push view (#123): show what the creep is doing as an in-game speech bubble,
-    // driven straight off the same tag the trace records (so the two never drift).
+    // driven off the same tag the trace records. Only on a SWITCH (#126) — say when
+    // the icon changes, not every tick, so the room UI isn't a wall of bubbles.
     const icon = actionIcon(action);
-    if (icon) creep.say(icon);
+    if (icon && creep.memory._icon !== icon) {
+      creep.say(icon);
+      creep.memory._icon = icon;
+    }
   }
 
   // Send a creep with no valid assignment home to be recycled — reclaiming part of
