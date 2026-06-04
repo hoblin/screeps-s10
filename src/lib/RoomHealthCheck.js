@@ -46,11 +46,17 @@ const DOWNGRADE_CRISIS = 5000; // controller this near downgrade → focus home,
 
 // Road-build readiness (#135): a road costs ENERGY + worker build-time, NOT spawn
 // time, so — unlike expansionReady — its gate ignores spawn-idle and tracks sustained
-// energy headroom (spawn+extensions topped). Dedicated thresholds, NOT a reuse of the
-// expansion ones, so road gating tunes independently (the lesson of one gate reused
+// energy headroom (spawn+extensions near-topped). Dedicated thresholds, NOT a reuse of
+// the expansion ones, so road gating tunes independently (the lesson of one gate reused
 // everywhere). Shares IDLE_ALPHA — a generic EWMA memory window, no expansion meaning.
-const ROAD_BUILD_READY_ON = 0.5; // energy at cap ≥ half the time → headroom to build roads
+const ROAD_BUILD_READY_ON = 0.5; // near-full ≥ half the time → headroom to build roads
 const ROAD_BUILD_READY_OFF = 0.2; // ...below this, hold off (hysteresis)
+// "Near-full" tolerance: extensions count as topped at ≥90% of cap. A busy colony's
+// spawn debits the body cost the instant it starts, so energyAvailable sits a spawn-
+// cost BELOW cap almost every tick (live: ~1260/1300) — a strict ==cap test would
+// never latch in exactly the colony this gate targets. 90% reads the SUSTAINED
+// headroom through that transient drain. Tunable from live behaviour.
+const ROAD_BUILD_FULL_FRAC = 0.9;
 
 // Recovery hysteresis (#54): a developed colony whose workforce has collapsed can't
 // put energy back into its own spawn (at 2b+ static miners are gated off and self-
@@ -153,16 +159,21 @@ export const RoomHealthCheck = {
   // Road-build readiness (#135): may we fund road construction NOW? A road costs
   // energy + worker build-time, not spawn time — so this is deliberately NOT
   // expansionReady. It tracks sustained ENERGY HEADROOM: spawn+extensions sitting
-  // topped means the immediate spawn demand is met and the next energy has room to
-  // fund a road. Same EWMA + Schmitt machinery as expansionReadiness, but the raw
-  // signal drops the spawn-idle term (and the reserver-affordability gate — irrelevant
-  // to a structure). So roads extend whenever income outpaces the spawn, even while it
-  // stays busy — exactly when expansionReady (spawn-idle) wrongly reads false. Crisis-
-  // gated like the rest. Road-scoped on purpose: other construction gets its own gate.
+  // NEAR-topped (≥ROAD_BUILD_FULL_FRAC of cap) means the immediate spawn demand is met
+  // and the next energy has room to fund a road. The near-full tolerance is the crux:
+  // a busy spawn debits its body cost the instant it starts, so energy sits a spawn-
+  // cost below cap almost every tick — a strict ==cap test would never latch in exactly
+  // the busy colony this gate targets. Same EWMA + Schmitt machinery as
+  // expansionReadiness, but the raw signal drops the spawn-idle term (and the reserver-
+  // affordability gate — irrelevant to a structure). So roads extend whenever income
+  // outpaces the spawn, even while it stays busy — exactly when expansionReady (spawn-
+  // idle) wrongly reads false. Crisis-gated like the rest. Road-scoped on purpose:
+  // other construction gets its own gate.
   roadBuildReadiness(colony, prior, recovering) {
     const room = colony.room;
     const fullNow =
-      room.energyCapacityAvailable > 0 && room.energyAvailable >= room.energyCapacityAvailable;
+      room.energyCapacityAvailable > 0 &&
+      room.energyAvailable >= room.energyCapacityAvailable * ROAD_BUILD_FULL_FRAC;
     const fullRatio = (prior.roadFullRatio ?? 0) * (1 - IDLE_ALPHA) + (fullNow ? 1 : 0) * IDLE_ALPHA;
 
     const ctrl = colony.controller;
