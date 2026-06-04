@@ -27,24 +27,33 @@ export class RemoteMiner extends Role {
   }
 
   static run(creep, colony) {
-    const { targetRoom, sourcePos } = creep.memory;
-    if (!targetRoom || !sourcePos) return;
+    // The remote source is read LIVE from the colony, not stamped at spawn (#105):
+    // remoteSource() skips contested (hot) rooms, so when our target is invaded this
+    // resolves to the next SAFE remote and the miner re-routes there automatically;
+    // null means no safe remote remains → wait at home (the safe fallback). Threat
+    // avoidance lives in target selection — no per-tick hostile scan/flee here, which
+    // is what used to flee a harmless scout and oscillate at the border.
+    const target = colony.remoteSource();
+    if (!target) {
+      this.note(creep, "rmine:no-target");
+      return this.retreatHome(creep, colony);
+    }
+    const { room: targetRoom, x, y } = target;
+
+    // Re-routed to a different room? Drop the stale parking tile so we recompute one
+    // in the NEW room rather than walking to a tile that no longer applies.
+    if (creep.memory.miningPos && creep.memory.miningPos.roomName !== targetRoom) {
+      creep.memory.miningPos = null;
+    }
 
     // Cross the border first (the foreign-room branch of travelTo, #92).
     if (creep.room.name !== targetRoom) {
       this.note(creep, "rmine:to-room");
-      creep.travelTo(new RoomPosition(sourcePos.x, sourcePos.y, targetRoom), { range: 1 });
+      creep.travelTo(new RoomPosition(x, y, targetRoom), { range: 1 });
       return;
     }
 
-    // In the target room. Live safety: pull out if an invader showed up.
-    if (creep.room.find(FIND_HOSTILE_CREEPS).length > 0) {
-      this.note(creep, "rmine:flee");
-      this.retreatHome(creep, colony);
-      return;
-    }
-
-    const source = creep.room.lookForAt(LOOK_SOURCES, sourcePos.x, sourcePos.y)[0];
+    const source = creep.room.lookForAt(LOOK_SOURCES, x, y)[0];
     if (!source) return; // out of vision / wrong tile — shouldn't happen once here
 
     // Pick a fixed parking tile adjacent to the source once (cached), so the

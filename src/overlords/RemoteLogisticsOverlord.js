@@ -41,17 +41,9 @@ export class RemoteLogisticsOverlord extends Overlord {
     return RemoteHauler.bodyFor(energyBudget);
   }
 
-  // Stamp the target room + source tile so haulers know where to pick up.
-  generateSpawnRequest() {
-    const request = super.generateSpawnRequest();
-    if (!request) return null;
-    const s = this.colony.remoteSource();
-    if (!s) return null;
-    request.memory.targetRoom = s.room;
-    request.memory.sourcePos = { x: s.x, y: s.y };
-    return request;
-  }
-
+  // No target stamp needed: RemoteHauler reads colony.remoteSource() live each tick
+  // (#105) and re-routes when the target room is contested. The base
+  // generateSpawnRequest (role/colony/overlord tags) is enough.
   runCreep(creep) {
     RemoteHauler.run(creep, this.colony);
   }

@@ -29,17 +29,9 @@ export class RemoteMiningOverlord extends Overlord {
     return RemoteMiner.bodyFor(energyBudget);
   }
 
-  // Stamp the target room + source tile so the miner heads straight there.
-  generateSpawnRequest() {
-    const request = super.generateSpawnRequest();
-    if (!request) return null;
-    const s = this.colony.remoteSource();
-    if (!s) return null;
-    request.memory.targetRoom = s.room;
-    request.memory.sourcePos = { x: s.x, y: s.y };
-    return request;
-  }
-
+  // No target stamp needed: RemoteMiner reads colony.remoteSource() live each tick
+  // (#105), so it re-routes itself when the target room is contested. The base
+  // generateSpawnRequest (role/colony/overlord tags) is enough.
   runCreep(creep) {
     RemoteMiner.run(creep, this.colony);
   }

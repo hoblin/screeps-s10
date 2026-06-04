@@ -25,25 +25,25 @@ export class RemoteHauler extends Hauler {
 
   // ---- collect: cross to the remote source and grab the miner's ground pile --
   static collect(creep, colony) {
-    const { targetRoom, sourcePos } = creep.memory;
-    if (!targetRoom || !sourcePos) return;
+    // Live target (#105): remoteSource() skips hot/contested rooms, so collect
+    // automatically re-routes to a safe remote when ours is invaded — and no
+    // per-tick hostile scan, which is what fled a harmless scout and oscillated at
+    // the border. No safe remote: take a partial load home, else idle home.
+    const target = colony.remoteSource();
+    if (!target) {
+      if (creep.store[RESOURCE_ENERGY] > 0) {
+        creep.memory.working = true;
+        return this.deliver(creep, colony);
+      }
+      this.note(creep, "rhaul:no-target");
+      creep.travelTo(new RoomPosition(25, 25, colony.name), { range: 20 });
+      return;
+    }
+    const { room: targetRoom, x, y } = target;
 
     if (creep.room.name !== targetRoom) {
       this.note(creep, "rhaul:to-room");
-      creep.travelTo(new RoomPosition(sourcePos.x, sourcePos.y, targetRoom), { range: 3 });
-      return;
-    }
-    // Live safety: don't sit in a room an invader just entered — pull out. If we
-    // carry energy, flip to delivering so the home trip runs the proper deliver
-    // logic instead of looping forever in collect (updateWorkingState only flips to
-    // delivering at a FULL load).
-    if (creep.room.find(FIND_HOSTILE_CREEPS).length > 0) {
-      if (creep.store[RESOURCE_ENERGY] > 0) {
-        creep.memory.working = true;
-        return this.deliver(creep, colony); // deliver() stamps its own note this tick
-      }
-      this.note(creep, "rhaul:flee");
-      creep.travelTo(new RoomPosition(25, 25, colony.name), { range: 20 });
+      creep.travelTo(new RoomPosition(x, y, targetRoom), { range: 3 });
       return;
     }
 
@@ -63,7 +63,7 @@ export class RemoteHauler extends Hauler {
       return this.deliver(creep, colony); // deliver() stamps its own note this tick
     }
     this.note(creep, "rhaul:to-source");
-    creep.travelTo(new RoomPosition(sourcePos.x, sourcePos.y, targetRoom), { range: 2 });
+    creep.travelTo(new RoomPosition(x, y, targetRoom), { range: 2 });
   }
 
   // ---- deliver: get back to the home room, then the normal home delivery -----

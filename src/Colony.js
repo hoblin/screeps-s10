@@ -8,6 +8,7 @@ import { RemoteMiningOverlord } from "./overlords/RemoteMiningOverlord.js";
 import { RemoteLogisticsOverlord } from "./overlords/RemoteLogisticsOverlord.js";
 import { DefenseOverlord } from "./overlords/DefenseOverlord.js";
 import { RoomHealthCheck } from "./lib/RoomHealthCheck.js";
+import { Threat } from "./lib/Threat.js";
 import { Miner } from "./roles/Miner.js";
 import { bodyCost } from "./lib/BodyGenerator.js";
 import expansionMap from "./data/expansionMap.json";
@@ -214,14 +215,17 @@ export class Colony {
     return this.sources.some((source) => source.pos.getRangeTo(pos) <= 1);
   }
 
-  // The remote room we're expanding into: the top-ranked safe neighbour from the
-  // static map (#88) not already reserved by someone else. One target in v1, so
-  // ReserveOverlord + the remote mining/logistics overlords all act on the SAME
-  // room. Memoized per tick (the map is bundled at build time).
+  // The remote room we're expanding into: the top-ranked neighbour from the static
+  // map (#88) that is safe by economy (not reserved by someone else) AND safe RIGHT
+  // NOW (not currently hot per the live threat intel, #105). Skipping hot rooms is
+  // what re-routes the whole remote op (reserve + mine + haul all read this) to the
+  // next safe neighbour when a target is contested — and back, once it cools and the
+  // intel goes stale. One target in v1. Memoized per tick.
   remoteTarget() {
     if (this._remoteTarget !== undefined) return this._remoteTarget;
     const remotes = expansionMap[this.name]?.remotes;
-    this._remoteTarget = (remotes && remotes.find((r) => !r.reservedByOther)) || null;
+    this._remoteTarget =
+      (remotes && remotes.find((r) => !r.reservedByOther && !Threat.isHot(r.room))) || null;
     return this._remoteTarget;
   }
 
