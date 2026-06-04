@@ -44,6 +44,14 @@ const EXPANSION_READY_ON = 0.5; // spawn idle ≥ half the time → spare capaci
 const EXPANSION_READY_OFF = 0.2; // ...below this it's busy again → back off (hysteresis)
 const DOWNGRADE_CRISIS = 5000; // controller this near downgrade → focus home, don't expand
 
+// Road-build readiness (#135): a road costs ENERGY + worker build-time, NOT spawn
+// time, so — unlike expansionReady — its gate ignores spawn-idle and tracks sustained
+// energy headroom (spawn+extensions topped). Dedicated thresholds, NOT a reuse of the
+// expansion ones, so road gating tunes independently (the lesson of one gate reused
+// everywhere). Shares IDLE_ALPHA — a generic EWMA memory window, no expansion meaning.
+const ROAD_BUILD_READY_ON = 0.5; // energy at cap ≥ half the time → headroom to build roads
+const ROAD_BUILD_READY_OFF = 0.2; // ...below this, hold off (hysteresis)
+
 // Recovery hysteresis (#54): a developed colony whose workforce has collapsed can't
 // put energy back into its own spawn (at 2b+ static miners are gated off and self-
 // harvest is banned) — a death spiral with no exit. We latch a `recovering` signal
@@ -77,7 +85,13 @@ export const RoomHealthCheck = {
     if (!prior.recovering && recovering) RoomLog.record(colony.name, "🆘 recovery on");
     else if (prior.recovering && !recovering) RoomLog.record(colony.name, "✅ recovery off");
     const expansion = this.expansionReadiness(colony, prior, recovering);
-    this.saveState(colony, { energyRich, recovering, ...expansion.persist });
+    const roadBuild = this.roadBuildReadiness(colony, prior, recovering);
+    this.saveState(colony, {
+      energyRich,
+      recovering,
+      ...expansion.persist,
+      ...roadBuild.persist,
+    });
 
     return {
       // observations
@@ -91,6 +105,9 @@ export const RoomHealthCheck = {
       // the expansion-readiness dial the remote-mining overlord reads (#18/#89)
       expansionReady: expansion.ready,
       spawnIdle: Math.round(expansion.idleRatio * 100) / 100,
+      // the road-build dial Hatchery.planRoads reads (#135) — energy headroom, not
+      // spawn-idle (a road costs energy + worker time, not spawn time)
+      roadBuildReady: roadBuild.ready,
       // blocker flags — informational in v1 (surfaced in telemetry for review),
       // future consumers can act on them.
       blockers: {
@@ -131,6 +148,33 @@ export const RoomHealthCheck = {
     else if (idleRatio <= EXPANSION_READY_OFF) ready = false;
 
     return { ready, idleRatio, persist: { expansionReady: ready, idleRatio } };
+  },
+
+  // Road-build readiness (#135): may we fund road construction NOW? A road costs
+  // energy + worker build-time, not spawn time — so this is deliberately NOT
+  // expansionReady. It tracks sustained ENERGY HEADROOM: spawn+extensions sitting
+  // topped means the immediate spawn demand is met and the next energy has room to
+  // fund a road. Same EWMA + Schmitt machinery as expansionReadiness, but the raw
+  // signal drops the spawn-idle term (and the reserver-affordability gate — irrelevant
+  // to a structure). So roads extend whenever income outpaces the spawn, even while it
+  // stays busy — exactly when expansionReady (spawn-idle) wrongly reads false. Crisis-
+  // gated like the rest. Road-scoped on purpose: other construction gets its own gate.
+  roadBuildReadiness(colony, prior, recovering) {
+    const room = colony.room;
+    const fullNow =
+      room.energyCapacityAvailable > 0 && room.energyAvailable >= room.energyCapacityAvailable;
+    const fullRatio = (prior.roadFullRatio ?? 0) * (1 - IDLE_ALPHA) + (fullNow ? 1 : 0) * IDLE_ALPHA;
+
+    const ctrl = colony.controller;
+    const decaying = ctrl?.ticksToDowngrade != null && ctrl.ticksToDowngrade < DOWNGRADE_CRISIS;
+    const attacked = Threat.assess(room) > 0;
+
+    let ready = prior.roadBuildReady || false;
+    if (decaying || attacked || recovering) ready = false;
+    else if (fullRatio >= ROAD_BUILD_READY_ON) ready = true;
+    else if (fullRatio <= ROAD_BUILD_READY_OFF) ready = false;
+
+    return { ready, fullRatio, persist: { roadBuildReady: ready, roadFullRatio: fullRatio } };
   },
 
   // Workforce-collapse latch (#54). ENTER when a DEVELOPED colony (past bootstrap —

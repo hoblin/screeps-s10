@@ -23,6 +23,11 @@ import { log } from "./Logger.js";
 const MAX_PENDING_ROAD_SITES = 10;
 // Candidate-pool cap = the Memory bound. Only the hottest tiles survive a prune.
 const HEAT_POOL_MAX = 100;
+// Roads follow the FREIGHT highways: only haulers (home + remote) define the heat —
+// they are the loaded, constant traffic roads actually pay off for. Static miners
+// (parked on a post), parked upgraders, and roaming workers would just pollute the
+// map with traffic that doesn't need roading (#135).
+const HAUL_ROLES = new Set(["hauler", "remoteHauler"]);
 
 export const RoadPlanner = {
   key(x, y) {
@@ -41,15 +46,17 @@ export const RoadPlanner = {
     );
   },
 
-  // Sample one tick of traffic into `pool`. Only WALKWAY tiles are eligible — the
-  // structure checkerboard ((x+y)%2 === the spawn anchor's parity) is reserved for
-  // extensions/towers, so a road must never squat it (mirrors ExtensionPlanner's
-  // parity). Tiles already carrying a road/structure are skipped (nothing to plan).
-  // Prunes afterwards so the pool stays bounded at HEAT_POOL_MAX.
+  // Sample one tick of HAULER traffic into `pool` (only haul roles count — see
+  // HAUL_ROLES). Only WALKWAY tiles are eligible — the structure checkerboard
+  // ((x+y)%2 === the spawn anchor's parity) is reserved for extensions/towers, so a
+  // road must never squat it (mirrors ExtensionPlanner's parity). Tiles already
+  // carrying a road/structure are skipped (nothing to plan). Prunes afterwards so the
+  // pool stays bounded at HEAT_POOL_MAX.
   record(room, pool, anchor) {
     const parity = (anchor.x + anchor.y) % 2;
     for (const creep of room.find(FIND_MY_CREEPS)) {
       if (creep.spawning) continue;
+      if (!HAUL_ROLES.has(creep.memory.role)) continue; // roads follow the freight highways (#135)
       const { x, y } = creep.pos;
       if (x < 1 || x > 48 || y < 1 || y > 48) continue; // exit/border tile — no structure fits
       if ((x + y) % 2 === parity) continue; // structure-colour tile → not a road tile

@@ -16,8 +16,8 @@ const ROAD_PLAN_INTERVAL = 25;
 // lazier under load so traffic sampling never competes with the core for CPU.
 const ROAD_SAMPLE_INTERVAL = 5;
 // Samples a tile must accumulate before it becomes a road. Deliberately LOW so
-// candidates accumulate eagerly; the expansionReady gate decides WHEN to build.
-const ROAD_THRESHOLD = 40;
+// candidates accumulate eagerly; the roadBuildReady gate decides WHEN to build.
+const ROAD_THRESHOLD = 20;
 
 // ============================================================================
 //  Hatchery — owns the colony's spawns + extensions; turns spawn requests
@@ -158,8 +158,10 @@ export class Hatchery extends HiveCluster {
   //  a road. The hot paths emerge from where creeps actually walk (no hand-coded
   //  topology), and because movement prefers roads the network self-completes.
   //  Gated on 2b:Hauling (the routes go hot once haulers shuttle every tick);
-  //  PLACEMENT is gated on expansionReady so a low threshold lets candidates
-  //  accumulate and build only when the colony has slack. Workers build the sites.
+  //  PLACEMENT is gated on roadBuildReady (energy headroom, NOT spawn-idle — a road
+  //  costs energy + worker time, not spawn time, #135) so a low threshold lets
+  //  candidates accumulate and build whenever income outpaces the spawn. Workers
+  //  build the sites.
   // --------------------------------------------------------------------------
   planRoads() {
     if (!stageAtLeast(this.colony, "2b:Hauling")) return;
@@ -172,16 +174,16 @@ export class Hatchery extends HiveCluster {
       RoadPlanner.record(this.room, pool, anchor.pos);
     }
     // Build the hottest tiles only when we can afford the lowest-priority backlog.
-    if (Game.time % ROAD_PLAN_INTERVAL === 0 && this.colony.health.expansionReady) {
+    if (Game.time % ROAD_PLAN_INTERVAL === 0 && this.colony.health.roadBuildReady) {
       RoadPlanner.placeHotRoads(this.room, pool, ROAD_THRESHOLD);
     }
   }
 
-  // Sampling cadence scales with health: keener when the colony has spare capacity
-  // (expansionReady), lazier under load so traffic sampling never competes with
-  // the core economy for CPU.
+  // Sampling cadence scales with health: keener when we have the energy headroom to
+  // road-build (roadBuildReady), lazier under load so traffic sampling never competes
+  // with the core economy for CPU.
   roadSampleInterval() {
-    return this.colony.health.expansionReady ? ROAD_SAMPLE_INTERVAL : ROAD_SAMPLE_INTERVAL * 3;
+    return this.colony.health.roadBuildReady ? ROAD_SAMPLE_INTERVAL : ROAD_SAMPLE_INTERVAL * 3;
   }
 
   // The live per-room traffic heat pool (tile "x,y" → count), persisted in colony
