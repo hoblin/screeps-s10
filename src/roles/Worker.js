@@ -30,6 +30,7 @@ export class Worker extends Role {
     if (!working) {
       // this.gatherEnergy (not Role.gatherEnergy) so the Worker's own
       // gatherMovementPriority is honoured if it ever overrides it.
+      this.note(creep, "work:gather");
       this.gatherEnergy(creep, colony);
       return;
     }
@@ -44,6 +45,7 @@ export class Worker extends Role {
           s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,
       });
       if (fill) {
+        this.note(creep, "work:fill");
         if (creep.transfer(fill, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) creep.travelTo(fill);
         return;
       }
@@ -58,6 +60,7 @@ export class Worker extends Role {
     if (sites.length) {
       const site = Worker.selectBuildTarget(creep, sites);
       if (site) {
+        this.note(creep, "work:build");
         if (creep.build(site) === ERR_NOT_IN_RANGE) creep.travelTo(site);
         return;
       }
@@ -71,11 +74,13 @@ export class Worker extends Role {
         s.structureType !== STRUCTURE_RAMPART,
     });
     if (repair) {
+      this.note(creep, "work:repair");
       if (creep.repair(repair) === ERR_NOT_IN_RANGE) creep.travelTo(repair);
       return;
     }
 
     // 4. Idle fallback: help upgrade.
+    this.note(creep, "work:upgrade");
     if (creep.upgradeController(colony.controller) === ERR_NOT_IN_RANGE) {
       creep.travelTo(colony.controller);
     }

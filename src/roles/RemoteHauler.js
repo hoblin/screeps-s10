@@ -29,6 +29,7 @@ export class RemoteHauler extends Hauler {
     if (!targetRoom || !sourcePos) return;
 
     if (creep.room.name !== targetRoom) {
+      this.note(creep, "rhaul:to-room");
       creep.travelTo(new RoomPosition(sourcePos.x, sourcePos.y, targetRoom), { range: 3 });
       return;
     }
@@ -39,8 +40,9 @@ export class RemoteHauler extends Hauler {
     if (creep.room.find(FIND_HOSTILE_CREEPS).length > 0) {
       if (creep.store[RESOURCE_ENERGY] > 0) {
         creep.memory.working = true;
-        return this.deliver(creep, colony);
+        return this.deliver(creep, colony); // deliver() stamps its own note this tick
       }
+      this.note(creep, "rhaul:flee");
       creep.travelTo(new RoomPosition(25, 25, colony.name), { range: 20 });
       return;
     }
@@ -49,6 +51,7 @@ export class RemoteHauler extends Hauler {
       filter: (r) => r.resourceType === RESOURCE_ENERGY,
     });
     if (pile) {
+      this.note(creep, "rhaul:pickup");
       if (creep.pickup(pile) === ERR_NOT_IN_RANGE) creep.travelTo(pile);
       return;
     }
@@ -57,14 +60,16 @@ export class RemoteHauler extends Hauler {
     // hauler waits by the source for the next drop.
     if (creep.store[RESOURCE_ENERGY] > 0) {
       creep.memory.working = true;
-      return this.deliver(creep, colony);
+      return this.deliver(creep, colony); // deliver() stamps its own note this tick
     }
+    this.note(creep, "rhaul:to-source");
     creep.travelTo(new RoomPosition(sourcePos.x, sourcePos.y, targetRoom), { range: 2 });
   }
 
   // ---- deliver: get back to the home room, then the normal home delivery -----
   static deliver(creep, colony) {
     if (creep.room.name !== colony.name) {
+      this.note(creep, "rhaul:to-home");
       creep.travelTo(new RoomPosition(25, 25, colony.name), { range: 20 });
       return;
     }

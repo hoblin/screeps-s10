@@ -17,10 +17,12 @@ export class Upgrader extends Role {
     const controller = colony.controller;
 
     if (working) {
+      this.note(creep, "upgrade:pump");
       if (creep.upgradeController(controller) === ERR_NOT_IN_RANGE) {
         creep.travelTo(controller);
       }
     } else {
+      this.note(creep, "upgrade:gather");
       this.gather(creep, colony);
     }
   }

@@ -37,6 +37,7 @@ export class Reserver extends Role {
     if (creep.room.name !== targetRoom) {
       const cp = creep.memory.controllerPos;
       if (!cp) return this.retreatHome(creep, colony); // memory lost — pull home, don't crash
+      this.note(creep, "reserve:to-room");
       creep.travelTo(new RoomPosition(cp.x, cp.y, targetRoom), { range: 1 });
       return;
     }
@@ -44,6 +45,7 @@ export class Reserver extends Role {
     // In the target room. LIVE safety: the map excluded SK/enemy rooms, but a
     // transient invader can still appear — pull out instead of dying on the spot.
     if (creep.room.find(FIND_HOSTILE_CREEPS).length > 0) {
+      this.note(creep, "reserve:flee");
       this.retreatHome(creep, colony);
       return;
     }
@@ -52,8 +54,11 @@ export class Reserver extends Role {
     if (!controller) return this.retreatHome(creep, colony); // map only targets rooms with a controller
     const result = creep.reserveController(controller);
     if (result === ERR_NOT_IN_RANGE) {
+      this.note(creep, "reserve:approach");
       creep.travelTo(controller, { range: 1 });
-    } else if (result !== OK) {
+    } else if (result === OK) {
+      this.note(creep, "reserve:hold");
+    } else {
       // Controller became owned/invalid since the map was generated (e.g. someone
       // claimed it), or we lack a CLAIM part — don't spam reserveController forever;
       // pull home so the overlord can re-target when the map next updates.

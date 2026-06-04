@@ -32,12 +32,14 @@ export class RemoteMiner extends Role {
 
     // Cross the border first (the foreign-room branch of travelTo, #92).
     if (creep.room.name !== targetRoom) {
+      this.note(creep, "rmine:to-room");
       creep.travelTo(new RoomPosition(sourcePos.x, sourcePos.y, targetRoom), { range: 1 });
       return;
     }
 
     // In the target room. Live safety: pull out if an invader showed up.
     if (creep.room.find(FIND_HOSTILE_CREEPS).length > 0) {
+      this.note(creep, "rmine:flee");
       this.retreatHome(creep, colony);
       return;
     }
@@ -62,10 +64,12 @@ export class RemoteMiner extends Role {
       mp = creep.memory.miningPos;
     }
     if (creep.pos.x !== mp.x || creep.pos.y !== mp.y) {
+      this.note(creep, "rmine:to-post");
       creep.travelTo(new RoomPosition(mp.x, mp.y, targetRoom));
       return;
     }
 
+    this.note(creep, "rmine:harvest");
     creep.harvest(source); // no CARRY → energy drops on this tile for the hauler
   }
 
