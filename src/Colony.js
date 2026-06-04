@@ -50,31 +50,19 @@ export class Colony {
       (source) => new MiningOverlord(this, source)
     );
 
-    // Remote mining is the SAME per-source shape, extended across the border (#102):
-    // one RemoteMiningOverlord per reachable remote source, one ReserveOverlord per
-    // distinct remote room, and a single shared remote hauler fleet. The set is built
-    // from the static map geometry (stable across ticks, so threat flapping never
-    // orphans creeps); each overlord self-gates on expansionReady + live threat.
-    const remoteSources = this.remoteSources();
-    const remoteMiningOverlords = remoteSources.map(
-      (s) => new RemoteMiningOverlord(this, s)
-    );
-    const remoteRooms = [...new Set(remoteSources.map((s) => s.room))];
-    const reserveOverlords = remoteRooms.map(
-      (room) => new ReserveOverlord(this, {
-        room,
-        controller: remoteSources.find((s) => s.room === room).controller,
-      })
-    );
-
     this.overlords = [
       ...miningOverlords,
       new WorkOverlord(this),
       new LogisticsOverlord(this), // requests 0 haulers until 2b:Hauling stage
       new UpgradeOverlord(this),
-      ...reserveOverlords, // 0 reservers until health.expansionReady (#18 C1) — one per remote room
-      ...remoteMiningOverlords, // 0 until expansionReady — one per remote source (#102)
-      new RemoteLogisticsOverlord(this), // 0 until expansionReady — shared fleet hauls them home (#18 C2/#102)
+      // Remote expansion: three domain controllers (#18 C1/C2, multi-source #102).
+      // Each OWNS its whole domain across all remotes — reserving, mining, hauling —
+      // rather than splitting per source/room, so cross-room decisions (re-home a
+      // miner when its room turns hot) live in one owner with full visibility. All
+      // gate on health.expansionReady, which self-throttles the expansion.
+      new ReserveOverlord(this), // one reserver per safe remote room
+      new RemoteMiningOverlord(this), // one miner per safe remote source
+      new RemoteLogisticsOverlord(this), // one shared fleet hauls them all home
       new DefenseOverlord(this), // places + operates towers (no-op until RCL3)
     ];
   }

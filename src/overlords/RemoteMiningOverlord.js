@@ -3,57 +3,98 @@ import { RemoteMiner } from "../roles/RemoteMiner.js";
 import { Threat } from "../lib/Threat.js";
 
 // ============================================================================
-//  RemoteMiningOverlord — mines ONE remote source (#18 C2, generalised in #102).
+//  RemoteMiningOverlord — owns the whole remote-mining domain (#18 C2, #102).
 //
-//  One instance per reachable remote source (Colony builds them from
-//  remoteSources()), exactly mirroring the home per-source MiningOverlord — remote
-//  mining is "just more mining overlords", not a structural change. Each instance:
-//   • is keyed by its source's room+tile (the offline map has no Game IDs), so its
-//     creep binds to it and no two instances fight over miners;
-//   • requests ONE RemoteMiner, but only while the home economy has spare capacity
-//     (health.expansionReady, #89) AND its room is not currently contested
-//     (Threat.isHot, #105). expansionReady self-throttles the whole set: each miner
-//     spawned drops spawn-idle, so the latch releases and the rest wait their turn,
-//     best-value source first (remoteSources() is value-ranked).
+//  ONE controller for ALL remote sources (not one-per-source): an Overlord is a
+//  stateless controller over a domain, and the stateful things — a source's tile,
+//  a miner's current assignment, a room's threat — are the model (the static map,
+//  creep memory, the intel overlay). Owning the domain in one place is what makes
+//  cross-source decisions trivial: when a room turns hot we re-home its miners onto
+//  a free safe source (or pull them back) with full visibility — no coordination
+//  between per-source instances.
 //
-//  v1 drop-mines (no remote container) — the miner piles energy on the ground for
-//  the shared remote hauler fleet. The source tile is stamped at spawn so the miner
-//  binds to THIS source (it can't live-read "the" source once there are many).
+//  Allocation: one miner per safe source (reachable + not currently hot), value
+//  best-first. Each miner's source is stamped in its memory (its model); the
+//  controller hands out assignments on spawn and reconciles them every tick.
+//  Health-gated on expansionReady (#89) — spawning a miner drops spawn-idle, so the
+//  latch releases and the set fills over several ticks, best source first, never
+//  beyond spare capacity. v1 drop-mines (no remote container).
 // ============================================================================
+const key = (s) => `${s.room}:${s.x}:${s.y}`;
+
 export class RemoteMiningOverlord extends Overlord {
-  constructor(colony, source) {
-    // Key on room+tile: stable across ticks/resets and unique per source, so the
-    // identifier ("remoteMiner:E16S7:3:42") survives the per-tick Colony rebuild.
-    super(colony, { priority: 5, instanceId: `${source.room}:${source.x}:${source.y}` });
-    this.src = source; // { room, dir, x, y, dist, value, controller }
+  constructor(colony) {
+    super(colony, { priority: 5 }); // singleton: priority after the home economy
   }
 
   get role() {
     return "remoteMiner";
   }
 
+  // The domain's current target set: every mineable remote source whose room isn't
+  // contested right now (#105). Value-ranked (remoteSources() already sorts).
+  safeSources() {
+    return this.colony.remoteSources().filter((s) => !Threat.isHot(s.room));
+  }
+
+  // One miner per safe source, once the home economy can invest (#89).
   desiredCount() {
     if (!this.colony.health.expansionReady) return 0;
-    if (Threat.isHot(this.src.room)) return 0; // contested — stop spawning for it
-    return 1;
+    return this.safeSources().length;
   }
 
   bodyFor(energyBudget) {
     return RemoteMiner.bodyFor(energyBudget);
   }
 
-  // Stamp WHICH source this miner serves (room+tile) on top of the base ownership
-  // tags. With many sources the role can't read "the" target live — it binds to
-  // this one for life; threat re-routing is handled by desiredCount (no new miner
-  // for a hot room) and the role's own retreat (it reads the shared intel #105).
+  // Stamp the source a new miner should take: the best safe source no miner covers
+  // yet (the controller owns allocation; the creep just carries the assignment).
   generateSpawnRequest() {
     const req = super.generateSpawnRequest();
-    if (req) {
-      req.memory.remoteSource = {
-        room: this.src.room, x: this.src.x, y: this.src.y, dist: this.src.dist,
-      };
-    }
+    if (!req) return null;
+    const covered = this.coveredSources();
+    const s = this.safeSources().find((src) => !covered.has(key(src)));
+    if (!s) return null; // every safe source already has a miner
+    req.memory.remoteSource = { room: s.room, x: s.x, y: s.y, dist: s.dist };
     return req;
+  }
+
+  // Source keys currently assigned to a live miner.
+  coveredSources() {
+    return new Set(
+      this.assignedCreeps.map((c) => c.memory.remoteSource).filter(Boolean).map(key)
+    );
+  }
+
+  // Reconcile assignments before driving — this is the domain reroute, all in one
+  // owner. A miner whose source went hot is moved onto a free safe source if one
+  // exists (productive re-home); with none free it keeps its assignment and the role
+  // holds it home until the room cools; an assignment that left the map entirely
+  // (legacy creep from before #102, or a re-scan) is cleared so the role recycles it.
+  run() {
+    const safe = this.safeSources();
+    const safeKeys = new Set(safe.map(key));
+    const mapKeys = new Set(this.colony.remoteSources().map(key));
+    const covered = new Set(
+      this.assignedCreeps
+        .map((c) => c.memory.remoteSource)
+        .filter((a) => a && safeKeys.has(key(a)))
+        .map(key)
+    );
+    for (const creep of this.assignedCreeps) {
+      const a = creep.memory.remoteSource;
+      if (a && safeKeys.has(key(a))) continue; // already mining a safe source
+      const free = safe.find((s) => !covered.has(key(s)));
+      if (free) {
+        creep.memory.remoteSource = { room: free.room, x: free.x, y: free.y, dist: free.dist };
+        covered.add(key(free));
+      } else if (!a || !mapKeys.has(key(a))) {
+        creep.memory.remoteSource = null; // orphan/off-map → role recycles it
+      }
+      // else: assignment is hot but still on the map and no safe slot is free →
+      // keep it; RemoteMiner retreats home and resumes when the room cools.
+    }
+    super.run();
   }
 
   runCreep(creep) {

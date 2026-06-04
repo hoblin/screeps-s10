@@ -29,16 +29,16 @@ export class RemoteMiner extends Role {
   }
 
   static run(creep, colony) {
-    // This miner is bound to ONE source, stamped at spawn (#102) — with many remote
-    // sources it can't read "the" target live. The stable per-source overlord owns
-    // it; threat handling is split: the overlord stops spawning for a hot room
-    // (desiredCount→0), and an already-out miner retreats here, reading the SHARED
-    // threat intel (Threat.isHot, #105) — not a per-tick local hostile scan, which is
-    // what used to flee a harmless scout and oscillate at the border.
+    // The miner just executes its assignment: RemoteMiningOverlord (the domain
+    // controller, #102) decides WHICH source this creep serves and stamps it here —
+    // and re-homes it when rooms go hot. The role only reads its current target.
+    // If its room is contested it holds home, reading the SHARED threat intel
+    // (Threat.isHot, #105) — not a per-tick local hostile scan, which is what used to
+    // flee a harmless scout and oscillate at the border.
     const target = creep.memory.remoteSource;
     if (!target) {
-      // No stamped source → orphaned (e.g. a legacy miner from before #102, or its
-      // overlord's source left the map). Recycle rather than idle until death.
+      // No assignment → the controller has no safe source for it (or it's a legacy
+      // creep from before #102). Recycle rather than idle until death.
       return this.recycleAtHome(creep, colony);
     }
     const { room: targetRoom, x, y } = target;

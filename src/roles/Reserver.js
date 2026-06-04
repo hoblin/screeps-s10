@@ -31,15 +31,15 @@ export class Reserver extends Role {
   }
 
   static run(creep, colony) {
-    // This reserver is bound to ONE room, stamped at spawn (#102) — with many remotes
-    // it can't read "the" target live. Its per-room overlord stops spawning while the
-    // room is hot (desiredCount→0); an already-out reserver retreats here, reading the
-    // SHARED threat intel (Threat.isHot, #105) — not a per-tick local hostile scan
+    // The reserver just executes its assignment: ReserveOverlord (the domain
+    // controller, #102) decides WHICH room this creep reserves and stamps it here,
+    // re-homing it when rooms go hot. If its room is contested it holds home, reading
+    // the SHARED threat intel (Threat.isHot, #105) — not a per-tick local hostile scan
     // (which used to flee a harmless scout). It cools → the reserver returns.
     const target = creep.memory.reserveRoom;
     if (!target) {
-      // No stamped room → orphaned (e.g. a legacy reserver from before #102, or its
-      // room left the map). Recycle rather than idle until death.
+      // No assignment → the controller has no safe room for it (or it's a legacy
+      // creep from before #102). Recycle rather than idle until death.
       return this.recycleAtHome(creep, colony);
     }
     const { room: targetRoom, controller: cp } = target;
