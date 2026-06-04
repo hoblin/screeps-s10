@@ -1,4 +1,5 @@
 import { Role } from "./Role.js";
+import { bodyFromTemplate } from "../lib/BodyGenerator.js";
 
 // ============================================================================
 //  Miner — a STATIC mining creep (Stage 2 economy).
@@ -21,6 +22,24 @@ export class Miner extends Role {
   // Top movement priority: static income is the economy's root, and a miner's
   // tile IS its job — nothing should ever push it off its post.
   static movementPriority = 1;
+
+  // Static miner body: as many WORK as we can afford (capped at 5 = a source's full
+  // 10 energy/tick regen), plus TWO MOVE and no CARRY (energy drops into the
+  // container). Two MOVE — not one — because a 5-WORK body builds heavy fatigue en
+  // route: one MOVE crawls on plains and can't cross swamp at all; two MOVE gets the
+  // miner to its post over mixed terrain, and once parked the extra MOVE is free.
+  static bodyFor(energyBudget) {
+    return bodyFromTemplate([WORK, MOVE, MOVE], { extra: [WORK], max: 4, energy: energyBudget });
+  }
+
+  // Energy/tick this body extracts at a given spawn-energy budget: WORK×HARVEST_POWER
+  // capped at the source regen (SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME = 10/tick).
+  // The logistics fleet sizes itself to this PREDICTED production (#84) — reasoning
+  // about the steady-state target for the cap, not reading live (lagging) bodies.
+  static harvestRateAt(energyBudget) {
+    const workParts = this.bodyFor(energyBudget).filter((part) => part === WORK).length;
+    return Math.min(SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME, workParts * HARVEST_POWER);
+  }
 
   static run(creep, _colony) {
     const source = Game.getObjectById(creep.memory.sourceId);

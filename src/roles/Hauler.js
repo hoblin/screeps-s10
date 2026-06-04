@@ -1,4 +1,5 @@
 import { Role } from "./Role.js";
+import { bodyFromTemplate } from "../lib/BodyGenerator.js";
 
 // ============================================================================
 //  Hauler — a logistics creep (Stage 2b economy).
@@ -23,6 +24,18 @@ export class Hauler extends Role {
   // to the whole colony, so a blocked hauler stalls everything — it must be able
   // to shove idle consumers out of its delivery lane (issue #55).
   static movementPriority = 2;
+
+  // Balanced CARRY/MOVE hauler body: full speed on roads, half speed off-road while
+  // loaded. Capacity scales with the energy budget — up to 6×CARRY (300).
+  static bodyFor(energyBudget) {
+    return bodyFromTemplate([CARRY, MOVE], { extra: [CARRY, MOVE], max: 5, energy: energyBudget });
+  }
+
+  // Carry capacity (energy) this body holds at a given budget. The logistics fleet
+  // divides freight demand by one hauler's turnover, which is built from this (#84).
+  static capacityAt(energyBudget) {
+    return this.bodyFor(energyBudget).filter((part) => part === CARRY).length * CARRY_CAPACITY;
+  }
 
   static run(creep, colony) {
     const delivering = Role.updateWorkingState(creep);
@@ -146,17 +159,11 @@ export class Hauler extends Role {
     }
   }
 
-  // The controller container — a non-source container within range 3 of the
-  // controller. ContainerPlanner places it two tiles short of the controller (up
-  // to chebyshev 3 on a constrained approach), so range 3 covers every tile it
-  // can pick. The non-source filter keeps it unambiguous: only source and
-  // controller containers exist, and source containers are excluded by definition.
+  // The controller container — the colony owns this structure query now (it knows
+  // its own geometry/structures). Kept as a Hauler entry point so the delivery
+  // callers above stay unchanged.
   static controllerContainer(colony) {
-    if (!colony.controller) return null;
-    const near = colony.controller.pos.findInRange(FIND_STRUCTURES, 3, {
-      filter: (s) => s.structureType === STRUCTURE_CONTAINER,
-    });
-    return near.find((container) => !this.isSourceContainer(container, colony)) || null;
+    return colony.controllerContainer();
   }
 
   // isSourceContainer lives on the base Role (the one definition every role

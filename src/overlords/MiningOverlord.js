@@ -1,6 +1,5 @@
 import { Overlord } from "./Overlord.js";
 import { Miner } from "../roles/Miner.js";
-import { bodyFromTemplate } from "../lib/BodyGenerator.js";
 import { ContainerPlanner } from "../lib/ContainerPlanner.js";
 import { stageAtLeast } from "../lib/Stages.js";
 
@@ -49,22 +48,10 @@ export class MiningOverlord extends Overlord {
     return 1;
   }
 
-  // Static miner body: as many WORK parts as we can afford (capped at 5, which
-  // exactly matches a source's 3000-energy-per-300-tick regen), plus TWO MOVE.
-  // No CARRY — energy drops into the container.
-  //
-  // Why two MOVE for a creep that ultimately stands still: with 5 WORK the body
-  // generates a lot of fatigue while travelling. One MOVE crawls on plains and
-  // CANNOT cross swamp at all (it never clears 10 fatigue/step). Two MOVE lets
-  // the miner reliably reach its position over mixed terrain on the one-way
-  // trip; once parked, the extra MOVE costs nothing. Cheap insurance against
-  // the "miner stuck en route" failure mode.
+  // The static-miner body lives on the Miner role (its own nature, with the
+  // WORK/MOVE rationale); the overlord just asks for it.
   bodyFor(energyBudget) {
-    return bodyFromTemplate([WORK, MOVE, MOVE], {
-      extra: [WORK],
-      max: 4, // template already has 1 WORK, so up to 5 WORK total
-      energy: energyBudget,
-    });
+    return Miner.bodyFor(energyBudget);
   }
 
   // --------------------------------------------------------------------------
