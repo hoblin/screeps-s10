@@ -2,6 +2,15 @@ import { Role } from "./Role.js";
 import { bodyFromTemplate } from "../lib/BodyGenerator.js";
 import { Threat } from "../lib/Threat.js";
 
+const KITE_RANGE = 3; // RANGED_ATTACK reach — a ranged guard fights from exactly here
+const MELEE_MAX = 9; // max [ATTACK,MOVE] repeats (melee path: future core-clearing)
+const RANGED_MAX = 6; // max [RANGED_ATTACK,MOVE] repeats on the ranged body
+// Screeps movement directions (1-8) → tile offset, for the kite step.
+const DIR_OFFSET = {
+  1: [0, -1], 2: [1, -1], 3: [1, 0], 4: [1, 1],
+  5: [0, 1], 6: [-1, 1], 7: [-1, 0], 8: [-1, -1],
+};
+
 // ============================================================================
 //  Guard — the colony's combat creep: clears a contested remote so the economy
 //  can flow back (#118, Levels 2-3 of the threat ladder).
@@ -39,12 +48,13 @@ export class Guard extends Role {
   // assessed threat.)
   static bodyFor(energyBudget, profile) {
     if (this.counterType(profile) === "melee") {
-      return bodyFromTemplate([ATTACK, MOVE], { extra: [ATTACK, MOVE], max: 9, energy: energyBudget });
+      return bodyFromTemplate([ATTACK, MOVE], { extra: [ATTACK, MOVE], max: MELEE_MAX, energy: energyBudget });
     }
-    // ranged: one HEAL for self-sustain, the rest RANGED_ATTACK, 1:1 MOVE for speed.
+    // ranged: base carries one HEAL (self-sustain) + 2 MOVE; each extra adds a
+    // RANGED_ATTACK+MOVE, so the body stays ~1:1 move-to-part (full speed on roads).
     return bodyFromTemplate([RANGED_ATTACK, MOVE, HEAL, MOVE], {
       extra: [RANGED_ATTACK, MOVE],
-      max: 6,
+      max: RANGED_MAX,
       energy: energyBudget,
     });
   }
@@ -90,12 +100,20 @@ export class Guard extends Role {
     this.note(creep, "guard:ranged");
     const range = creep.pos.getRangeTo(target);
     if (targets.length > 1 && range <= 1) creep.rangedMassAttack();
-    else if (range <= 3) creep.rangedAttack(target);
-    if (range < 3) {
-      const away = ((creep.pos.getDirectionTo(target) + 3) % 8) + 1; // opposite direction
-      creep.move(away);
-    } else if (range > 3) {
-      creep.travelTo(target, { range: 3 });
+    else if (range <= KITE_RANGE) creep.rangedAttack(target);
+    if (range < KITE_RANGE) {
+      // Step away to restore kite distance. Screeps dirs are 1-8; +4 (mod 8) flips to
+      // the opposite. Only retreat onto a walkable INTERIOR tile — never onto a wall
+      // (wasted) or a room-exit tile (would leave the room); else hold and keep firing.
+      const away = ((creep.pos.getDirectionTo(target) + 3) % 8) + 1;
+      const [dx, dy] = DIR_OFFSET[away];
+      const nx = creep.pos.x + dx;
+      const ny = creep.pos.y + dy;
+      if (nx > 0 && nx < 49 && ny > 0 && ny < 49 && creep.room.getTerrain().get(nx, ny) !== TERRAIN_MASK_WALL) {
+        creep.move(away);
+      }
+    } else if (range > KITE_RANGE) {
+      creep.travelTo(target, { range: KITE_RANGE });
     }
   }
 }

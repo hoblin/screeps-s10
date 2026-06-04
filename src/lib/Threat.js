@@ -40,9 +40,9 @@ export const Threat = {
   // flat danger for a hostile invader core (it spawns attackers even before any are
   // visible). 0 == safe to work in. Source-Keeper rooms are already excluded by the
   // static map, so they never reach a remote overlord.
-  assess(room) {
+  assess(room, hostiles = room.find(FIND_HOSTILE_CREEPS)) {
     let threat = 0;
-    for (const hostile of room.find(FIND_HOSTILE_CREEPS)) threat += this.combatPower(hostile);
+    for (const hostile of hostiles) threat += this.combatPower(hostile);
     const cores = room.find(FIND_HOSTILE_STRUCTURES, {
       filter: (s) => s.structureType === STRUCTURE_INVADER_CORE,
     });
@@ -55,9 +55,9 @@ export const Threat = {
   // melee) without live vision, reading it back from intel. Recorded alongside the
   // scalar threat because the deciding creep (the overlord at home) usually has no
   // vision of the contested room when it sizes a guard.
-  profile(room) {
+  profile(room, hostiles = room.find(FIND_HOSTILE_CREEPS)) {
     const p = { attack: 0, ranged: 0, heal: 0, tough: 0 };
-    for (const hostile of room.find(FIND_HOSTILE_CREEPS)) {
+    for (const hostile of hostiles) {
       p.attack += hostile.getActiveBodyparts(ATTACK);
       p.ranged += hostile.getActiveBodyparts(RANGED_ATTACK);
       p.heal += hostile.getActiveBodyparts(HEAL);
@@ -74,9 +74,10 @@ export const Threat = {
   // along so the Guard layer can counter what's actually there (#118).
   observe(room) {
     Memory.roomIntel ||= {};
+    const hostiles = room.find(FIND_HOSTILE_CREEPS); // one scan, shared by both reads
     Memory.roomIntel[room.name] = {
-      threat: this.assess(room),
-      profile: this.profile(room),
+      threat: this.assess(room, hostiles),
+      profile: this.profile(room, hostiles),
       tick: Game.time,
     };
   },

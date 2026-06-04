@@ -33,9 +33,10 @@ export class GuardOverlord extends Overlord {
   // spawn out-guns the room's assessed threat. Reads intel (threat + profile) — no
   // live vision needed, it was recorded when a creep last saw the room.
   hotWinnableRooms() {
+    if (this._hotWinnable !== undefined) return this._hotWinnable; // per-tick memo (instance is rebuilt each tick)
     const budget = this.colony.spawnEnergyBudget();
     const rooms = [...new Set(this.colony.remoteSources().map((s) => s.room))];
-    return rooms.filter((room) => {
+    this._hotWinnable = rooms.filter((room) => {
       if (!Threat.isHot(room)) return false;
       const profile = Threat.profileFor(room);
       // Need a MOBILE enemy to kill: a guard targets creeps, so a threat that's only
@@ -45,6 +46,7 @@ export class GuardOverlord extends Overlord {
       const body = Guard.bodyFor(budget, profile);
       return Threat.guardCombatPower(body) > Threat.threatOf(room);
     });
+    return this._hotWinnable;
   }
 
   // Informational headcount (the real dispatch logic is covered-room-based below).
@@ -71,6 +73,7 @@ export class GuardOverlord extends Overlord {
     const room = this.hotWinnableRooms().find((r) => !covered.has(r));
     if (!room) return null;
     const profile = Threat.profileFor(room);
+    if (!profile) return null; // intel went stale between filter and here → don't spawn blind
     return {
       priority: this.priority,
       role: this.role,
