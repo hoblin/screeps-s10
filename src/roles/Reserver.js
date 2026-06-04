@@ -29,24 +29,24 @@ export class Reserver extends Role {
   }
 
   static run(creep, colony) {
-    const targetRoom = creep.memory.targetRoom;
-    if (!targetRoom) return; // not stamped (shouldn't happen) — nothing to do
+    // Target is read LIVE from the colony, not stamped at spawn (#105): remoteTarget()
+    // skips contested (hot) rooms, so we re-route to the next safe remote when ours is
+    // invaded, and back once it cools. null → no safe remote → idle home. Threat
+    // avoidance lives in target selection, so there's no per-tick hostile flee here
+    // (which used to flee a harmless scout); we simply won't be sent to a hot room.
+    const target = colony.remoteTarget();
+    if (!target) {
+      this.note(creep, "reserve:no-target");
+      return this.retreatHome(creep, colony);
+    }
+    const { room: targetRoom, controller: cp } = target;
 
     // Not there yet → cross-room travel. travelTo's foreign-room branch (#92)
     // delegates the inter-room leg to the engine's moveTo, then resumes in-room.
     if (creep.room.name !== targetRoom) {
-      const cp = creep.memory.controllerPos;
-      if (!cp) return this.retreatHome(creep, colony); // memory lost — pull home, don't crash
+      if (!cp) return this.retreatHome(creep, colony); // map entry has no controller tile
       this.note(creep, "reserve:to-room");
       creep.travelTo(new RoomPosition(cp.x, cp.y, targetRoom), { range: 1 });
-      return;
-    }
-
-    // In the target room. LIVE safety: the map excluded SK/enemy rooms, but a
-    // transient invader can still appear — pull out instead of dying on the spot.
-    if (creep.room.find(FIND_HOSTILE_CREEPS).length > 0) {
-      this.note(creep, "reserve:flee");
-      this.retreatHome(creep, colony);
       return;
     }
 

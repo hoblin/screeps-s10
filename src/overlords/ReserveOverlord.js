@@ -45,18 +45,9 @@ export class ReserveOverlord extends Overlord {
     return Reserver.bodyFor(energyBudget);
   }
 
-  // Stamp the chosen remote's room + controller tile so the Reserver knows where
-  // to go without re-reading the map (mirrors how MiningOverlord stamps its source).
-  generateSpawnRequest() {
-    const request = super.generateSpawnRequest();
-    if (!request) return null;
-    const target = this.target();
-    if (!target) return null; // target vanished between desiredCount and now
-    request.memory.targetRoom = target.room;
-    request.memory.controllerPos = target.controller;
-    return request;
-  }
-
+  // No target stamp needed: Reserver reads colony.remoteTarget() live each tick
+  // (#105) and re-routes when the target room is contested. The base
+  // generateSpawnRequest (role/colony/overlord tags) is enough.
   runCreep(creep) {
     Reserver.run(creep, this.colony);
   }

@@ -2,11 +2,18 @@ import { Colony } from "./Colony.js";
 import { log } from "./lib/Logger.js";
 import { Dashboard } from "./lib/Dashboard.js";
 import { TrafficManager } from "./lib/TrafficManager.js";
+import { Threat } from "./lib/Threat.js";
 
 // How many ticks of behaviour to keep per creep (#103). A capped ring buffer —
 // tiny against the 2 MB Memory cap (a few dozen creeps × a handful of small
 // entries) — that turns "why is this creep doing that?" into one get_memory read.
 const CREEP_TRACE_LEN = 5;
+
+// Threat-intel overlay housekeeping (#105). Pruning is cheap but pointless every
+// tick, so run it on an interval; only forget rooms unseen for far longer than
+// Threat's freshness window (1000 ticks), so a prune never drops intel still in use.
+const INTEL_PRUNE_INTERVAL = 1500; // ticks between prune passes
+const INTEL_MAX_AGE = 10000; // forget intel for rooms unseen this long
 
 // ============================================================================
 //  Kernel — the top-level orchestrator (think: the Rails app object).
@@ -32,6 +39,11 @@ export class Kernel {
     }
 
     this.buildColonies();
+
+    // Threat intel: refresh every VISIBLE room's threat level BEFORE the colony loop,
+    // so this tick's flee/avoid + remote target selection act on a current reading
+    // (#105). Vision == our presence, so this covers every room a creep is standing in.
+    this.updateRoomIntel();
 
     for (const name in this.colonies) {
       try {
@@ -69,6 +81,22 @@ export class Kernel {
         this.colonies[name] = new Colony(room);
       }
     }
+  }
+
+  // Refresh the threat overlay for every room we can see this tick (#105). One
+  // assess per visible room — deduped by construction (Game.rooms is a set), so N
+  // creeps in a room cost one scan, not N. Wrapped so a single bad room can't abort
+  // the rest. Game.rooms is the rooms we have vision of = where our creeps are.
+  updateRoomIntel() {
+    for (const name in Game.rooms) {
+      try {
+        Threat.observe(Game.rooms[name]);
+      } catch (err) {
+        log.error(`Threat.observe(${name}) crashed: ${err.stack || err}`);
+      }
+    }
+    // Occasionally forget long-abandoned rooms so the intel overlay stays bounded.
+    if (Game.time % INTEL_PRUNE_INTERVAL === 0) Threat.prune(INTEL_MAX_AGE);
   }
 
   // Append one behaviour breadcrumb per living creep to its capped rolling log
