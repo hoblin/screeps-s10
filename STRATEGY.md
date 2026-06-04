@@ -4,6 +4,11 @@ Living strategy doc. Stages of the game, what to prioritize at each, and how our
 architecture grows to support it. Inspired by Overmind (bencbartlett) and the
 jonwinsley Field Journal game plan.
 
+> **Where we are now (update this line as we grow):** E15S7, **RCL 3, Stage
+> 2b:Hauling**, climbing to RCL 4. Economy self-running and net-positive. Remote
+> mining is **live** (pulled forward of its Stage-3 slot by the `expansionReady`
+> signal — see "the second axis" below).
+
 ## Core principle (the whole game in one line)
 
 **Maximize energy throughput from sources → controller/score, minimizing waste.**
@@ -31,9 +36,41 @@ the current stage AND whether we're `READY` for the next one.
 - Wasted energy = source sitting full, or creeps walking instead of working.
 - The bottleneck moves over time: bodies → logistics → infrastructure → expansion.
 
+## The second axis: health signals (when the economy can *afford* it)
+
+Stages answer **what** is unlocked — coarse, monotonic milestones gated on RCL /
+structures. But "unlocked" ≠ "affordable": a freshly-RCL-4 room *can* build Storage,
+and a struggling one *can* technically send a reserver, but shouldn't. So a second
+control axis runs alongside the stage machine — `RoomHealthCheck`
+(`src/lib/RoomHealthCheck.js`), which reads continuous economic **dynamics** and
+exposes boolean signals overlords gate on (all EWMA-smoothed + Schmitt-latched so
+they don't chatter):
+
+- **`saturation`** — how close source output is to being fully tapped + hauled.
+- **`energyRich`** — sustained surplus. Goes false once healthy logistics *consumes*
+  the surplus, so it is NOT a "do we have spare capacity" signal.
+- **`expansionReady`** — spare **spawn** capacity (smoothed spawn-idle ratio,
+  crisis-gated: off during downgrade/attack/can't-afford-a-reserver). Idle spawn time
+  is the currency a remote creep costs. Self-throttling: spawning remote creeps lowers
+  idle → the latch releases.
+
+Two consequences for doctrine:
+
+1. **Creep counts are driven by economy, not flat constants** (#81). The hauler fleet
+   is sized by a **freight-turnover model** (#84): `N = ceil(2·Σ(r·d)·margin / (C·v))`
+   — feed-forward from production, so energy is moved before it piles on the ground
+   (a threshold/PID only reacts *after* it's already there). Each derived value lives
+   on the class that owns its domain (SOLID): roles own body/production/capacity, the
+   Colony owns geometry/structures, overlords only orchestrate.
+2. **Capabilities can be pulled FORWARD of their stage slot.** Remote mining lives in
+   Stage 3 on paper, but it activates on `expansionReady`, not on reaching RCL 4 — on
+   E15S7 it switched on at RCL 3 the instant the spawn had idle capacity to spare. The
+   stage says a capability is *available*; the health signal says the economy can
+   *afford* it now. "Prepare ahead" + "spend only spare capacity."
+
 ---
 
-## Stage 1 — Bootstrap (RCL 1, where we are now)
+## Stage 1 — Bootstrap (RCL 1)
 
 **Goal:** get the economy self-sustaining; rush RCL 2.
 - Generic `harvester`/`worker` creeps (mine + haul + upgrade in one body). Fine while tiny.
@@ -76,6 +113,9 @@ the current stage AND whether we're `READY` for the next one.
   cost (1 fatigue vs 2/10), so hauler round trips shorten and bodies need fewer
   MOVE parts. Built below extensions, above repair; queued in waves to spare the
   global 100-site cap.
+- **Hauler fleet sizing:** count comes from the freight-turnover model driven by
+  `RoomHealthCheck` (see "the second axis"), not one-hauler-per-source — sized
+  feed-forward to production so energy never piles up.
 - **Next trigger:** Storage exists (RCL 4) → Stage 3.
 
 A `MiningSite` HiveCluster (source + container + link) is the Overmind pattern.
@@ -87,10 +127,23 @@ A `MiningSite` HiveCluster (source + container + link) is the Overmind pattern.
 - **RCL 5 = Links.** Teleport energy (source link → storage link → controller link),
   cutting hauler distance massively. Huge throughput unlock.
 - Dedicated **upgrader(s)** parked at controller link, just pumping.
-- Start **remote mining**: reserve adjacent rooms (CLAIM creep), haul energy home.
-  No GCL needed to reserve; reserving boosts a source to 3000/300.
+- **Remote mining — SHIPPED (MVP), gated on `expansionReady`, not the stage** (#18).
+  An offline generator (`bin/expansion-map.mjs`, #88) bakes a static neighbour map
+  (`src/data/expansionMap.json`): safe remotes with per-source haul distance + value,
+  an `avoid` list (SK/enemy rooms), and an `excluded` audit. The bot reads
+  `expansionMap[colony.name]`; `Colony.remoteTarget()`/`remoteSource()` pick the ONE
+  shared target. `ReserveOverlord`→`Reserver` (CLAIM+MOVE) holds the reservation
+  (boosts the source to 3000/300); `RemoteMiningOverlord`→`RemoteMiner` drop-mines a
+  remote source; `RemoteLogisticsOverlord`→`RemoteHauler` (freight-model fleet over
+  the long haul) carries it home. **Prerequisite:** multi-room movement (#92) —
+  `travelTo` delegates the inter-room leg to native `moveTo`, then the per-room
+  resolver resumes. v1 mines ONE source of the top target, drop-mined.
+  **Refinements open:** multi-source / per-source overlords (we currently ignore a
+  higher-value E15S8 source), self-built remote container (stop ground decay).
 
-**Architecture add:** `LinkNetwork` HiveCluster, `RemoteMiningOverlord` + `ReserveOverlord`.
+**Architecture add:** `ReserveOverlord` + `RemoteMiningOverlord` +
+`RemoteLogisticsOverlord` ✅ done. Still TODO: the `CommandCenter`/`LinkNetwork`
+HiveCluster (storage + links) — the remaining Stage-3 infra (#16 Storage, #17 Links).
 
 ## Stage 4 — Industry (RCL 6–7)
 
@@ -132,20 +185,28 @@ We follow Overmind's evolution. Current vs. target:
 |---|---|---|
 | Creep logic | Roles (static) | Roles OK early; Overmind later folded logic into Overlords |
 | Goal management | Overlords (1 responsibility each) ✅ | + priority queue on an **Overseer** |
-| Conditional reactions | none | **Directives** — placed by Overseer to react to stimuli (invaders, expansion, score) |
-| Physical systems | HiveCluster (Hatchery) ✅ | + MiningSite, LinkNetwork, EvolutionChamber |
-| Logistics | per-role hauling | dedicated `LogisticsNetwork` (request/provide queue) |
+| Economic control | `RoomHealthCheck` signals drive counts + pull capabilities forward (#81/#84/#89) ✅ | richer feed-forward signals; a `LogisticsNetwork` request/provide queue |
+| Movement | priority traffic layer + multi-room transit (#55–#67, #92) ✅ | path caching / resolver polish (#57) |
+| Conditional reactions | none | **Directives** — placed by Overseer to react to stimuli (invaders, expansion, score) (#25) |
+| Physical systems | HiveCluster (Hatchery) ✅ | + MiningSite, `CommandCenter`/LinkNetwork, EvolutionChamber |
+| Logistics | freight-turnover-sized hauler fleet (#84) ✅ | dedicated `LogisticsNetwork` (request/provide queue) |
 
 **Directives** are the big missing idea: conditional Overlords that auto-spawn in
 response to game state (NPC invasion → DefenseDirective; score appears →
 ScoreDirective). Overseer scans rooms each tick and places/removes them.
 
-## Priorities right now (next concrete steps)
-1. ✅ Bootstrap economy (done — 2 creeps, cycle closed)
-2. Hit RCL 2, add Extensions to spawn-fill logic
-3. Static miners + haulers (kill the walking-miner waste)
-4. Container/road infrastructure on hot paths
-5. Storage at RCL 4 → the pivot point to "real" mid-game
+## Priorities right now (current frontier)
+
+Stages 1 → 2b are shipped (static mining, freight-sized haulers, controller
+container, roads, RCL-3 tower). Economy is self-running on E15S7 (RCL 3, climbing to
+4) and remote mining is live and net-positive. The open frontier:
+
+1. **#18 remote-mining refinements** — multi-source / per-source overlords (mine the
+   better E15S8 source we currently ignore), self-built remote container.
+2. **Stage 3 infra (prepare ahead for RCL 4):** #16 Storage, then #17 Links.
+3. **Robustness bugs:** #54 emergency self-harvest, #63 workers abandon when clustered.
+4. **#97 follow-up:** audit `bin/geo-season.mjs` for the transposed-coord bug.
+5. **Architecture:** #25 Directives layer, once a 2nd directive (defense/score) appears.
 
 ## Sources
 - Overmind: https://github.com/bencbartlett/Overmind + design blog series (bencbartlett.com/blog)

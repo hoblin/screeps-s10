@@ -9,18 +9,30 @@ Clean modern JS (no TypeScript). OOP architecture inspired by **Overmind**:
 
 ```
 Kernel        orchestrator (CPU guard, discovers colonies, drives tick)
- └─ Colony    per-room aggregate; wires clusters + overlords
+ └─ Colony    per-room aggregate; wires clusters + overlords; owns geometry/structure queries
      ├─ HiveCluster   physical infra
      │    └─ Hatchery     spawns+extensions -> fulfils spawn requests
      └─ Overlord  goal manager (owns creeps + one responsibility)
-          ├─ MiningOverlord    -> Harvester
-          ├─ WorkOverlord      -> Worker (fill/build/repair)
-          ├─ UpgradeOverlord   -> Upgrader
-          └─ DefenseOverlord   -> Towers (no creeps; attack/heal/repair)
+          ├─ MiningOverlord          -> Miner (static, one per source)
+          ├─ LogisticsOverlord       -> Hauler (freight-model-sized fleet)
+          ├─ WorkOverlord            -> Worker (fill/build/repair)
+          ├─ UpgradeOverlord         -> Upgrader (static, on the controller container)
+          ├─ DefenseOverlord         -> Towers (no creeps; attack/heal/repair)
+          ├─ ReserveOverlord         -> Reserver (remote, CLAIM+MOVE)
+          ├─ RemoteMiningOverlord    -> RemoteMiner (remote drop-mining)
+          └─ RemoteLogisticsOverlord -> RemoteHauler (remote -> home haul)
 ```
 
 - **Overlord** (base) holds shared spawn-request + creep-iteration logic (DRY).
 - **Role** (base) holds the universal gather↔work toggle and energy gathering.
+- **Stages** (`src/lib/Stages.js`) — formal stage machine, the single source of
+  truth for "what's unlocked". Overlords gate via `stageAtLeast`.
+- **RoomHealthCheck** (`src/lib/RoomHealthCheck.js`) — continuous economy signals
+  (`saturation`, `energyRich`, `expansionReady`) that drive creep counts and pull
+  capabilities (e.g. remote mining) forward of their stage slot. See STRATEGY.md
+  "the second axis".
+- **TrafficManager** — priority-based tile arbitration; `creep.travelTo` resolves
+  in-room moves and delegates the inter-room leg to native `moveTo` (multi-room).
 - **BodyGenerator** scales bodies to available energy.
 - **prototypes/** install mixins (e.g. `creep.travelTo`) at load.
 
@@ -95,6 +107,20 @@ into a local SQLite mirror, then runs all analysis with zero API calls.
   per-room feature glyphs + legend, an enriched `tmp/season-heatmap.png` (score
   tint, distinct hues for owned/SK/highway, feature marker dots), and a top-10
   table with neighbour context (SK adjacency, nearest enemy RCL).
+- `expansion-map.mjs` — bakes the home room's orthogonal-neighbour map into
+  `src/data/expansionMap.json` (the ONE `bin/` output bundled into the bot): safe
+  remotes (controller + per-source haul-distance/value + `reservedByOther`), an
+  `avoid` list (SK/enemy/invader-core), and an `excluded` audit (why a neighbour was
+  dropped). Drives remote mining (#18). Re-run after a re-scan:
+  `node bin/expansion-map.mjs --room E15S7`.
+
+> **⚠️ Transposed terrain (this season's server).** Offline tooling decodes room
+> terrain as `terrain[x*50+y]` (NOT the standard `y*50+x`) — verified: objects land
+> on non-walls only this way, and a real-orientation render matches the live map. The
+> transpose also swaps room-adjacency axes (the N/S neighbour shares our E/W edge).
+> `region-score.mjs`/`expansion-map.mjs` are fixed for this (#96); `geo-season.mjs`
+> is NOT yet audited (#97). **The live bot is unaffected** — it uses game coords +
+> native pathfinding; only offline analytics mirror.
 
 Map is a **±30 square** (`W30..E30 × N30..S30`, ~3721 game rooms). Season 10
 spawn was chosen this way: **E15S7**.
@@ -105,8 +131,10 @@ spawn was chosen this way: **E15S7**.
 - [x] Extension placement + auto-build (snowball 300→550 spawn energy)
 - [x] Defense overlord + towers (RCL3 auto-placement, attack/heal/repair)
 - [x] Season scout pipeline + offline DB analytics & heat map
-- [ ] Custom Traveler pathing in `creep.travelTo`
+- [x] Priority traffic layer + multi-room creep movement (`creep.travelTo`)
+- [x] Economy-driven creep counts (`RoomHealthCheck`) + freight-model hauler fleet
+- [x] Remote mining (reserve + harvest adjacent rooms) — MVP, gated on `expansionReady`
+- [ ] Remote-mining refinements (multi-source, self-built remote container)
 - [ ] CommandCenter HiveCluster (storage/links/terminal)
-- [ ] Remote mining (reserve + harvest adjacent rooms)
 - [ ] Labs + boosts, terminal logistics (Stage 4)
 - [ ] Score collection fleet (Stage 5 — S10 win condition)
