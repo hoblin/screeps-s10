@@ -38,7 +38,16 @@ export class Hauler extends Role {
   }
 
   static run(creep, colony) {
+    const wasDelivering = creep.memory.working || false;
     const delivering = Role.updateWorkingState(creep);
+    // A cheap state machine on the two load edges (updateWorkingState already flips
+    // `working` at exactly these moments):
+    //  • FULL LOAD  (collecting → delivering): the pickup commitment is fulfilled →
+    //    drop the target.
+    //  • FULL UNLOAD (delivering → collecting): the next collect tick has no target
+    //    and chooses a fresh one.
+    // Re-evaluating the target mid-trip is what made haulers oscillate (#86).
+    if (delivering && !wasDelivering) creep.memory.haulTarget = null;
     if (delivering) {
       this.deliver(creep, colony);
     } else {
@@ -55,16 +64,47 @@ export class Hauler extends Role {
     // container. So a hauler drains source containers only; with pickup gone the
     // "drop near controller" fallback becomes a clean pump (container → pile at
     // the controller → upgraders/workers) instead of a self-feeding loop.
-    const sourceContainer = this.fullestSourceContainer(creep, colony);
-    if (sourceContainer) {
-      if (creep.withdraw(sourceContainer, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
-        creep.travelTo(sourceContainer);
+    // Commit to ONE container per trip. Re-picking the fullest every tick made
+    // haulers reverse mid-route the moment another hauler drained a container and a
+    // different one became fullest — they oscillated and never arrived, doubling the
+    // freight tonne-km (#86). So we latch the chosen container in memory and stick to
+    // it until it's drained or we're full; the next choice happens only after we've
+    // delivered. A stable target also lets travelTo keep its cached path.
+    let container = this.committedPickup(creep);
+    if (!container) {
+      // No valid commitment. If we already carry energy (our container drained mid-
+      // load), deliver the partial load rather than chase a new target mid-route —
+      // that re-pick IS the oscillation. Only pick a fresh target when empty.
+      if (creep.store[RESOURCE_ENERGY] > 0) {
+        creep.memory.working = true;
+        return this.deliver(creep, colony);
+      }
+      container = this.fullestSourceContainer(creep, colony);
+      creep.memory.haulTarget = container ? container.id : null;
+    }
+    if (container) {
+      if (creep.withdraw(container, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+        creep.travelTo(container);
       }
       return;
     }
 
     // Nothing to haul yet — idle near the first spawn so we're ready.
     if (colony.spawns[0]) creep.travelTo(colony.spawns[0]);
+  }
+
+  // The pickup container we committed to last tick, if it still exists and still
+  // holds energy. Clears and returns null when the commitment is gone or drained, so
+  // the caller re-decides (deliver a partial load, or pick a fresh target).
+  static committedPickup(creep) {
+    const id = creep.memory.haulTarget;
+    if (!id) return null;
+    const container = Game.getObjectById(id);
+    if (!container || container.store[RESOURCE_ENERGY] === 0) {
+      creep.memory.haulTarget = null;
+      return null;
+    }
+    return container;
   }
 
   // The source-adjacent container holding the most energy (the one most in need
