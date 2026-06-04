@@ -12,10 +12,11 @@ local SQLite mirror (`tmp/season.db`) and scores spawn candidates (`region-score
 `heatmap.mjs`). The code is never bundled into `dist/main.js`; the one bundled
 *output* is `expansion-map.mjs`'s `src/data/expansionMap.json` (the remote-mining
 neighbour map). The crawler (`collect.mjs`) is the sole API caller; analytics is
-DB-only (SOLID). ⚠️ **Transposed terrain:** this season's server stores terrain as
-`terrain[x*50+y]` (not standard `y*50+x`), which also swaps room-adjacency axes;
-`region-score`/`expansion-map` are fixed for it (#96), `geo-season` is not yet (#97).
-The live bot uses game coords + native pathfinding and is unaffected.
+DB-only (SOLID). **Terrain is standard row-major** `terrain[y*50+x]` (matches the
+engine's `getTerrain().get(x,y)`) and room adjacency is standard pos-space — the
+earlier "transposed `x*50+y`" belief (#96/#97) was a false-premise mistake (natural
+objects can sit on walls, so "objects on non-walls" proved nothing); reverted in #111.
+The live bot uses game coords + native pathfinding and was never affected.
 
 ## Architecture in one breath
 - `Kernel` drives the tick (CPU guard, discovers colonies). `Colony` is the per-room aggregate that wires `HiveCluster`s + `Overlord`s.

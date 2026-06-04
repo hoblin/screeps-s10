@@ -114,13 +114,14 @@ into a local SQLite mirror, then runs all analysis with zero API calls.
   dropped). Drives remote mining (#18). Re-run after a re-scan:
   `node bin/expansion-map.mjs --room E15S7`.
 
-> **⚠️ Transposed terrain (this season's server).** Offline tooling decodes room
-> terrain as `terrain[x*50+y]` (NOT the standard `y*50+x`) — verified: objects land
-> on non-walls only this way, and a real-orientation render matches the live map. The
-> transpose also swaps room-adjacency axes (the N/S neighbour shares our E/W edge).
-> `region-score.mjs`/`expansion-map.mjs` are fixed for this (#96); `geo-season.mjs`
-> is NOT yet audited (#97). **The live bot is unaffected** — it uses game coords +
-> native pathfinding; only offline analytics mirror.
+> **Standard terrain encoding.** Offline tooling decodes room terrain as the
+> standard row-major `terrain[y*50+x]`, matching the engine's `getTerrain().get(x,y)`,
+> and uses standard pos-space room adjacency (W/E share the x=0/x=49 edge, N/S the
+> y=0/y=49 edge). An earlier "transposed `x*50+y`" belief (#96/#97) was wrong — it
+> rested on a false premise (natural objects like the controller/sources CAN sit on
+> wall tiles, so "objects land on non-walls" proved nothing); the built spawn and the
+> native PathFinder both confirm `y*50+x`. Reverted in #111. **The live bot was never
+> affected** — it uses game coords + native pathfinding; only offline analytics decode.
 
 Map is a **±30 square** (`W30..E30 × N30..S30`, ~3721 game rooms). Season 10
 spawn was chosen this way: **E15S7**.

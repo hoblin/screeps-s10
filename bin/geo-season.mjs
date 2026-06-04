@@ -63,11 +63,11 @@ async function api(path) {
 // ---- terrain grid: 50x50, char per tile. 0=plain 1=wall 2=swamp (3=both) ---
 // parseTerrain imported from db.mjs (single source); idx/isWall/cost below are
 // the local consumers of the decoded grid.
-// NOTE: this season server returns terrain transposed (index = x*50+y),
-// not the documented y*50+x. Verified against object coords (sources/controller
-// land on plains only with this indexing). If a future server reverts to the
-// standard layout, flip this back to y*50+x.
-const idx = (x, y) => x * 50 + y;
+// Standard Screeps row-major terrain: index = y*50+x, matching the engine's
+// getTerrain().get(x,y). (Proven against the season server — see #111 and
+// thoughts/shared/notes/2026-06-04/screeps-terrain-standard-not-transposed.md;
+// the earlier transposed x*50+y was a false-premise mistake from #96.)
+const idx = (x, y) => y * 50 + x;
 const isWall = (g, x, y) => x < 0 || y < 0 || x > 49 || y > 49 || (g[idx(x, y)] & 1) === 1;
 const cost = (g, x, y) => ((g[idx(x, y)] & 2) === 2 ? 5 : 1); // swamp 5, plain 1
 
