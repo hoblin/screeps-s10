@@ -126,7 +126,8 @@ export const Dashboard = {
         ? ` | 🗼${s.towers.count}@${s.towers.energy}`
         : "";
       const healthHint = s.health
-        ? ` | ${s.health.energyRich ? "💰rich" : "lean"} sat${Math.round(s.health.saturation * 100)}%`
+        ? ` | ${s.health.energyRich ? "💰rich" : "lean"} sat${Math.round(s.health.saturation * 100)}%` +
+          ` idle${Math.round((s.health.spawnIdle || 0) * 100)}%${s.health.expansionReady ? " 🚀exp" : ""}`
         : "";
       log.info(
         `📊 ${name} [${s.stage}${nextHint}] ${rcl} | spawn ${s.energy.avail}/${s.energy.cap} | ` +

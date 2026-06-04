@@ -28,10 +28,23 @@
 const SATURATION_RICH_ON = 0.7; // avg source fill at/above which income is clearly wasted
 const SATURATION_RICH_OFF = 0.4; // ...and below which mining has caught up with consumption
 
+// Expansion readiness (#89): the home is ready to INVEST in remote mining when its
+// spawn has spare capacity — idle spawn time is the currency a remote creep costs.
+// We smooth the per-tick idle signal (EWMA) and Schmitt-latch it so it doesn't flap,
+// gated off during a home crisis. NOT energyRich: that goes false once logistics
+// consumes the surplus (proven live on E15S7), yet spare spawn time can remain. As
+// remote mining starts consuming spawn time the ratio falls and the latch releases —
+// so expansion self-throttles to available spawn capacity.
+const IDLE_ALPHA = 0.05; // EWMA weight for the spawn-idle ratio (~20-tick memory)
+const EXPANSION_READY_ON = 0.5; // spawn idle ≥ half the time → spare capacity to invest
+const EXPANSION_READY_OFF = 0.2; // ...below this it's busy again → back off (hysteresis)
+const DOWNGRADE_CRISIS = 5000; // controller this near downgrade → focus home, don't expand
+
 export const RoomHealthCheck = {
   compute(colony) {
     const room = colony.room;
     const energyCap = room.energyCapacityAvailable;
+    const prior = this.state(colony); // last tick's latched signals (cross-tick via Memory)
 
     // Average source saturation: high means miners harvest slower than the
     // source regenerates, so the surplus regen burns unused.
@@ -42,10 +55,12 @@ export const RoomHealthCheck = {
 
     // Schmitt-triggered surplus latch (hysteresis via Memory — the instance is
     // rebuilt each tick and can't hold last tick's state).
-    let energyRich = this.state(colony).energyRich || false;
+    let energyRich = prior.energyRich || false;
     if (saturation >= SATURATION_RICH_ON) energyRich = true;
     else if (saturation <= SATURATION_RICH_OFF) energyRich = false;
-    this.saveState(colony, { energyRich });
+
+    const expansion = this.expansionReadiness(colony, prior);
+    this.saveState(colony, { energyRich, ...expansion.persist });
 
     return {
       // observations
@@ -54,6 +69,9 @@ export const RoomHealthCheck = {
       buildBacklog: room.find(FIND_MY_CONSTRUCTION_SITES).length,
       // the surplus dial overlords read
       energyRich,
+      // the expansion-readiness dial the remote-mining overlord reads (#18/#89)
+      expansionReady: expansion.ready,
+      spawnIdle: Math.round(expansion.idleRatio * 100) / 100,
       // blocker flags — informational in v1 (surfaced in telemetry for review),
       // future consumers can act on them.
       blockers: {
@@ -61,6 +79,34 @@ export const RoomHealthCheck = {
         controllerContainerMissing: this.controllerContainerMissing(colony),
       },
     };
+  },
+
+  // Spare-spawn-capacity latch — the expansion-readiness signal (#89). The spawn is
+  // "idle" (spare) when none of our spawns is mid-spawn AND energy sits at cap (a
+  // busy spawn drains it). We smooth that into a ratio (EWMA) and Schmitt-latch it,
+  // gated off during a home crisis — controller decaying, room attacked, or we can't
+  // even afford a reserver body. Spawn-idle subsumes "home staffed": an understaffed
+  // colony keeps its spawn busy, so the ratio only climbs once targets are met.
+  expansionReadiness(colony, prior) {
+    const room = colony.room;
+    const idleNow =
+      colony.spawns.length > 0 &&
+      colony.spawns.every((s) => !s.spawning) &&
+      room.energyAvailable >= room.energyCapacityAvailable;
+    const idleRatio = (prior.idleRatio ?? 0) * (1 - IDLE_ALPHA) + (idleNow ? 1 : 0) * IDLE_ALPHA;
+
+    const ctrl = colony.controller;
+    const decaying = ctrl?.ticksToDowngrade != null && ctrl.ticksToDowngrade < DOWNGRADE_CRISIS;
+    const attacked = room.find(FIND_HOSTILE_CREEPS).length > 0;
+    const canAffordReserver =
+      room.energyCapacityAvailable >= BODYPART_COST[CLAIM] + BODYPART_COST[MOVE];
+
+    let ready = prior.expansionReady || false;
+    if (decaying || attacked || !canAffordReserver) ready = false;
+    else if (idleRatio >= EXPANSION_READY_ON) ready = true;
+    else if (idleRatio <= EXPANSION_READY_OFF) ready = false;
+
+    return { ready, idleRatio, persist: { expansionReady: ready, idleRatio } };
   },
 
   // A blocker: this RCL unlocks extensions we haven't built, so the spawn energy
