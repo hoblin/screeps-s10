@@ -7,6 +7,7 @@ import { ReserveOverlord } from "./overlords/ReserveOverlord.js";
 import { RemoteMiningOverlord } from "./overlords/RemoteMiningOverlord.js";
 import { RemoteWorkOverlord } from "./overlords/RemoteWorkOverlord.js";
 import { RemoteLogisticsOverlord } from "./overlords/RemoteLogisticsOverlord.js";
+import { GuardOverlord } from "./overlords/GuardOverlord.js";
 import { DefenseOverlord } from "./overlords/DefenseOverlord.js";
 import { RoomHealthCheck } from "./lib/RoomHealthCheck.js";
 import { Miner } from "./roles/Miner.js";
@@ -65,6 +66,7 @@ export class Colony {
       new RemoteMiningOverlord(this), // one miner per safe remote source
       new RemoteWorkOverlord(this), // builds + maintains each remote source's container (#114)
       new RemoteLogisticsOverlord(this), // one shared fleet hauls them all home
+      new GuardOverlord(this), // clears winnable threats in the remote footprint (#118)
       new DefenseOverlord(this), // places + operates towers (no-op until RCL3)
     ];
   }
