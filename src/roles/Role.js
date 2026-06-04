@@ -1,4 +1,5 @@
 import { stageAtLeast } from "../lib/Stages.js";
+import { actionIcon } from "../lib/Icons.js";
 
 // ============================================================================
 //  Role — base behaviour shared by all creep roles (the DRY core).
@@ -37,6 +38,10 @@ export class Role {
   // records position + state. Cheap and side-effect-free beyond the one memory key.
   static note(creep, action) {
     creep.memory._act = action;
+    // Push view (#123): show what the creep is doing as an in-game speech bubble,
+    // driven straight off the same tag the trace records (so the two never drift).
+    const icon = actionIcon(action);
+    if (icon) creep.say(icon);
   }
 
   // Send a creep with no valid assignment home to be recycled — reclaiming part of
@@ -57,14 +62,10 @@ export class Role {
   // Returns true if the creep should be DOING WORK (spending), false if gathering.
   static updateWorkingState(creep) {
     const m = creep.memory;
-    if (m.working && creep.store[RESOURCE_ENERGY] === 0) {
-      m.working = false;
-      creep.say("⛏️");
-    }
-    if (!m.working && creep.store.getFreeCapacity() === 0) {
-      m.working = true;
-      creep.say("⚡");
-    }
+    // No say() here — the per-action icons from note() (#123) cover the mode switch
+    // with finer detail (e.g. work:gather 📥 → work:build 🔨).
+    if (m.working && creep.store[RESOURCE_ENERGY] === 0) m.working = false;
+    if (!m.working && creep.store.getFreeCapacity() === 0) m.working = true;
     return m.working;
   }
 
