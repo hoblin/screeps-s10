@@ -46,13 +46,21 @@ export class RemoteMiner extends Role {
     if (!source) return; // out of vision / wrong tile — shouldn't happen once here
 
     // Pick a fixed parking tile adjacent to the source once (cached), so the
-    // dropped energy always piles in the same spot for the hauler.
-    if (!creep.memory.miningPos) {
-      const tile = ContainerPlanner.walkableTilesAround(creep.room, source.pos)[0];
-      if (!tile) return; // source walled in — nothing to do
-      creep.memory.miningPos = { x: tile.x, y: tile.y, roomName: targetRoom };
+    // dropped energy always piles in the same spot. Use ContainerPlanner (the
+    // closest reachable adjacent tile to us) and only cache one we genuinely
+    // reached by path — caching an unreachable tile would strand the miner pathing
+    // to it forever (mirrors MiningOverlord's reachedByPath guard).
+    let mp = creep.memory.miningPos;
+    if (!mp) {
+      const { position, reachedByPath } = ContainerPlanner.bestContainerTile(creep.room, source.pos, creep.pos);
+      if (!position) return; // source walled in — nothing to do
+      if (!reachedByPath) {
+        creep.travelTo(position); // approach; resolve a reachable tile next tick
+        return;
+      }
+      creep.memory.miningPos = { x: position.x, y: position.y, roomName: targetRoom };
+      mp = creep.memory.miningPos;
     }
-    const mp = creep.memory.miningPos;
     if (creep.pos.x !== mp.x || creep.pos.y !== mp.y) {
       creep.travelTo(new RoomPosition(mp.x, mp.y, targetRoom));
       return;

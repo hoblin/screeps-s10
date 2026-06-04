@@ -32,9 +32,15 @@ export class RemoteHauler extends Hauler {
       creep.travelTo(new RoomPosition(sourcePos.x, sourcePos.y, targetRoom), { range: 3 });
       return;
     }
-    // Live safety: don't sit in a room an invader just entered — head home with
-    // whatever we have (the delivery branch takes over once we flip to working).
+    // Live safety: don't sit in a room an invader just entered — pull out. If we
+    // carry energy, flip to delivering so the home trip runs the proper deliver
+    // logic instead of looping forever in collect (updateWorkingState only flips to
+    // delivering at a FULL load).
     if (creep.room.find(FIND_HOSTILE_CREEPS).length > 0) {
+      if (creep.store[RESOURCE_ENERGY] > 0) {
+        creep.memory.working = true;
+        return this.deliver(creep, colony);
+      }
       creep.travelTo(new RoomPosition(25, 25, colony.name), { range: 20 });
       return;
     }

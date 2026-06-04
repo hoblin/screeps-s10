@@ -206,8 +206,13 @@ export class Colony {
   // One source in v1 (the MVP) — { room, x, y, dist, value } or null.
   remoteSource() {
     const target = this.remoteTarget();
-    if (!target || !target.sources.length) return null;
-    const best = target.sources.reduce((a, b) => (b.value > a.value ? b : a));
+    if (!target) return null;
+    // Only mine a source the map says is reachable with a finite haul distance —
+    // never spawn a miner for a walled-off source or feed a bad dist into the
+    // freight-fleet math.
+    const reachable = (target.sources || []).filter((s) => s.reachable && isFinite(s.dist));
+    if (!reachable.length) return null;
+    const best = reachable.reduce((a, b) => (b.value > a.value ? b : a));
     return { room: target.room, x: best.x, y: best.y, dist: best.dist, value: best.value };
   }
 
