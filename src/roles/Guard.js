@@ -66,11 +66,14 @@ export class Guard extends Role {
     const room = creep.memory.guardRoom;
     if (!room) return this.recycleAtHome(creep, colony); // released (off-map) → recycle
 
-    // In transit: bail if the threat cleared before we arrive — don't garrison a false
-    // alarm. (Once on-station the local hostile scan below owns the lifecycle, not the
-    // intel: a room with only harmless stragglers reads NOT hot, but we still mop it.)
+    // In transit: bail only if we can SEE the room is truly empty (no hostiles at
+    // all) — a confirmed false alarm. We do NOT bail on !isHot: isHot is lethal-only,
+    // so it drops the moment the armed threat dies while a reserver/scout still needs
+    // mopping; and we never bail blind (no vision → trust the dispatch, keep going).
+    // The on-arrival scan below then decides mop / park / (nothing to do →) garrison.
     if (creep.room.name !== room) {
-      if (!Threat.isHot(room)) {
+      const seen = Game.rooms[room];
+      if (seen && seen.find(FIND_HOSTILE_CREEPS).length === 0) {
         creep.memory.guardRoom = null;
         return this.recycleAtHome(creep, colony);
       }
