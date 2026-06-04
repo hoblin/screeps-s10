@@ -1,6 +1,6 @@
 {
   "E15S7": {
-    "generatedAt": "2026-06-04T06:36:38.801Z",
+    "generatedAt": "2026-06-04T07:43:36.728Z",
     "shard": "shardSeason",
     "home": "E15S7",
     "remotes": [
@@ -66,6 +66,14 @@
         "lairs": 4,
         "sources": 3,
         "mineral": "Z"
+      }
+    ],
+    "excluded": [
+      {
+        "room": "E15S8",
+        "dir": "S",
+        "reason": "unreachable",
+        "sources": 1
       }
     ]
   }
