@@ -19,6 +19,13 @@ import { Threat } from "../lib/Threat.js";
 // ============================================================================
 const key = (s) => `${s.room}:${s.x}:${s.y}`;
 const REPAIR_BELOW = 0.5; // repair a remote container once it falls under half hits
+// Fleet sizing mirrors WorkOverlord's health-driven shape (count from work VOLUME,
+// not one-per-target): a worker covers ~2 needy containers — repair is light/rare
+// (~0.5 e/tick) and a build is rate-limited by the miner's 10/tick drop anyway, so
+// more workers per source don't speed it up. Capped so a cold start (every source
+// wanting a container at once) can't flood the spawn queue ahead of the core.
+const CONTAINERS_PER_WORKER = 2;
+const MAX_REMOTE_WORKERS = 3;
 
 export class RemoteWorkOverlord extends Overlord {
   constructor(colony) {
@@ -57,7 +64,12 @@ export class RemoteWorkOverlord extends Overlord {
 
   desiredCount() {
     if (!this.colony.health.expansionReady) return 0;
-    return this.needyWork().length; // one worker per needy source; 0 when all healthy
+    const need = this.needyWork().length;
+    if (!need) return 0; // all containers built + healthy → no workers
+    // Sized from work volume (not one-per-source): ~1 worker per 2 needy containers,
+    // capped. Fewer workers just serialize — reconcile() re-homes each onto the next
+    // needy container as it finishes one.
+    return Math.min(Math.ceil(need / CONTAINERS_PER_WORKER), MAX_REMOTE_WORKERS);
   }
 
   bodyFor(energyBudget) {
