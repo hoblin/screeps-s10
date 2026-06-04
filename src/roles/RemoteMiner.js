@@ -37,8 +37,9 @@ export class RemoteMiner extends Role {
     // what used to flee a harmless scout and oscillate at the border.
     const target = creep.memory.remoteSource;
     if (!target) {
-      this.note(creep, "rmine:no-target");
-      return this.retreatHome(creep, colony);
+      // No stamped source → orphaned (e.g. a legacy miner from before #102, or its
+      // overlord's source left the map). Recycle rather than idle until death.
+      return this.recycleAtHome(creep, colony);
     }
     const { room: targetRoom, x, y } = target;
 

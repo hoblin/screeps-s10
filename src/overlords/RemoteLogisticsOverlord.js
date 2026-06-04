@@ -36,13 +36,13 @@ export class RemoteLogisticsOverlord extends Overlord {
     if (!carry) return 0;
     const rate = Miner.harvestRateAt(cap); // energy/tick one remote miner produces
 
-    // Only count sources that actually have a miner assigned and aren't contested —
-    // sizing for un-mined sources would over-provision haulers ahead of production.
+    // Only count sources whose miner has actually ARRIVED at its source room (not
+    // spawning, not still crossing the border, not retreating) — sizing for miners
+    // that aren't producing yet would spawn haulers ahead of any energy to carry.
     const mined = new Set(
       this.colony.creepsWithRole("remoteMiner")
-        .map((c) => c.memory.remoteSource)
-        .filter(Boolean)
-        .map((s) => `${s.room}:${s.x}:${s.y}`)
+        .filter((c) => !c.spawning && c.memory.remoteSource && c.room.name === c.memory.remoteSource.room)
+        .map((c) => `${c.memory.remoteSource.room}:${c.memory.remoteSource.x}:${c.memory.remoteSource.y}`)
     );
     const demand = this.colony.remoteSources()
       .filter((s) => isFinite(s.dist) && !Threat.isHot(s.room) && mined.has(`${s.room}:${s.x}:${s.y}`))

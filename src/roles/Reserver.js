@@ -38,8 +38,9 @@ export class Reserver extends Role {
     // (which used to flee a harmless scout). It cools → the reserver returns.
     const target = creep.memory.reserveRoom;
     if (!target) {
-      this.note(creep, "reserve:no-target");
-      return this.retreatHome(creep, colony);
+      // No stamped room → orphaned (e.g. a legacy reserver from before #102, or its
+      // room left the map). Recycle rather than idle until death.
+      return this.recycleAtHome(creep, colony);
     }
     const { room: targetRoom, controller: cp } = target;
 
