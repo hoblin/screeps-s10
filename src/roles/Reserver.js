@@ -1,5 +1,6 @@
 import { Role } from "./Role.js";
 import { bodyFromTemplate } from "../lib/BodyGenerator.js";
+import { Threat } from "../lib/Threat.js";
 
 // ============================================================================
 //  Reserver — a CLAIM creep that keeps an adjacent remote room reserved.
@@ -11,10 +12,11 @@ import { bodyFromTemplate } from "../lib/BodyGenerator.js";
 //  all a source needs to stay at the full 3000/300.
 //
 //  The target room + controller tile are stamped by the ReserveOverlord at spawn
-//  (from the static expansion map, #88). That map already excluded Source-Keeper
-//  and enemy rooms; this role adds the LIVE safety the map can't — if hostiles
-//  are present on arrival, it abandons and pulls home rather than feed itself to
-//  an invader (the map is a stale prior; volatile danger is checked here).
+//  (from the static expansion map, #88; one reserver per remote room, #102). That
+//  map already excluded Source-Keeper and enemy rooms; the LIVE safety the map can't
+//  give comes from the shared threat intel — if the room turns hot (#105) the
+//  reserver retreats home rather than feed itself to an invader, and returns once it
+//  cools (the map is a stale prior; volatile danger lives in Threat.isHot).
 // ============================================================================
 export class Reserver extends Role {
   // Lowest movement priority of any role: a reserver isn't economy-critical and
@@ -29,17 +31,22 @@ export class Reserver extends Role {
   }
 
   static run(creep, colony) {
-    // Target is read LIVE from the colony, not stamped at spawn (#105): remoteTarget()
-    // skips contested (hot) rooms, so we re-route to the next safe remote when ours is
-    // invaded, and back once it cools. null → no safe remote → idle home. Threat
-    // avoidance lives in target selection, so there's no per-tick hostile flee here
-    // (which used to flee a harmless scout); we simply won't be sent to a hot room.
-    const target = colony.remoteTarget();
+    // This reserver is bound to ONE room, stamped at spawn (#102) — with many remotes
+    // it can't read "the" target live. Its per-room overlord stops spawning while the
+    // room is hot (desiredCount→0); an already-out reserver retreats here, reading the
+    // SHARED threat intel (Threat.isHot, #105) — not a per-tick local hostile scan
+    // (which used to flee a harmless scout). It cools → the reserver returns.
+    const target = creep.memory.reserveRoom;
     if (!target) {
       this.note(creep, "reserve:no-target");
       return this.retreatHome(creep, colony);
     }
     const { room: targetRoom, controller: cp } = target;
+
+    if (Threat.isHot(targetRoom)) {
+      this.note(creep, "reserve:hot");
+      return this.retreatHome(creep, colony);
+    }
 
     // Not there yet → cross-room travel. travelTo's foreign-room branch (#92)
     // delegates the inter-room leg to the engine's moveTo, then resumes in-room.

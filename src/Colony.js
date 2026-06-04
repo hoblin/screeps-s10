@@ -8,7 +8,6 @@ import { RemoteMiningOverlord } from "./overlords/RemoteMiningOverlord.js";
 import { RemoteLogisticsOverlord } from "./overlords/RemoteLogisticsOverlord.js";
 import { DefenseOverlord } from "./overlords/DefenseOverlord.js";
 import { RoomHealthCheck } from "./lib/RoomHealthCheck.js";
-import { Threat } from "./lib/Threat.js";
 import { Miner } from "./roles/Miner.js";
 import { bodyCost } from "./lib/BodyGenerator.js";
 import expansionMap from "./data/expansionMap.json";
@@ -51,14 +50,31 @@ export class Colony {
       (source) => new MiningOverlord(this, source)
     );
 
+    // Remote mining is the SAME per-source shape, extended across the border (#102):
+    // one RemoteMiningOverlord per reachable remote source, one ReserveOverlord per
+    // distinct remote room, and a single shared remote hauler fleet. The set is built
+    // from the static map geometry (stable across ticks, so threat flapping never
+    // orphans creeps); each overlord self-gates on expansionReady + live threat.
+    const remoteSources = this.remoteSources();
+    const remoteMiningOverlords = remoteSources.map(
+      (s) => new RemoteMiningOverlord(this, s)
+    );
+    const remoteRooms = [...new Set(remoteSources.map((s) => s.room))];
+    const reserveOverlords = remoteRooms.map(
+      (room) => new ReserveOverlord(this, {
+        room,
+        controller: remoteSources.find((s) => s.room === room).controller,
+      })
+    );
+
     this.overlords = [
       ...miningOverlords,
       new WorkOverlord(this),
       new LogisticsOverlord(this), // requests 0 haulers until 2b:Hauling stage
       new UpgradeOverlord(this),
-      new ReserveOverlord(this), // 0 reservers until health.expansionReady (#18 C1)
-      new RemoteMiningOverlord(this), // 0 until expansionReady — mines the remote target (#18 C2)
-      new RemoteLogisticsOverlord(this), // 0 until expansionReady — hauls it home (#18 C2)
+      ...reserveOverlords, // 0 reservers until health.expansionReady (#18 C1) — one per remote room
+      ...remoteMiningOverlords, // 0 until expansionReady — one per remote source (#102)
+      new RemoteLogisticsOverlord(this), // 0 until expansionReady — shared fleet hauls them home (#18 C2/#102)
       new DefenseOverlord(this), // places + operates towers (no-op until RCL3)
     ];
   }
@@ -215,32 +231,36 @@ export class Colony {
     return this.sources.some((source) => source.pos.getRangeTo(pos) <= 1);
   }
 
-  // The remote room we're expanding into: the top-ranked neighbour from the static
-  // map (#88) that is safe by economy (not reserved by someone else) AND safe RIGHT
-  // NOW (not currently hot per the live threat intel, #105). Skipping hot rooms is
-  // what re-routes the whole remote op (reserve + mine + haul all read this) to the
-  // next safe neighbour when a target is contested — and back, once it cools and the
-  // intel goes stale. One target in v1. Memoized per tick.
-  remoteTarget() {
-    if (this._remoteTarget !== undefined) return this._remoteTarget;
-    const remotes = expansionMap[this.name]?.remotes;
-    this._remoteTarget =
-      (remotes && remotes.find((r) => !r.reservedByOther && !Threat.isHot(r.room))) || null;
-    return this._remoteTarget;
-  }
-
-  // The remote source we mine: the highest-value reachable source of the target.
-  // One source in v1 (the MVP) — { room, x, y, dist, value } or null.
-  remoteSource() {
-    const target = this.remoteTarget();
-    if (!target) return null;
-    // Only mine a source the map says is reachable with a finite haul distance —
-    // never spawn a miner for a walled-off source or feed a bad dist into the
-    // freight-fleet math.
-    const reachable = (target.sources || []).filter((s) => s.reachable && isFinite(s.dist));
-    if (!reachable.length) return null;
-    const best = reachable.reduce((a, b) => (b.value > a.value ? b : a));
-    return { room: target.room, x: best.x, y: best.y, dist: best.dist, value: best.value };
+  // Every remote source we can mine, value-ranked best-first (#102). One flat list
+  // across all safe neighbours from the static map (#88): a source qualifies if its
+  // room isn't reserved by someone else and the source is reachable with a finite
+  // haul distance. Each entry carries its room geometry so a per-source mining
+  // overlord and a per-room reserver can be built straight from it:
+  //   { room, dir, x, y, dist, value, controller }
+  //
+  // Deliberately NOT filtered by live threat (Threat.isHot) — this is the stable
+  // geometric set the overlords are built from, so a room flapping hot/cold never
+  // adds/removes overlords (which would orphan their creeps). Hotness is handled
+  // downstream: each overlord drops its desiredCount to 0 while its room is hot, and
+  // an out-in-the-field creep retreats (reading the shared intel, #105). Memoized
+  // per tick — it's pure over the static map, so it's cheap and deterministic.
+  remoteSources() {
+    if (this._remoteSources !== undefined) return this._remoteSources;
+    const remotes = expansionMap[this.name]?.remotes || [];
+    const out = [];
+    for (const r of remotes) {
+      if (r.reservedByOther) continue; // contested economy — not a free remote
+      for (const s of r.sources || []) {
+        if (!s.reachable || !isFinite(s.dist)) continue; // walled-off / bad dist
+        out.push({
+          room: r.room, dir: r.dir, x: s.x, y: s.y,
+          dist: s.dist, value: s.value, controller: r.controller,
+        });
+      }
+    }
+    out.sort((a, b) => b.value - a.value); // best-first → highest-value source funds first
+    this._remoteSources = out;
+    return out;
   }
 
   run(lowBucket) {
