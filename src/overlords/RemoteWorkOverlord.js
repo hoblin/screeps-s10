@@ -22,10 +22,10 @@ const REPAIR_BELOW = 0.5; // repair a remote container once it falls under half 
 // Fleet sizing mirrors WorkOverlord's health-driven shape (count from work VOLUME,
 // not one-per-target): a worker covers ~2 needy containers — repair is light/rare
 // (~0.5 e/tick) and a build is rate-limited by the miner's 10/tick drop anyway, so
-// more workers per source don't speed it up. Capped so a cold start (every source
-// wanting a container at once) can't flood the spawn queue ahead of the core.
+// more workers per source don't speed it up. The ceiling is the number of remote
+// rooms we actually harvest (one worker handles a room's containers; we never need
+// more workers than rooms), so it self-scales with the remote footprint.
 const CONTAINERS_PER_WORKER = 2;
-const MAX_REMOTE_WORKERS = 3;
 
 export class RemoteWorkOverlord extends Overlord {
   constructor(colony) {
@@ -67,9 +67,20 @@ export class RemoteWorkOverlord extends Overlord {
     const need = this.needyWork().length;
     if (!need) return 0; // all containers built + healthy → no workers
     // Sized from work volume (not one-per-source): ~1 worker per 2 needy containers,
-    // capped. Fewer workers just serialize — reconcile() re-homes each onto the next
-    // needy container as it finishes one.
-    return Math.min(Math.ceil(need / CONTAINERS_PER_WORKER), MAX_REMOTE_WORKERS);
+    // ceilinged by the number of remote rooms we harvest (one worker handles a room's
+    // containers) so it scales as the empire grows. Fewer workers just serialize —
+    // reconcile() re-homes each onto the next needy container as it finishes one.
+    return Math.min(Math.ceil(need / CONTAINERS_PER_WORKER), this.harvestedRoomCount());
+  }
+
+  // Distinct remote rooms we currently harvest (have a live miner assigned).
+  harvestedRoomCount() {
+    return new Set(
+      this.colony.creepsWithRole("remoteMiner")
+        .map((c) => c.memory.remoteSource)
+        .filter(Boolean)
+        .map((s) => s.room)
+    ).size;
   }
 
   bodyFor(energyBudget) {
