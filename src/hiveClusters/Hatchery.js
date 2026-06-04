@@ -4,6 +4,7 @@ import { StoragePlanner } from "../lib/StoragePlanner.js";
 import { RoadPlanner } from "../lib/RoadPlanner.js";
 import { stageAtLeast } from "../lib/Stages.js";
 import { log } from "../lib/Logger.js";
+import { roleIcon } from "../lib/Icons.js";
 import { bodyCost } from "../lib/BodyGenerator.js";
 
 // How often (ticks) to place roads from the traffic heat map. Roads aren't urgent
@@ -45,6 +46,17 @@ export class Hatchery extends HiveCluster {
     // so roads land on the walkways the extension spiral leaves open (#116).
     this.planRoads();
     this.spawnFromRequests(requests);
+    this.drawSpawnLabels();
+  }
+
+  // Show the incoming creep's role icon over each spawning spawn (#123) — so we can
+  // see who's being produced before it pops, mirroring the per-creep action icons.
+  drawSpawnLabels() {
+    for (const spawn of this.spawns) {
+      if (!spawn.spawning) continue;
+      const role = Game.creeps[spawn.spawning.name]?.memory.role;
+      this.room.visual.text(roleIcon(role), spawn.pos.x, spawn.pos.y - 0.9, { font: 0.7, opacity: 0.8 });
+    }
   }
 
   // --------------------------------------------------------------------------
