@@ -50,14 +50,35 @@ export const Threat = {
     return threat;
   },
 
+  // The hostiles' combat PART profile — counts of the parts that decide a fight, so
+  // the Guard layer (#118) can pick a rock-paper-scissors counter (kite ranged, rush
+  // melee) without live vision, reading it back from intel. Recorded alongside the
+  // scalar threat because the deciding creep (the overlord at home) usually has no
+  // vision of the contested room when it sizes a guard.
+  profile(room) {
+    const p = { attack: 0, ranged: 0, heal: 0, tough: 0 };
+    for (const hostile of room.find(FIND_HOSTILE_CREEPS)) {
+      p.attack += hostile.getActiveBodyparts(ATTACK);
+      p.ranged += hostile.getActiveBodyparts(RANGED_ATTACK);
+      p.heal += hostile.getActiveBodyparts(HEAL);
+      p.tough += hostile.getActiveBodyparts(TOUGH);
+    }
+    return p;
+  },
+
   // Record what a creep observes about the room it's standing in. Called for every
   // VISIBLE room each tick (Kernel), so any creep — not just a scout — is a sensor.
   // `tick` is the last-observed time: entries persist (never deleted), so its AGE
   // (Game.time - tick) doubles as a staleness signal a future intelligence overlord
-  // (#25) reads to decide which rooms need re-scouting.
+  // (#25) reads to decide which rooms need re-scouting. The part `profile` rides
+  // along so the Guard layer can counter what's actually there (#118).
   observe(room) {
     Memory.roomIntel ||= {};
-    Memory.roomIntel[room.name] = { threat: this.assess(room), tick: Game.time };
+    Memory.roomIntel[room.name] = {
+      threat: this.assess(room),
+      profile: this.profile(room),
+      tick: Game.time,
+    };
   },
 
   // Is a room believed dangerous? True only on a FRESH observation with lethal
@@ -67,6 +88,34 @@ export const Threat = {
   isHot(roomName) {
     const intel = Memory.roomIntel?.[roomName];
     return !!intel && intel.threat > 0 && Game.time - intel.tick <= INTEL_FRESH_TICKS;
+  },
+
+  // The hostiles' part profile from FRESH intel (or null if stale/unseen) — the read
+  // path the Guard layer (#118) uses to pick a counter without live vision.
+  profileFor(roomName) {
+    const intel = Memory.roomIntel?.[roomName];
+    if (!intel || Game.time - intel.tick > INTEL_FRESH_TICKS) return null;
+    return intel.profile || null;
+  },
+
+  // The fresh scalar threat of a room (or 0 if stale/unseen) — so the Guard layer can
+  // compare a candidate guard's power against what it must beat.
+  threatOf(roomName) {
+    const intel = Memory.roomIntel?.[roomName];
+    if (!intel || Game.time - intel.tick > INTEL_FRESH_TICKS) return 0;
+    return intel.threat;
+  },
+
+  // Lethal power of a proposed guard BODY (a plain part array) — symmetric to
+  // combatPower(creep), so the overlord can ask "does the guard I can afford out-gun
+  // the room's threat?" before committing one.
+  guardCombatPower(body) {
+    let power = 0;
+    for (const part of body) {
+      if (part === ATTACK) power += ATTACK_POWER;
+      else if (part === RANGED_ATTACK) power += RANGED_ATTACK_POWER;
+    }
+    return power;
   },
 
   // Forget intel for rooms unseen for far longer than the freshness window, so the
