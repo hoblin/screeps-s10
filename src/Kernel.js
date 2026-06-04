@@ -9,6 +9,12 @@ import { Threat } from "./lib/Threat.js";
 // entries) — that turns "why is this creep doing that?" into one get_memory read.
 const CREEP_TRACE_LEN = 5;
 
+// Threat-intel overlay housekeeping (#105). Pruning is cheap but pointless every
+// tick, so run it on an interval; only forget rooms unseen for far longer than
+// Threat's freshness window (1000 ticks), so a prune never drops intel still in use.
+const INTEL_PRUNE_INTERVAL = 1500; // ticks between prune passes
+const INTEL_MAX_AGE = 10000; // forget intel for rooms unseen this long
+
 // ============================================================================
 //  Kernel — the top-level orchestrator (think: the Rails app object).
 //  Responsibilities:
@@ -90,7 +96,7 @@ export class Kernel {
       }
     }
     // Occasionally forget long-abandoned rooms so the intel overlay stays bounded.
-    if (Game.time % 1500 === 0) Threat.prune(10000);
+    if (Game.time % INTEL_PRUNE_INTERVAL === 0) Threat.prune(INTEL_MAX_AGE);
   }
 
   // Append one behaviour breadcrumb per living creep to its capped rolling log
