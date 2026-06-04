@@ -55,9 +55,12 @@ function buildMap(db, home) {
 
   const remotes = [];
   const avoid = [];
+  // Every neighbour we can't remote-mine, recorded with WHY — no silent drops, so
+  // the map is a full audit of all four orthogonal neighbours (#95).
+  const excluded = [];
   for (const { dir, room } of orthoNeighbours(home)) {
     const nb = loadRoom(db, room);
-    if (!nb) continue; // crawler hasn't reached this neighbour yet
+    if (!nb) { excluded.push({ room, dir, reason: "notScanned" }); continue; }
 
     // ---- danger filter: never let raw economy outvote lethality ------------
     // A Source-Keeper room (keeper lairs) is the classic trap — fat (3 sources)
@@ -76,7 +79,11 @@ function buildMap(db, home) {
     }
 
     // ---- safe neutral remote: needs a controller (to reserve) and sources ---
-    if (!nb.controller || nb.sources.length === 0) continue;
+    // (A controllerless room WITH sources is a Source-Keeper room, already caught
+    // above by its lairs; a controllerless non-SK room has no sources. So these two
+    // are pure audit, not a real loss of a mineable target.)
+    if (!nb.controller) { excluded.push({ room, dir, reason: "noController", sources: nb.sources.length }); continue; }
+    if (nb.sources.length === 0) { excluded.push({ room, dir, reason: "noSources" }); continue; }
 
     const sources = nb.sources
       .map((s) => {
@@ -85,7 +92,12 @@ function buildMap(db, home) {
         return { x: s.x, y: s.y, dist: reachable ? round(d) : null, value: reachable ? round(valueOf(BASE_REMOTE, d * 2)) : 0, reachable };
       })
       .filter((s) => s.reachable); // border walled off => source unreachable from home
-    if (sources.length === 0) continue;
+    if (sources.length === 0) {
+      // Has a controller + sources, but every source is walled off across the
+      // shared border (crossBorderDist = ∞) — looks mineable, isn't. E.g. E15S8.
+      excluded.push({ room, dir, reason: "unreachable", sources: nb.sources.length });
+      continue;
+    }
 
     remotes.push({
       room,
@@ -99,7 +111,7 @@ function buildMap(db, home) {
   }
   remotes.sort((a, b) => b.score - a.score);
 
-  return { generatedAt: new Date().toISOString(), shard: SHARD, home, remotes, avoid };
+  return { generatedAt: new Date().toISOString(), shard: SHARD, home, remotes, avoid, excluded };
 }
 
 function main() {
@@ -131,6 +143,11 @@ function main() {
   if (!m.avoid.length) console.log("    (none scanned)");
   for (const a of m.avoid) {
     console.log(`    ${a.room.padEnd(8)} ${a.reason}${a.owner ? ` (${a.owner})` : ""}${a.sources ? ` ${a.sources} src` : ""}${a.lairs ? ` ${a.lairs} lairs` : ""}`);
+  }
+  console.log(`\n  excluded (not viable — recorded for audit, no silent drops):`);
+  if (!m.excluded.length) console.log("    (none)");
+  for (const e of m.excluded) {
+    console.log(`    ${e.room.padEnd(8)} [${e.dir}] ${e.reason}${e.sources != null ? ` ${e.sources} src` : ""}`);
   }
 }
 

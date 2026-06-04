@@ -1,36 +1,9 @@
 {
   "E15S7": {
-    "generatedAt": "2026-06-04T06:36:38.801Z",
+    "generatedAt": "2026-06-04T08:00:29.966Z",
     "shard": "shardSeason",
     "home": "E15S7",
     "remotes": [
-      {
-        "room": "E14S7",
-        "dir": "W",
-        "controller": {
-          "x": 23,
-          "y": 22
-        },
-        "mineral": "Z",
-        "reservedByOther": false,
-        "score": 27.4,
-        "sources": [
-          {
-            "x": 29,
-            "y": 3,
-            "dist": 41,
-            "value": 12.9,
-            "reachable": true
-          },
-          {
-            "x": 35,
-            "y": 19,
-            "dist": 35,
-            "value": 14.5,
-            "reachable": true
-          }
-        ]
-      },
       {
         "room": "E16S7",
         "dir": "E",
@@ -40,20 +13,67 @@
         },
         "mineral": "Z",
         "reservedByOther": false,
-        "score": 17.8,
+        "score": 19.5,
         "sources": [
           {
             "x": 27,
             "y": 29,
-            "dist": 64,
-            "value": 9,
+            "dist": 54,
+            "value": 10.3,
             "reachable": true
           },
           {
             "x": 3,
             "y": 42,
-            "dist": 66,
-            "value": 8.8,
+            "dist": 62,
+            "value": 9.2,
+            "reachable": true
+          }
+        ]
+      },
+      {
+        "room": "E14S7",
+        "dir": "W",
+        "controller": {
+          "x": 23,
+          "y": 22
+        },
+        "mineral": "Z",
+        "reservedByOther": false,
+        "score": 14.2,
+        "sources": [
+          {
+            "x": 29,
+            "y": 3,
+            "dist": 88,
+            "value": 6.8,
+            "reachable": true
+          },
+          {
+            "x": 35,
+            "y": 19,
+            "dist": 81,
+            "value": 7.4,
+            "reachable": true
+          }
+        ]
+      },
+      {
+        "room": "E15S8",
+        "dir": "S",
+        "controller": {
+          "x": 41,
+          "y": 36
+        },
+        "mineral": "Z",
+        "reservedByOther": false,
+        "score": 12,
+        "sources": [
+          {
+            "x": 11,
+            "y": 7,
+            "dist": 45,
+            "value": 12,
             "reachable": true
           }
         ]
@@ -67,6 +87,7 @@
         "sources": 3,
         "mineral": "Z"
       }
-    ]
+    ],
+    "excluded": []
   }
 }

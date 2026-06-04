@@ -96,7 +96,10 @@ function isHighway(nm) {
   return !!m && (+m[1] % 10 === 0 || +m[2] % 10 === 0);
 }
 
-// ---- terrain (transposed on this season server: index = x*50 + y) ----------
+// ---- terrain (this season server stores it transposed: index = x*50 + y) -----
+// VERIFIED against live object coords: sources/controller/mineral land on non-wall
+// tiles ONLY with x*50+y (y*50+x puts them inside walls — impossible). So x*50+y is
+// correct, despite the standard Screeps encoding being y*50+x.
 const idx = (x, y) => x * 50 + y;
 const isWall = (g, x, y) => x < 0 || y < 0 || x > 49 || y > 49 || (g[idx(x, y)] & 1) === 1;
 const tcost = (g, x, y) => ((g[idx(x, y)] & 2) === 2 ? 5 : 1);
@@ -151,25 +154,32 @@ function requireRoom(nm) {
   return room;
 }
 
-// All passable border tiles on a given side, as [x,y].
+// Passable border tiles on the home edge that faces a neighbour in room-direction
+// `dir`, as [x,y]. ⚠️ This season server stores terrain TRANSPOSED (idx = x*50+y),
+// which swaps the room-adjacency axes vs. standard Screeps: the room to the W/E
+// shares our terrain N/S edge, and the room to the N/S shares our terrain W/E edge.
+// Verified empirically against live borders (E15S7.E == E15S8.W, E15S7.N == E14S7.S,
+// E15S7.S == E16S7.N). Mapping the room-direction to the STANDARD edge silently
+// walled off real remotes (E15S8 reported unreachable when it's open).
 function borderTiles(g, dir) {
   const tiles = [];
   for (let i = 1; i < 49; i++) {
     let x, y;
-    if (dir === "W") [x, y] = [0, i];
-    else if (dir === "E") [x, y] = [49, i];
-    else if (dir === "N") [x, y] = [i, 0];
-    else [x, y] = [i, 49];
+    if (dir === "W") [x, y] = [i, 0]; // room W <-> our N edge (y=0)
+    else if (dir === "E") [x, y] = [i, 49]; // room E <-> our S edge (y=49)
+    else if (dir === "N") [x, y] = [0, i]; // room N <-> our W edge (x=0)
+    else [x, y] = [49, i]; // room S <-> our E edge (x=49)
     if (!isWall(g, x, y)) tiles.push([x, y]);
   }
   return tiles;
 }
-// shared-axis coordinate maps: exiting at (49,y) enters neighbour at (0,y).
+// Map a home border tile to the shared tile in the neighbour (same transposed-axis
+// correspondence as borderTiles): the open border patterns match index-for-index.
 function mirror(dir, x, y) {
-  if (dir === "W") return [49, y]; // home x=0 -> neighbour x=49
-  if (dir === "E") return [0, y]; // home x=49 -> neighbour x=0
-  if (dir === "N") return [x, 49]; // home y=0 -> neighbour y=49
-  return [x, 0]; // home y=49 -> neighbour y=0
+  if (dir === "W") return [x, 49]; // home (i,0) -> neighbour (i,49)
+  if (dir === "E") return [x, 0]; // home (i,49) -> neighbour (i,0)
+  if (dir === "N") return [49, y]; // home (0,i) -> neighbour (49,i)
+  return [0, y]; // S: home (49,i) -> neighbour (0,i)
 }
 
 const valueOf = (base, d) => (isFinite(d) ? base / (1 + K * d) : 0);
