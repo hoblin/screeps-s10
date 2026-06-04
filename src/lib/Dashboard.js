@@ -99,6 +99,8 @@ export const Dashboard = {
         energy: towerList.reduce((sum, t) => sum + t.store[RESOURCE_ENERGY], 0),
       },
       sourceEnergy: sourceEnergy(c),
+      // The mid-game energy buffer once it's built (#16); null before RCL4.
+      storage: c.room.storage ? { energy: c.room.storage.store[RESOURCE_ENERGY] } : null,
       pop,
       overlords,
       // Construction sites pending — same count health derives buildBacklog from,
@@ -125,13 +127,14 @@ export const Dashboard = {
       const towerHint = s.towers.count
         ? ` | 🗼${s.towers.count}@${s.towers.energy}`
         : "";
+      const storageHint = s.storage ? ` | 📦${s.storage.energy}` : "";
       const healthHint = s.health
         ? ` | ${s.health.energyRich ? "💰rich" : "lean"} sat${Math.round(s.health.saturation * 100)}%` +
           ` idle${Math.round((s.health.spawnIdle || 0) * 100)}%${s.health.expansionReady ? " 🚀exp" : ""}`
         : "";
       log.info(
         `📊 ${name} [${s.stage}${nextHint}] ${rcl} | spawn ${s.energy.avail}/${s.energy.cap} | ` +
-          `ext ${s.extensions.built}/${s.extensions.cap} | src ${s.sourceEnergy}${towerHint} | sites ${s.sites}${healthHint} | pop: ${pop}`
+          `ext ${s.extensions.built}/${s.extensions.cap} | src ${s.sourceEnergy}${towerHint}${storageHint} | sites ${s.sites}${healthHint} | pop: ${pop}`
       );
       log.info(`   overlords: ${staffing}`);
     }
