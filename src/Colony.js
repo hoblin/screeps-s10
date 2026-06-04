@@ -154,12 +154,20 @@ export class Colony {
   // The controller container: a non-source container within range 3 of the
   // controller (ContainerPlanner places it ≤3 tiles short). The colony owns this
   // structure query — roles/overlords ask it rather than re-scanning the room.
+  // Memoized on the per-tick Colony instance (like `health`): Hauler.deliver hits
+  // this twice per hauler per tick, so we scan the room at most once per tick. The
+  // result can be null, so the cache sentinel is `undefined`, not a `??=` truthiness.
   controllerContainer() {
-    if (!this.controller) return null;
-    const near = this.controller.pos.findInRange(FIND_STRUCTURES, 3, {
-      filter: (s) => s.structureType === STRUCTURE_CONTAINER,
-    });
-    return near.find((container) => !this.isSourceContainerTile(container.pos)) || null;
+    if (this._controllerContainer !== undefined) return this._controllerContainer;
+    let container = null;
+    if (this.controller) {
+      const near = this.controller.pos.findInRange(FIND_STRUCTURES, 3, {
+        filter: (s) => s.structureType === STRUCTURE_CONTAINER,
+      });
+      container = near.find((c) => !this.isSourceContainerTile(c.pos)) || null;
+    }
+    this._controllerContainer = container;
+    return container;
   }
 
   // Drop-off the haulers feed for the controller: the live container if built, else

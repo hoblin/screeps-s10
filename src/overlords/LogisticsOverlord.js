@@ -60,7 +60,10 @@ export class LogisticsOverlord extends Overlord {
     if (!stageAtLeast(this.colony, "2b:Hauling")) return 0;
     const cap = this.colony.room.energyCapacityAvailable;
     const cached = this.fleetCache;
-    if (cached && cached.cap === cap) return cached.count;
+    // Validate the cached count — a corrupt/partial Memory write (undefined/NaN)
+    // would otherwise make generateSpawnRequest compare against NaN and spawn
+    // haulers forever. A bad value just falls through to recompute/baseline.
+    if (cached && cached.cap === cap && Number.isFinite(cached.count)) return cached.count;
     const count = this.computeFleet(cap);
     if (count == null) return this.colony.sources.length; // geometry not ready → baseline
     this.fleetCache = { cap, count };
