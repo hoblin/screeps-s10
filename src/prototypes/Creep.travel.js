@@ -88,6 +88,25 @@ Creep.prototype.travelTo = function (target, opts = {}) {
   // memory is preserved untouched, so we resume it when able.
   if (this.spawning || this.fatigue > 0) return;
 
+  // Foreign-room target: the per-room resolver and the maxRooms:1 pathing below
+  // cannot cross a room border (the resolver is per-room by design, and a path
+  // step carries no room name so the border tile is ambiguous). Delegate the
+  // inter-room transit to the engine's native moveTo (which IS multi-room); the
+  // in-room resolver logic below takes over the moment we arrive. Mirrors
+  // Overmind's goToRoom — head to the room, move precisely once inside. Border
+  // corridors have little creep contention, so skipping the resolver there is an
+  // acceptable v1 trade (full integration is #57). Only remote creeps ever have a
+  // foreign-room target, so home movement is completely untouched. (#92)
+  if (targetPos.roomName !== this.room.name) {
+    this.moveTo(targetPos, {
+      range: opts.range ?? 0,
+      reusePath: REUSE_TICKS,
+      visualizePathStyle:
+        opts.visualize === false ? undefined : { stroke: "#ffaa00", opacity: 0.2, lineStyle: "dashed" },
+    });
+    return;
+  }
+
   // maxRooms is spread LAST so caller pathOpts can tune costs but never break the
   // per-room invariant the resolver depends on.
   const pathOpts = { range: opts.range ?? 0, ...opts.pathOpts, maxRooms: 1 };
