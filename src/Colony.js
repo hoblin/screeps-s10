@@ -8,6 +8,8 @@ import { RemoteMiningOverlord } from "./overlords/RemoteMiningOverlord.js";
 import { RemoteLogisticsOverlord } from "./overlords/RemoteLogisticsOverlord.js";
 import { DefenseOverlord } from "./overlords/DefenseOverlord.js";
 import { RoomHealthCheck } from "./lib/RoomHealthCheck.js";
+import { Miner } from "./roles/Miner.js";
+import { bodyCost } from "./lib/BodyGenerator.js";
 import expansionMap from "./data/expansionMap.json";
 import { log } from "./lib/Logger.js";
 
@@ -73,6 +75,27 @@ export class Colony {
 
   creepsWithRole(role) {
     return this.creepsByRole[role] || [];
+  }
+
+  // The energy budget to size a spawned creep's body against. Normally the full
+  // spawn capacity — we wait for extensions to fill and spawn a big body. But while
+  // RECOVERING (#54) the workforce has collapsed, so nothing is filling extensions
+  // and energyAvailable is frozen at the spawn's own store; budgeting to capacity
+  // would forever request a body we can't afford. Size to what we actually have, so
+  // a cheap bootstrap worker spawns from the stranded energy and digs the colony out.
+  spawnEnergyBudget() {
+    return this.health.recovering
+      ? this.room.energyAvailable
+      : this.room.energyCapacityAvailable;
+  }
+
+  // Cost of the static miner the colony will request the instant it resumes
+  // specialists (2b) — the bar recovery must clear before releasing, else 2b
+  // re-requests an unaffordable body and respirals. Priced at the full cap (the
+  // budget a healthy colony spawns it on); Miner owns the body recipe, Colony owns
+  // the affordability question.
+  staticMinerCost() {
+    return bodyCost(Miner.bodyFor(this.room.energyCapacityAvailable));
   }
 
   // Economic-dynamics signals for THIS tick (energy surplus, build backlog,

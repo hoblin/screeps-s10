@@ -37,8 +37,10 @@ function countStructures(room, structureType) {
 
 // Is there a finished container sitting adjacent to any source? This is the
 // trigger that makes haulers worthwhile: a static miner is now filling a
-// container that someone must drain.
-function hasSourceContainer(colony) {
+// container that someone must drain. Exported so RoomHealthCheck can reuse the
+// same "developed colony" primitive without re-deriving it (the recovery signal
+// must NOT fire on a fresh room that legitimately has no creeps yet).
+export function hasSourceContainer(colony) {
   return colony.sources.some((source) => {
     const nearby = source.pos.findInRange(FIND_STRUCTURES, 1, {
       filter: (s) => s.structureType === STRUCTURE_CONTAINER,
@@ -52,6 +54,25 @@ function hasSourceContainer(colony) {
 //  the current stage is the LAST one whose `enteredWhen` is satisfied.
 // ----------------------------------------------------------------------------
 export const STAGES = [
+  {
+    // Recovery is an OVERRIDE stage (#54): it is not part of the forward
+    // progression — when its trigger fires it preempts whatever RCL-derived stage
+    // we'd otherwise be in. A developed colony that loses its whole workforce can't
+    // refund its own spawn (at 2b+ static miners are gated off and self-harvest is
+    // banned), so it spirals to extinction. While `recovering` is latched (see
+    // RoomHealthCheck) `currentStage` returns this stage, dropping every
+    // `stageAtLeast` gate to the bottom of the machine — which reactivates Stage-1
+    // bootstrap behaviour (generic self-harvesting workers refill the spawn) for
+    // free, until the colony can sustain specialists again. Sits at index 0 so
+    // `stageAtLeast(<anything past bootstrap>)` is false throughout recovery.
+    key: "Recovery",
+    override: true,
+    enteredWhen: (colony) => colony.health.recovering,
+    provides: ["emergency generic self-harvesting workers (bootstrap)"],
+    // Cosmetic only — the latch (not this trigger) controls the override; we leave
+    // recovery the moment `recovering` releases, returning to the real RCL stage.
+    readyForNextWhen: (colony) => !colony.health.recovering,
+  },
   {
     key: "1:Bootstrap",
     // We're always at least bootstrapping while the room is ours.
@@ -127,9 +148,16 @@ export function currentStage(colony) {
   const cached = _stageCache.byColony[colony.name];
   if (cached) return cached;
 
-  let active = STAGES[0];
-  for (const stage of STAGES) {
-    if (stage.enteredWhen(colony)) active = stage;
+  // An override stage (Recovery) preempts the normal progression: when its trigger
+  // is live it IS the current stage regardless of RCL. Checked first; if none is
+  // active, fall through to the normal "last NON-override stage entered" scan.
+  const override = STAGES.find((stage) => stage.override && stage.enteredWhen(colony));
+  let active = override;
+  if (!active) {
+    active = STAGES.find((stage) => !stage.override); // baseline = first normal stage
+    for (const stage of STAGES) {
+      if (!stage.override && stage.enteredWhen(colony)) active = stage;
+    }
   }
   _stageCache.byColony[colony.name] = active;
   return active;

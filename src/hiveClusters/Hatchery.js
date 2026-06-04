@@ -4,6 +4,7 @@ import { RoadPlanner } from "../lib/RoadPlanner.js";
 import { stageAtLeast } from "../lib/Stages.js";
 import { log } from "../lib/Logger.js";
 import { Hauler } from "../roles/Hauler.js";
+import { bodyCost } from "../lib/BodyGenerator.js";
 
 // How often (ticks) to run the road backlog. Roads aren't urgent and the layout
 // is cached, so a periodic sweep keeps steady-state CPU flat (no per-tick look()
@@ -212,7 +213,7 @@ export class Hatchery extends HiveCluster {
     requests.sort((a, b) => a.priority - b.priority);
     const req = requests[0];
 
-    const cost = req.body.reduce((sum, part) => sum + BODYPART_COST[part], 0);
+    const cost = bodyCost(req.body);
     if (cost > this.room.energyAvailable) {
       // Not enough energy yet — wait (unless we have zero creeps: emergency).
       const totalCreeps = Object.keys(Game.creeps).length;
