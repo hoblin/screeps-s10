@@ -342,7 +342,11 @@ async function main() {
 }
 // scoreRoom is exported so downstream tools (bin/heatmap.mjs) can reuse the
 // exact economic model over the whole collected grid without duplicating it.
-export { scoreRoom };
+// The remote-valuation primitives are exported too so bin/expansion-map.mjs can
+// value an OWNED home room's remotes — scoreRoom itself refuses owned rooms (it
+// scores claim candidates), but the underlying model is the same (extract-and-
+// share per CLAUDE.md, not copy-paste).
+export { scoreRoom, distField, crossBorderDist, valueOf, orthoNeighbours, BASE_REMOTE, K };
 
 // Only run the CLI when invoked directly, not when imported as a module.
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];

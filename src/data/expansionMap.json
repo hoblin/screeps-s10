@@ -1,0 +1,72 @@
+{
+  "E15S7": {
+    "generatedAt": "2026-06-04T06:36:38.801Z",
+    "shard": "shardSeason",
+    "home": "E15S7",
+    "remotes": [
+      {
+        "room": "E14S7",
+        "dir": "W",
+        "controller": {
+          "x": 23,
+          "y": 22
+        },
+        "mineral": "Z",
+        "reservedByOther": false,
+        "score": 27.4,
+        "sources": [
+          {
+            "x": 29,
+            "y": 3,
+            "dist": 41,
+            "value": 12.9,
+            "reachable": true
+          },
+          {
+            "x": 35,
+            "y": 19,
+            "dist": 35,
+            "value": 14.5,
+            "reachable": true
+          }
+        ]
+      },
+      {
+        "room": "E16S7",
+        "dir": "E",
+        "controller": {
+          "x": 40,
+          "y": 14
+        },
+        "mineral": "Z",
+        "reservedByOther": false,
+        "score": 17.8,
+        "sources": [
+          {
+            "x": 27,
+            "y": 29,
+            "dist": 64,
+            "value": 9,
+            "reachable": true
+          },
+          {
+            "x": 3,
+            "y": 42,
+            "dist": 66,
+            "value": 8.8,
+            "reachable": true
+          }
+        ]
+      }
+    ],
+    "avoid": [
+      {
+        "room": "E15S6",
+        "reason": "sourceKeeper",
+        "lairs": 4,
+        "sources": 3,
+        "mineral": "Z"
+      }
+    ]
+  }
+}
