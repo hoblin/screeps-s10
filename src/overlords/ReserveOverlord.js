@@ -1,6 +1,5 @@
 import { Overlord } from "./Overlord.js";
 import { Reserver } from "../roles/Reserver.js";
-import expansionMap from "../data/expansionMap.json";
 
 // ============================================================================
 //  ReserveOverlord — reserves the best safe adjacent remote (#18, slice C1).
@@ -31,9 +30,7 @@ export class ReserveOverlord extends Overlord {
   // The best safe remote to reserve, or null: the top-ranked map entry not already
   // reserved by someone else. One target in v1.
   target() {
-    const remotes = expansionMap[this.colony.name]?.remotes;
-    if (!remotes || remotes.length === 0) return null;
-    return remotes.find((r) => !r.reservedByOther) || null;
+    return this.colony.remoteTarget(); // shared with the remote mining/logistics overlords
   }
 
   // One reserver for the top remote — but only once the home economy has spare
