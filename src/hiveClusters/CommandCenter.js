@@ -116,14 +116,18 @@ export class CommandCenter extends HiveCluster {
     if (!srcContainer) return []; // mining position not cached yet
     const ctrlTile = LinkPlanner.linkTile(this.room, ctrlPos, srcContainer);
     const srcTile = LinkPlanner.linkTile(this.room, srcContainer, ctrlPos);
-    const layout = [];
-    if (ctrlTile) layout.push({ role: "controller", pos: ctrlTile });
-    if (srcTile) layout.push({ role: "source", sourceId: linked.id, pos: srcTile });
-    if (layout.length === 2) {
-      this.linkLayoutCache = layout.map((e) => ({
-        role: e.role, sourceId: e.sourceId, x: e.pos.x, y: e.pos.y, roomName: e.pos.roomName,
-      }));
-    }
+    // Commit only the FULL RCL5 pair. A lone link is useless — a 5000-energy sink with
+    // no partner to transfer to — and a lone controller link wouldn't be discoverable
+    // via Colony.controllerLink() until cached. Wait until BOTH tiles resolve, so
+    // planLinks never queues a single unpaired link (#133 review).
+    if (!ctrlTile || !srcTile) return [];
+    const layout = [
+      { role: "controller", pos: ctrlTile },
+      { role: "source", sourceId: linked.id, pos: srcTile },
+    ];
+    this.linkLayoutCache = layout.map((e) => ({
+      role: e.role, sourceId: e.sourceId, x: e.pos.x, y: e.pos.y, roomName: e.pos.roomName,
+    }));
     return layout;
   }
 

@@ -27,7 +27,7 @@ export const LinkPlanner = {
         if (dx === 0 && dy === 0) continue; // not the hub tile itself
         const x = anchorPos.x + dx;
         const y = anchorPos.y + dy;
-        if (x < 1 || x > 48 || y < 1 || y > 48) continue; // keep off the room edge
+        if (x < 1 || x > 48 || y < 1 || y > 48) continue; // buildable interior only (0/49 are exit/wall tiles)
         if (terrain.get(x, y) === TERRAIN_MASK_WALL) continue;
         if (reserved.has(ExtensionPlanner.key(x, y))) continue;
         const pos = new RoomPosition(x, y, room.name);
@@ -44,8 +44,9 @@ export const LinkPlanner = {
 
   // Keep link construction sites alive for the priority `layout` ([{ role, pos }]),
   // up to the current RCL link `cap` (counting built + queued). A link is one
-  // structure per tile, so skip a tile that already holds a link or its site. Logs a
-  // non-OK result, never throws.
+  // structure per tile, so skip a tile that already holds a link or its site. Non-OK
+  // results are logged, never thrown; a hard cap (global 100-site limit / RCL gating)
+  // breaks the loop so we don't log-spam every tick (mirrors ExtensionPlanner/RoadPlanner).
   ensureSites(room, layout, cap) {
     if (cap <= 0) return;
     const built = room.find(FIND_MY_STRUCTURES, {
@@ -62,8 +63,16 @@ export const LinkPlanner = {
         pos.lookFor(LOOK_CONSTRUCTION_SITES).some((s) => s.structureType === STRUCTURE_LINK);
       if (here) continue; // this hub already has its link / site
       const result = room.createConstructionSite(pos, STRUCTURE_LINK);
-      if (result === OK) queued++;
-      else log.warn(`[${room.name}] link site at ${pos} failed: ${result}`);
+      if (result === OK) {
+        queued++;
+      } else if (result === ERR_FULL || result === ERR_RCL_NOT_ENOUGH) {
+        // Global site cap or RCL too low — no further tile can succeed this tick.
+        log.warn(`[${room.name}] link site failed: ${result}`);
+        break;
+      } else if (result !== ERR_INVALID_TARGET) {
+        // ERR_INVALID_TARGET = a tile we couldn't detect as unbuildable; skip quietly.
+        log.warn(`[${room.name}] link site at ${pos} failed: ${result}`);
+      }
     }
   },
 };
