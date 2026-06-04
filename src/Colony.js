@@ -4,6 +4,7 @@ import { LogisticsOverlord } from "./overlords/LogisticsOverlord.js";
 import { UpgradeOverlord } from "./overlords/UpgradeOverlord.js";
 import { WorkOverlord } from "./overlords/WorkOverlord.js";
 import { DefenseOverlord } from "./overlords/DefenseOverlord.js";
+import { RoomHealthCheck } from "./lib/RoomHealthCheck.js";
 import { log } from "./lib/Logger.js";
 
 // ============================================================================
@@ -65,6 +66,15 @@ export class Colony {
 
   creepsWithRole(role) {
     return this.creepsByRole[role] || [];
+  }
+
+  // Economic-dynamics signals for THIS tick (energy surplus, build backlog,
+  // blocker flags) — the continuous dial overlords read in desiredCount()
+  // instead of hardcoded creep counts (#81). Computed once and cached on the
+  // per-tick instance (the Colony is rebuilt every tick, so the field is
+  // naturally fresh); the hysteresis latch lives in Memory. See RoomHealthCheck.
+  get health() {
+    return (this._health ??= RoomHealthCheck.compute(this));
   }
 
   // Order sources by ascending REAL path cost from the base to each source, so

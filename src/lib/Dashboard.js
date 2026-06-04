@@ -59,6 +59,7 @@ export const Dashboard = {
   snapshot(colony) {
     const c = colony;
     const ctrl = c.controller;
+    const health = c.health; // per-tick economy signals; also the single source for the site count
 
     const pop = {};
     for (const role in c.creepsByRole) pop[role] = c.creepsByRole[role].length;
@@ -100,8 +101,12 @@ export const Dashboard = {
       sourceEnergy: sourceEnergy(c),
       pop,
       overlords,
-      // Construction sites pending (useful once we start building).
-      sites: c.room.find(FIND_MY_CONSTRUCTION_SITES).length,
+      // Construction sites pending — same count health derives buildBacklog from,
+      // so reuse it (one room.find/tick, no drift between the two).
+      sites: health.buildBacklog,
+      // Economic-dynamics signals driving creep counts (#81) — visible live so
+      // the control loop is debuggable.
+      health,
     };
   },
 
@@ -120,9 +125,12 @@ export const Dashboard = {
       const towerHint = s.towers.count
         ? ` | 🗼${s.towers.count}@${s.towers.energy}`
         : "";
+      const healthHint = s.health
+        ? ` | ${s.health.energyRich ? "💰rich" : "lean"} sat${Math.round(s.health.saturation * 100)}%`
+        : "";
       log.info(
         `📊 ${name} [${s.stage}${nextHint}] ${rcl} | spawn ${s.energy.avail}/${s.energy.cap} | ` +
-          `ext ${s.extensions.built}/${s.extensions.cap} | src ${s.sourceEnergy}${towerHint} | sites ${s.sites} | pop: ${pop}`
+          `ext ${s.extensions.built}/${s.extensions.cap} | src ${s.sourceEnergy}${towerHint} | sites ${s.sites}${healthHint} | pop: ${pop}`
       );
       log.info(`   overlords: ${staffing}`);
     }

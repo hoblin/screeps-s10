@@ -5,6 +5,10 @@ import { bodyFromTemplate } from "../lib/BodyGenerator.js";
 import { stageAtLeast } from "../lib/Stages.js";
 import { ContainerPlanner } from "../lib/ContainerPlanner.js";
 
+// Upgraders to run when energy is going to waste (#81) — drains the surplus into
+// the controller instead of letting source regen burn.
+const UPGRADERS_RICH = 3;
+
 // ============================================================================
 //  UpgradeOverlord — keeps the room controller leveling.
 //
@@ -31,7 +35,10 @@ export class UpgradeOverlord extends Overlord {
   }
 
   desiredCount() {
-    // 1 baseline; 2 once we have some extension capacity.
+    // Burn idle energy into the controller when there's a surplus (#81): with
+    // nowhere else for it to go, more upgraders turn waste into RCL progress.
+    // Otherwise the baseline: 1, or 2 once extensions give us capacity to feed two.
+    if (this.colony.health.energyRich) return UPGRADERS_RICH;
     return this.room.energyCapacityAvailable >= 550 ? 2 : 1;
   }
 
