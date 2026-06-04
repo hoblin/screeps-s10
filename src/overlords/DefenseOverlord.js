@@ -72,37 +72,46 @@ export class DefenseOverlord extends Overlord {
     const repairTarget =
       hostiles.length === 0 && !healTarget ? this.repairTarget() : null;
 
-    // Collect who each tower fired at this tick, so we can log engagements and
-    // kills against last tick's set (#107).
-    const engaged = {};
+    // Collect who each tower actually shot this tick, then log/track edges (#107).
+    const attacked = {};
     for (const tower of towers) {
       const target = this.operateTower(tower, hostiles, healTarget, repairTarget);
-      if (target) engaged[target.id] = { hits: target.hits, owner: target.owner.username };
+      if (target) attacked[target.id] = { hits: target.hits, owner: target.owner.username };
     }
-    this.logEngagements(prevEngaged, engaged, towers.length);
-    this.engagedCache = engaged;
+    this.engagedCache = this.trackEngagements(prevEngaged, attacked, hostiles, towers.length);
   }
 
-  // Story-log tower combat (#107): a target we just started firing at → "engaged";
-  // a target we were firing at that vanished → "killed" if it COULD have died to our
-  // towers (last hits ≤ the max damage they can deal), else "fled". The fled/killed
-  // split is a heuristic — the API gives no kill signal (a dead and a border-crossed
-  // creep both just disappear) — but last-hits-vs-max-damage is a sound bound: a
-  // creep above our max damage definitely didn't die to us.
-  logEngagements(prev, current, towerCount) {
-    for (const id in current) {
+  // Story-log tower combat and return the next-tick engaged set (#107). A hostile we
+  // just landed a shot on that we weren't already tracking → "engaged". A tracked
+  // hostile that has LEFT THE ROOM (not merely unshot this tick — a tower may run
+  // dry) → "killed" if its last hits couldn't have exceeded our towers' max damage,
+  // else "fled". The killed/fled split is a heuristic (the API gives no kill signal —
+  // a dead and a border-crossed creep both just vanish) bounded by our max damage, so
+  // an over-HP creep is never mislabelled a kill. Still-present tracked hostiles carry
+  // forward, so a dry-tower tick never fakes a kill on a creep that's still standing.
+  trackEngagements(prev, attacked, hostiles, towerCount) {
+    const present = new Set(hostiles.map((h) => h.id));
+    for (const id in attacked) {
       if (!(id in prev)) {
-        const c = current[id];
+        const c = attacked[id];
         RoomLog.record(this.room.name, "🗼 engaged", { owner: c.owner, hp: c.hits });
       }
     }
     const maxDamage = towerCount * TOWER_POWER_ATTACK;
     for (const id in prev) {
-      if (id in current) continue;
+      if (present.has(id)) continue; // still here — not killed/fled, just maybe unshot
       const c = prev[id];
       if (c.hits <= maxDamage) RoomLog.record(this.room.name, "💀 killed", { owner: c.owner });
       else RoomLog.record(this.room.name, "🏃 fled", { owner: c.owner, hp: c.hits });
     }
+    // Next-tick set: every engaged hostile still in the room — fresh hits if shot this
+    // tick, else carried — so a dry tower doesn't drop a live target and fake a kill.
+    const next = {};
+    for (const h of hostiles) {
+      if (h.id in attacked) next[h.id] = attacked[h.id];
+      else if (h.id in prev) next[h.id] = prev[h.id];
+    }
+    return next;
   }
 
   // Cross-tick set of hostiles our towers fired at last tick (the overlord is
@@ -179,8 +188,9 @@ export class DefenseOverlord extends Overlord {
     //    fires, regardless of the energy reserve — fighting is the point.
     if (hostiles.length > 0) {
       const target = tower.pos.findClosestByRange(hostiles);
-      tower.attack(target);
-      return target;
+      // Only report it as engaged if the shot actually landed — a dry tower
+      // (ERR_NOT_ENOUGH_ENERGY) fired nothing, so it didn't engage anyone.
+      return tower.attack(target) === OK ? target : null;
     }
 
     // 2. Heal the most-damaged friendly creep. Also unreserved — keeping our own
