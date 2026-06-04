@@ -5,6 +5,7 @@ import { UpgradeOverlord } from "./overlords/UpgradeOverlord.js";
 import { WorkOverlord } from "./overlords/WorkOverlord.js";
 import { ReserveOverlord } from "./overlords/ReserveOverlord.js";
 import { RemoteMiningOverlord } from "./overlords/RemoteMiningOverlord.js";
+import { RemoteWorkOverlord } from "./overlords/RemoteWorkOverlord.js";
 import { RemoteLogisticsOverlord } from "./overlords/RemoteLogisticsOverlord.js";
 import { DefenseOverlord } from "./overlords/DefenseOverlord.js";
 import { RoomHealthCheck } from "./lib/RoomHealthCheck.js";
@@ -62,6 +63,7 @@ export class Colony {
       // gate on health.expansionReady, which self-throttles the expansion.
       new ReserveOverlord(this), // one reserver per safe remote room
       new RemoteMiningOverlord(this), // one miner per safe remote source
+      new RemoteWorkOverlord(this), // builds + maintains each remote source's container (#114)
       new RemoteLogisticsOverlord(this), // one shared fleet hauls them all home
       new DefenseOverlord(this), // places + operates towers (no-op until RCL3)
     ];

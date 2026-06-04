@@ -60,6 +60,21 @@ export class RemoteHauler extends Hauler {
       return;
     }
 
+    // Prefer the source container once it's built (#114): container-mining banks the
+    // energy there with zero decay, so it's the real store to drain — fall back to a
+    // ground pile only before the container exists.
+    const cinfo = Memory.colonyData?.[colony.name]?.remoteContainers?.[`${targetRoom}:${x}:${y}`];
+    if (cinfo && cinfo.hits != null) {
+      const container = new RoomPosition(cinfo.x, cinfo.y, targetRoom)
+        .lookFor(LOOK_STRUCTURES)
+        .find((s) => s.structureType === STRUCTURE_CONTAINER && s.store[RESOURCE_ENERGY] > 0);
+      if (container) {
+        this.note(creep, "rhaul:withdraw");
+        if (creep.withdraw(container, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) creep.travelTo(container);
+        return;
+      }
+    }
+
     const pile = creep.pos.findClosestByPath(FIND_DROPPED_RESOURCES, {
       filter: (r) => r.resourceType === RESOURCE_ENERGY,
     });
@@ -79,25 +94,35 @@ export class RemoteHauler extends Hauler {
     creep.travelTo(new RoomPosition(x, y, targetRoom), { range: 2 });
   }
 
-  // Pick the remote source to service: the fullest active pile (#102). "Fullest" is
-  // the energy dropped near a source we can see — a miner gives us vision of its
-  // room, so we compare real piles; without vision the term is 0 and we fall back to
-  // the value-ranked order (remoteSources() is sorted best-first). Hot rooms are
-  // excluded. Returns { room, x, y } or null when no remote is active.
+  // Pick the remote source to service: the fullest active store (#102). "Fullest" is
+  // the energy waiting at a source we can see — the miner's ground pile PLUS the
+  // source container's contents (#114), since once a container is built the energy
+  // banks there instead of on the ground. A miner gives us vision of its room; with
+  // no vision the term is 0 and we fall back to the value-ranked order
+  // (remoteSources() is sorted best-first). Hot rooms are excluded.
   static pickHaulTarget(colony) {
     const active = colony.remoteSources().filter((s) => !Threat.isHot(s.room));
     if (!active.length) return null;
+    const containers = Memory.colonyData?.[colony.name]?.remoteContainers || {};
     let best = null;
     let bestScore = -1;
     for (const s of active) {
       const room = Game.rooms[s.room];
-      const pending = room
-        ? new RoomPosition(s.x, s.y, s.room)
-            .findInRange(FIND_DROPPED_RESOURCES, 2, { filter: (r) => r.resourceType === RESOURCE_ENERGY })
-            .reduce((sum, r) => sum + r.amount, 0)
-        : 0;
-      // Real piles dominate; value (already the sort order) tie-breaks and is the
-      // no-vision default so haulers still head to the best source before it's seen.
+      let pending = 0;
+      if (room) {
+        pending += new RoomPosition(s.x, s.y, s.room)
+          .findInRange(FIND_DROPPED_RESOURCES, 2, { filter: (r) => r.resourceType === RESOURCE_ENERGY })
+          .reduce((sum, r) => sum + r.amount, 0);
+        const cinfo = containers[`${s.room}:${s.x}:${s.y}`];
+        if (cinfo && cinfo.hits != null) {
+          const container = new RoomPosition(cinfo.x, cinfo.y, s.room)
+            .lookFor(LOOK_STRUCTURES)
+            .find((st) => st.structureType === STRUCTURE_CONTAINER);
+          if (container) pending += container.store[RESOURCE_ENERGY];
+        }
+      }
+      // Real energy dominates; value (the sort order) tie-breaks and is the no-vision
+      // default so haulers still head to the best source before it's seen.
       const score = pending * 1000 + s.value;
       if (score > bestScore) {
         bestScore = score;
