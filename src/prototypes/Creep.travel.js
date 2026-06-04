@@ -55,6 +55,7 @@ import { roleClass } from "../roles/index.js";
 // ============================================================================
 
 const REUSE_TICKS = 20; // recompute a committed path at least this often (like moveTo)
+const ROOM_TRANSIT_REUSE = 50; // foreign-room transit paths span rooms — repath far less often
 const STUCK_THRESHOLD = 2; // ticks without moving before we re-route (Overmind's DEFAULT_STUCK_VALUE)
 const pack = (x, y) => x * 50 + y; // tile -> unique int (rooms are 50×50)
 const unpackX = (n) => Math.floor(n / 50);
@@ -87,6 +88,34 @@ Creep.prototype.travelTo = function (target, opts = {}) {
   // resolver ignores fatigued/spawning creeps anyway). The committed path in
   // memory is preserved untouched, so we resume it when able.
   if (this.spawning || this.fatigue > 0) return;
+
+  // Foreign-room target: the per-room resolver and the maxRooms:1 pathing below
+  // cannot cross a room border (the resolver is per-room by design, and a path
+  // step carries no room name so the border tile is ambiguous). Delegate the
+  // inter-room transit to the engine's native moveTo (which IS multi-room); the
+  // in-room resolver logic below takes over the moment we arrive. Mirrors
+  // Overmind's goToRoom — head to the room, move precisely once inside. Border
+  // corridors have little creep contention, so skipping the resolver there is an
+  // acceptable v1 trade (full integration is #57). Only remote creeps ever have a
+  // foreign-room target, so home movement is completely untouched. (#92)
+  if (targetPos.roomName !== this.room.name) {
+    // Forward caller pathOpts (plainCost/swampCost/costCallback) so tuning is
+    // consistent across the border, but strip maxRooms (moveTo MUST stay multi-
+    // room) and ignoreCreeps (moveTo manages its own). A longer reusePath than the
+    // in-room REUSE_TICKS: transit paths span many rooms, so re-pathing every 20
+    // ticks would burn CPU in empty corridors for no benefit.
+    const tuning = { ...(opts.pathOpts || {}) };
+    delete tuning.maxRooms;
+    delete tuning.ignoreCreeps;
+    this.moveTo(targetPos, {
+      range: opts.range ?? 0,
+      reusePath: ROOM_TRANSIT_REUSE,
+      ...tuning,
+      visualizePathStyle:
+        opts.visualize === false ? undefined : { stroke: "#ffaa00", opacity: 0.2, lineStyle: "dashed" },
+    });
+    return;
+  }
 
   // maxRooms is spread LAST so caller pathOpts can tune costs but never break the
   // per-room invariant the resolver depends on.
