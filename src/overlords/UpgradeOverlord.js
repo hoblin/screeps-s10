@@ -61,8 +61,9 @@ export class UpgradeOverlord extends Overlord {
   // kept fed — the extra upgraders are guaranteed energy. As they consume the surplus,
   // storage stops climbing and the count settles at equilibrium (consumption ≈ source
   // surplus). Reserve-gated (bank a cushion first), capped (so the single spawn isn't
-  // swamped), and zeroed during recovery (don't burn the controller while clawing out of
-  // a workforce collapse — but NOT gated on `decaying`: upgrading is the FIX for that).
+  // swamped), and the DELTA is zeroed during recovery (no EXTRA burn while clawing out of
+  // a workforce collapse — the baseline upgraders still run; NOT gated on `decaying`,
+  // since upgrading is the FIX for a decaying controller).
   // Read live, not smoothed: the per-upgrader granularity dwarfs per-tick storage jitter,
   // so the count can't chatter (same live-read sizing idiom as WorkOverlord's backlog).
   storageDelta() {
