@@ -132,6 +132,58 @@ export class Colony {
     return reaches ? path.length : Infinity;
   }
 
+  // Path-step distance between two fixed tiles (static layout — ignore creeps), with
+  // the same reachability guard as pathCostTo: a path that doesn't actually arrive
+  // reads as Infinity, not a deceptively short trip. Minimum 1 (adjacent = one step),
+  // so a hauled source never contributes zero distance to the freight model (#84).
+  pathLength(fromPos, toPos) {
+    if (fromPos.getRangeTo(toPos) <= 1) return 1;
+    const path = fromPos.findPathTo(toPos, { ignoreCreeps: true, range: 1 });
+    const last = path[path.length - 1];
+    const reaches = last && toPos.getRangeTo(last.x, last.y) <= 1;
+    return reaches ? path.length : Infinity;
+  }
+
+  // The tile a source's miner parks on — its container sits there. MiningOverlord
+  // caches it (once reached by path) in colonyData.miningPos; null until then.
+  sourceContainerPos(source) {
+    const cache = Memory.colonyData?.[this.name]?.miningPos?.[source.id];
+    return cache ? new RoomPosition(cache.x, cache.y, cache.roomName) : null;
+  }
+
+  // The controller container: a non-source container within range 3 of the
+  // controller (ContainerPlanner places it ≤3 tiles short). The colony owns this
+  // structure query — roles/overlords ask it rather than re-scanning the room.
+  // Memoized on the per-tick Colony instance (like `health`): Hauler.deliver hits
+  // this twice per hauler per tick, so we scan the room at most once per tick. The
+  // result can be null, so the cache sentinel is `undefined`, not a `??=` truthiness.
+  controllerContainer() {
+    if (this._controllerContainer !== undefined) return this._controllerContainer;
+    let container = null;
+    if (this.controller) {
+      const near = this.controller.pos.findInRange(FIND_STRUCTURES, 3, {
+        filter: (s) => s.structureType === STRUCTURE_CONTAINER,
+      });
+      container = near.find((c) => !this.isSourceContainerTile(c.pos)) || null;
+    }
+    this._controllerContainer = container;
+    return container;
+  }
+
+  // Drop-off the haulers feed for the controller: the live container if built, else
+  // its planned tile — so the freight fleet can be sized before it finishes (#84).
+  controllerDropoffPos() {
+    const built = this.controllerContainer();
+    if (built) return built.pos;
+    const planned = Memory.colonyData?.[this.name]?.controllerContainerPos;
+    return planned ? new RoomPosition(planned.x, planned.y, planned.roomName) : null;
+  }
+
+  // A container tile is a source container iff it's adjacent to one of our sources.
+  isSourceContainerTile(pos) {
+    return this.sources.some((source) => source.pos.getRangeTo(pos) <= 1);
+  }
+
   run(lowBucket) {
     // 1. Each overlord decides what it wants (spawn requests) and runs its creeps.
     const spawnRequests = [];
