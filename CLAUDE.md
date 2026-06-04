@@ -9,8 +9,13 @@ Clean modern JS (no TypeScript), bundled with esbuild and uploaded to Screeps.
 
 **`bin/` is offline scout tooling, NOT bot runtime** — it scans the world into a
 local SQLite mirror (`tmp/season.db`) and scores spawn candidates (`region-score.mjs`,
-`heatmap.mjs`). Never bundled into `dist/main.js`. The crawler (`collect.mjs`) is
-the sole API caller; analytics is DB-only (SOLID).
+`heatmap.mjs`). The code is never bundled into `dist/main.js`; the one bundled
+*output* is `expansion-map.mjs`'s `src/data/expansionMap.json` (the remote-mining
+neighbour map). The crawler (`collect.mjs`) is the sole API caller; analytics is
+DB-only (SOLID). ⚠️ **Transposed terrain:** this season's server stores terrain as
+`terrain[x*50+y]` (not standard `y*50+x`), which also swaps room-adjacency axes;
+`region-score`/`expansion-map` are fixed for it (#96), `geo-season` is not yet (#97).
+The live bot uses game coords + native pathfinding and is unaffected.
 
 ## Architecture in one breath
 - `Kernel` drives the tick (CPU guard, discovers colonies). `Colony` is the per-room aggregate that wires `HiveCluster`s + `Overlord`s.
@@ -18,6 +23,7 @@ the sole API caller; analytics is DB-only (SOLID).
 - **Role** = stateless behaviour: `Role.run(creep, colony)`, static methods only. Shared helpers live on `Role` / in `src/roles/`.
 - **HiveCluster** = physical sub-system (e.g. `Hatchery` = spawns+extensions). Overmind-inspired.
 - **Stages** (`src/lib/Stages.js`) = formal state machine. Each stage: `enteredWhen` (entry trigger), `provides`, `readyForNextWhen` (advance trigger). Gate new logic on the stage that should activate it — don't run it before its trigger.
+- **Health signals** (`src/lib/RoomHealthCheck.js`) = the second gating axis beside stages: continuous economy dynamics (`saturation`, `energyRich`, `expansionReady`) drive creep COUNTS and can pull a capability *forward* of its stage (remote mining activates on `expansionReady`, not on RCL). Rule of thumb: gate "is it unlocked?" on the stage, "can we afford it now?" on a health signal. See STRATEGY.md "the second axis".
 - Container lifecycle pattern lives in `MiningOverlord` (`computeMiningPosition` / `ensureContainerSite` / `walkableTilesAround`, cached in `Memory.colonyData[colony.name]`). **Mirror or extract-and-share this pattern — don't copy-paste it.**
 
 ## Build / deploy
