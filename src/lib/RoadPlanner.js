@@ -51,6 +51,7 @@ export const RoadPlanner = {
     for (const creep of room.find(FIND_MY_CREEPS)) {
       if (creep.spawning) continue;
       const { x, y } = creep.pos;
+      if (x < 1 || x > 48 || y < 1 || y > 48) continue; // exit/border tile — no structure fits
       if ((x + y) % 2 === parity) continue; // structure-colour tile → not a road tile
       if (this.occupied(creep.pos)) continue; // already built/queued here
       const k = this.key(x, y);
@@ -101,7 +102,9 @@ export const RoadPlanner = {
         // Global site cap or RCL too low — no further tile can succeed this tick.
         log.warn(`[${room.name}] road site failed: ${result}`);
         break;
-      } else if (result !== ERR_INVALID_TARGET) {
+      } else if (result === ERR_INVALID_TARGET) {
+        delete pool[k]; // un-buildable tile (e.g. a border tile that slipped in) → stop retrying
+      } else {
         log.warn(`[${room.name}] road site at ${pos} failed: ${result}`);
       }
     }
