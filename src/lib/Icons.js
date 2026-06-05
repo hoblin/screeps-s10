@@ -24,6 +24,7 @@ export const ACTION_ICON = {
   upgrade: "🎮", pump: "🎮", // controller
   melee: "⚔️", ranged: "🏹", // guard combat
   park: "🛡️", // guard garrisoning a cleared room's controller
+  score: "💰", // scout diverting to bank a ground Score (#24)
   recycle: "♻️",
   "no-target": "❔",
 };

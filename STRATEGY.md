@@ -155,25 +155,30 @@ HiveCluster (storage + links) — the remaining Stage-3 infra (#16 Storage, #17 
 
 **Architecture add:** `EvolutionChamber`/`Lab` HiveCluster, boost management in Overlords.
 
-## Stage 5 — Endgame (RCL 8) & Season 10 score
+## Stage 5 — Season 10 score (the win condition, open from tick 0)
 
-**Goal:** RCL 8 capped — pivot CPU/energy to the actual win condition.
-- RCL 8 controller caps at **15 energy/tick** upgrade (more only via Power Creeps).
-- **Season 10 win = SCORE** (confirmed HIGH confidence). Mechanic, constants, and the
-  geographic implication are documented in full at
-  [`docs/season-10-score-mechanic.md`](docs/season-10-score-mechanic.md) — read it
-  before touching score work. In short: `ScoreContainer`s spawn randomly map-wide;
-  a creep withdraws the score and **`transfer`s it to a `ScoreCollector`** (which
-  lives in **highway rooms**, walled radius-5). Points bank **at highways, not in
-  your own room** — so proximity to a highway collector hub is a win factor, not
-  just economy (see #48 Scoring v3).
-- Endgame surplus energy/CPU → **score collection fleet**: scouts find containers +
-  collectors, a score overlord runs harvest → dismantle-walls → deposit (#24).
-- 100 CPU flat for everyone → algorithm quality wins, not wallet. Spend CPU on good
-  pathfinding/planning freely.
+**Goal:** maximise banked SCORE — the season win condition. NOT RCL8-gated; score is
+collectible the moment scouts are roaming.
+- **Season 10 win = SCORE** (confirmed live). Mechanic + constants documented in full at
+  [`docs/season-10-score-mechanic.md`](docs/season-10-score-mechanic.md) — read it before
+  touching score work. In short: `Score` objects spawn on the ground in **any room**
+  (uniformly map-wide); a creep banks the points by simply **occupying the tile** — no
+  structure, carry, or action. They decay if uncollected; first creep to the tile wins.
+- **The score fleet IS the scout fleet** (#24): scouts already roam the map for vision and
+  are fast `[MOVE]` creeps — exactly what a score creep is. When `Threat.recon` records a
+  ground Score (`roomIntel[room].score`), the `ScoutOverlord` diverts the closest free
+  scout to step on it, then it resumes its route. No separate collector role, no
+  deposit/dismantle pipeline (that was the wrong Season-1 model, retracted).
+- **Win = coverage × speed.** More scouts + more spawns (RCL7→2, RCL8→3) and ultimately
+  more colonies → more of the map seen and more Score reached before decay/rivals. Scale
+  the scout fleet from early on, not as an RCL8 afterthought.
+- RCL8 still matters for the ECONOMY that funds the fleet (controller caps at **15
+  energy/tick** upgrade; surplus funds more scouts/spawns/colonies). 100 CPU flat for
+  everyone → algorithm quality wins, not wallet; spend CPU on good pathfinding freely.
 
-**Architecture add:** `ScoutOverlord` (find score), `ScoreOverlord` (collect/deliver).
-This is the season-specific layer — the real objective once economy is mature.
+**Architecture:** the `ScoutOverlord` owns score collection (scout diversion, #24) — no
+separate `ScoreOverlord`. Score location confers no geographic claim advantage (uniform
+spawn), so region scoring stays economy-based (#48 retracted).
 
 ---
 
