@@ -85,6 +85,14 @@ export class Guard extends Role {
         creep.memory.guardRoom = null;
         return this.recycleAtHome(creep, colony);
       }
+      // En-route on a retaliation mission (#140): if the locked offender's creeps are in THIS room,
+      // fight them; else travel on. A mobile guard hunting the owner along the route — the jumper
+      // can't shake it the way it escapes a garrison — but it never DIVERTS off-route to chase (the
+      // route through his territory does the following), so it still reaches the remote to deny it.
+      if (creep.memory.retaliationMission && this.engage(creep, creep.memory.foughtOwner)) {
+        creep.memory.lastEngaged = Game.time;
+        return;
+      }
       this.note(creep, "guard:to-room");
       creep.travelTo(new RoomPosition(25, 25, room), { range: 20 });
       return;
@@ -129,10 +137,14 @@ export class Guard extends Role {
   // Heal self and fight the hostiles in the CURRENT room — armed first, then harmless
   // stragglers. Returns true if there were hostiles (we engaged), false if the room is
   // clear. The combat nucleus, free of any room/garrison/follow logic, so both the
-  // garrison Guard and the follow Escort (#147) share it.
-  static engage(creep) {
+  // garrison Guard and the follow Escort (#147) share it. Optional `ownerFilter` (a username)
+  // narrows it to ONE player's creeps — the en-route retaliation hunt (#140).
+  static engage(creep, ownerFilter) {
     if (creep.getActiveBodyparts(HEAL) > 0 && creep.hits < creep.hitsMax) creep.heal(creep);
-    const hostiles = creep.room.find(FIND_HOSTILE_CREEPS);
+    let hostiles = creep.room.find(FIND_HOSTILE_CREEPS);
+    // ownerFilter (en-route retaliation, #140): fight ONLY the locked offender's creeps, so the
+    // guard hunts him along the route without getting pinned by an SK or another player it passes.
+    if (ownerFilter) hostiles = hostiles.filter((h) => h.owner && h.owner.username === ownerFilter);
     if (!hostiles.length) return false;
     const armed = hostiles.filter((h) => Threat.combatPower(h) > 0);
     const target = creep.pos.findClosestByRange(armed.length ? armed : hostiles);
