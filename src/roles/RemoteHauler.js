@@ -24,6 +24,9 @@ export class RemoteHauler extends Hauler {
   // but it still moves energy, so above idle roles.
   static movementPriority = 3;
 
+  // Detour around hostile ranged kill-zones on the haul route (#145).
+  static avoidHostiles = true;
+
   static bodyFor(energyBudget) {
     return Hauler.bodyFor(energyBudget); // same balanced CARRY/MOVE body
   }

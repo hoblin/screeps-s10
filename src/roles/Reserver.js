@@ -25,6 +25,9 @@ export class Reserver extends Role {
   // traffic, never shove it. (miner 1, haul 2, work/upgrade 3, base 4 → reserver 5.)
   static movementPriority = 5;
 
+  // Detour around hostile ranged kill-zones en route to the remote controller (#145).
+  static avoidHostiles = true;
+
   // CLAIM is expensive (600); one CLAIM holds a reservation steady (source stays
   // at 3000/300), a second builds a decay buffer. Scale with the spawn budget.
   static bodyFor(energyBudget) {

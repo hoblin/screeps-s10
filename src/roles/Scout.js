@@ -29,6 +29,9 @@ export class Scout extends Role {
   // Lowest priority — a non-essential roamer yields its tile to everyone.
   static movementPriority = 8;
 
+  // Route around hostile ranged kill-zones (#145) — a scout was one-shot pathing past one.
+  static avoidHostiles = true;
+
   // One RANGED_ATTACK for cheap self-defence (we're energy-rich; matches the rival
   // meta) + one MOVE to carry it. The ranged part adds swamp fatigue (slower on swamp
   // than a pure [MOVE]) but is free on roads/plains; only loosens the route-length cap.
