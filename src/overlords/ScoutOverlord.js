@@ -9,16 +9,19 @@ import expansionMap from "../data/expansionMap.json";
 // Tunables (ship and observe — we always tune live).
 // Self-balancing scout count (#159): a small always-on baseline + a storage-surplus delta, so the
 // score fleet scales with the energy inflow-vs-consumption balance (storage level = its integral).
+// Tuned aggressive after live observation: rivals field fleets of single-[MOVE] score scouts
+// sweeping the highways, so SCORE IS BEING COLLECTED NOW — the original 40k reserve / 20k step / 6
+// cap waited for deep surplus and ceded the race. Fund the score fleet from a SMALL cushion, ramp
+// FAST, and allow a real fleet. The self-balance still protects the economy: a draining storage
+// (economy hungry) collapses the delta straight back to the baseline.
 const SCOUT_BASELINE = 2; // always-on scouts for vision + minimal score — the soft floor; the count
 // never drops below it except when a hard gate forces 0 (recovery / home attack / pre-2b / no map).
-const SCORE_FLEET_RESERVE = 40000; // bank this storage cushion before funding any EXTRA score scout
-// — a higher cushion than the upgrader reserve (#137, 20k), so the score fleet grows only once
-// storage banks well above the level that first feeds extra upgraders (the two then scale together;
-// scouts cost ~nothing in energy, so the real coupling is spawn-time, not the shared storage).
-const ENERGY_PER_SCORE_SCOUT = 20000; // storage surplus above the reserve per extra score scout. A
-// LARGE step (slow climb): scouts cost ~nothing in energy, so the loop closes via spawn-time
-// competition, not energy drain — a small step would outrun that loose feedback.
-const SCORE_SCOUT_MAX = 6; // cap on the surplus bonus so the single spawn isn't swamped.
+const SCORE_FLEET_RESERVE = 10000; // bank only a small survival cushion before funding score scouts —
+// score is the WIN and it's contested now, so don't hoard energy waiting for it.
+const ENERGY_PER_SCORE_SCOUT = 10000; // storage surplus above the reserve per extra score scout — a
+// faster ramp than before; scouts are dirt cheap ([MOVE], ~50e) so spawn-time, not energy, is the cost.
+const SCORE_SCOUT_MAX = 10; // ceiling on the surplus fleet — high enough to actually compete, while
+// the storage signal still throttles it down the moment the economy needs the spawn.
 const SCAN_RADIUS = 6; // BFS room-radius from home to consider (a scout's reach)
 const ROUTE_CAP = 8; // max rooms per assigned leg (loose TTL cap; early death frees the tail)
 const STALE_MAX = 20000; // staleness cap; a never-seen room uses this as its age
