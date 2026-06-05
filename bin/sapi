@@ -18,6 +18,7 @@
 #    bin/sapi mem status                 # Memory.status (gz-decoded) — or roomLog.E15S7, etc.
 #    bin/sapi get game/room-status "room=E15S7"   # raw GET /api/<path>?<query>&shard=
 #    bin/sapi eval '<js>'                # run JS in the live game console (returns messages.results)
+#    bin/sapi map E15S7 [--creeps ...]   # render a room: ASCII grid + TOON layers (see `map --help`)
 #    bin/sapi --main obj W55S43          # target the main server instead of season
 #
 #  Filtering — add --jq '<filter>' to filter via jq; the result stream is slurped into a
@@ -133,6 +134,14 @@ await new Promise((r) => setTimeout(r, 8000));
 process.exit(0);
 NODE
     ;;
+
+  map|render)
+    # Render a room as an ASCII spatial grid + opt-in TOON layers (see `map --help`).
+    # bin/map.mjs owns its own flag parsing (--creeps/--score/--tick/--emoji/...); we just
+    # hand it the resolved server/shard/token (so --main is already reflected here).
+    cd "$ROOT"
+    SCREEPS_TOKEN="$SCREEPS_TOKEN" SAPI_SERVER="$SERVER" SAPI_SHARD="$SHARD" \
+      node bin/map.mjs "$@" ;;
 
   *)
     sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'
