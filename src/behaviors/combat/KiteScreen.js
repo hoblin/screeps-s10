@@ -13,7 +13,11 @@ import { Guard } from "../../roles/Guard.js";
 // ============================================================================
 export class KiteScreen extends Behavior {
   static run(creep, _colony) {
-    creep.memory.guardType = "ranged"; // force the ranged-kite branch of engage
+    // Prefer the ranged-kite branch (the screen's whole point) — but only if the body can
+    // actually shoot. A creep with no RANGED_ATTACK (e.g. a melee body wrongly retasked here)
+    // falls back to its body-derived mode so it still deals damage instead of flailing at range.
+    if (creep.getActiveBodyparts(RANGED_ATTACK) > 0) creep.memory.guardType = "ranged";
+    else this.ensureCombatMode(creep);
     if (Guard.engage(creep)) return; // threats present → shoot + kite the nearest
 
     // No threats: stay near the squad (within a tile of screening range).

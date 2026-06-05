@@ -42,14 +42,14 @@ export class BehaviorMachine {
     const current = creep.memory.behavior || set.default;
     const specials = set.nodes || [];
 
-    // Currently in a SPECIAL node: hold it until its exit edge releases us back to
-    // the default. (No edge / unknown node → fall through to the default.)
+    // Currently in a SPECIAL node: hold it ONLY while it exists AND its exit edge is
+    // defined and not yet firing. A special node with no exit edge can't trap the creep
+    // — it falls back to the default, so a partial/misconfigured behavior never silently
+    // pins a creep in an override state. A deliberate latch must say so: `exitWhen: () => false`.
     if (current !== set.default && specials.includes(current)) {
       const node = behaviorClass(current);
-      if (node) {
-        if (!node.exitWhen || !node.exitWhen(creep, colony)) return current; // stay
-      }
-      // exit fired (or node vanished from the registry) → drop to default below
+      if (node && node.exitWhen && !node.exitWhen(creep, colony)) return current; // stay
+      // exit fired / no exit edge / node vanished from the registry → drop to default below
     }
 
     // In the default: an entry edge can preempt it. First special node whose entry
