@@ -87,8 +87,8 @@ export class ScoutOverlord extends Overlord {
   }
 
   // Owns two roles: scouts (always) + an optional escort (#147) — a guard that follows a
-  // mission scout to clear a persistent winnable blocker so a valuable room re-opens to
-  // scouting. One controller, the whole domain — no cross-overlord coordination.
+  // mission scout to clear ANY persistent winnable blocker (#167), re-opening the room and the
+  // sector behind it. One controller, the whole domain — no cross-overlord coordination.
   get roles() {
     return ["scout", "escort"];
   }
@@ -344,9 +344,16 @@ export class ScoutOverlord extends Overlord {
     return `${s.room}:${s.x}:${s.y}`;
   }
 
-  // The best persistent, winnable, VALUABLE blocker within reach (or null): a room that has
-  // killed scouts ≥ ESCORT_THRESHOLD times, is worth scouting (highway/score), still holds a
-  // mobile threat, and that an affordable escort out-guns by the win-margin (#130).
+  // The highest-casualty persistent, winnable blocker within reach (or null): a room that has
+  // killed scouts ≥ ESCORT_THRESHOLD times, still holds a mobile threat (fresh combat profile),
+  // and that an affordable escort out-guns by the win-margin (#130). NO highway/score "worth it"
+  // filter (#167): Score spawns in EVERY room and a persistent blocker severs a whole sector, so
+  // any winnable scout-killer is worth clearing — and a guard+scout sortie clears more by momentum
+  // as it routes through. `winnable` is the real gate (it rejects the un-beatable 800–1600 rooms);
+  // `scoutThreatOf` (the casualty count) is the persistence gate. Profile/threat freshness is the
+  // INTEL_FRESH_TICKS window, so a long-unobserved room is skipped at the `!profile` check; the
+  // narrow window where a threat just left an observed room self-corrects (the force-routed scout
+  // observes it empty → scoutThreat resets → the mission clears).
   findBlocker() {
     const budget = this.colony.spawnEnergyBudget();
     let best = null;
@@ -354,7 +361,6 @@ export class ScoutOverlord extends Overlord {
     for (const room of this.roomsWithinRadius(this.colony.name, SCAN_RADIUS)) {
       const casualties = Threat.scoutThreatOf(room);
       if (casualties < ESCORT_THRESHOLD || casualties <= bestThreat) continue;
-      if (!this.worthEscorting(room)) continue;
       const profile = Threat.profileFor(room);
       if (!profile || profile.attack + profile.ranged === 0) continue; // need a creep to kill
       if (!Threat.winnable(Guard.bodyFor(budget, profile), room)) continue;
@@ -362,12 +368,6 @@ export class ScoutOverlord extends Overlord {
       bestThreat = casualties;
     }
     return best;
-  }
-
-  // Only escort into rooms whose intel is worth the spawn: highway corridors / rooms with a
-  // known ground Score worth grabbing.
-  worthEscorting(room) {
-    return this.isHighway(room) || !!Threat.intelFor(room)?.score?.length;
   }
 
   // Greedy route from a start room: repeatedly hop to the best value-per-distance room,
