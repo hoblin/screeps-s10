@@ -6,6 +6,8 @@ import { Threat } from "../lib/Threat.js";
 const RETALIATE_FRESH = 1000; // a target/route room's intel must be this fresh (ticks) to trust it
 const RETALIATE_TILES_PER_ROOM = 50; // rough tiles/room → travel ticks for the TTL gate
 const RETALIATE_MIN_DENY = 100; // remaining life the guard needs AFTER arrival to do real damage
+const RETALIATE_SCAN_INTERVAL = 25; // ticks between target searches for an idle guard (findRoute is
+// not free; an attacker with no reachable deniable room shouldn't cost a full scan every tick)
 
 // ============================================================================
 //  GuardOverlord — owns the combat-clearing domain (#118, Levels 2-3 of the
@@ -154,9 +156,10 @@ export class GuardOverlord extends Overlord {
   // roomIntel only — scouts keep owner/reserver/towers fresh map-wide (#142), so no baked map needed.
   manageRetaliation(creep) {
     const mission = creep.memory.retaliationMission;
-    // Recall to defend the CORE the instant home is threatened — the survival floor can't gamble on
-    // spawn latency, so pull this guard back rather than wait for a fresh one.
-    if (mission && this.homeTarget()) {
+    // Recall to defend the CORE the instant home is threatened — gated on isHot (NOT homeTarget,
+    // which adds an affordability check): recall is free (an existing guard), so we want it most in
+    // the low-energy/recovery case where we couldn't even afford a fresh home defender.
+    if (mission && Threat.isHot(this.colony.name)) {
       delete creep.memory.retaliationMission;
       creep.memory.guardRoom = this.colony.name;
       return;
@@ -181,6 +184,10 @@ export class GuardOverlord extends Overlord {
     if (Threat.isHot(creep.memory.guardRoom)) return; // own room still hot — clean it first
     const owner = creep.memory.foughtOwner;
     if (!owner) return;
+    // Rate-limit the findRoute-heavy target search: an idle guard with no reachable deniable room
+    // re-scans only every RETALIATE_SCAN_INTERVAL ticks, not every tick.
+    if (Game.time - (creep.memory.retScan || 0) < RETALIATE_SCAN_INTERVAL) return;
+    creep.memory.retScan = Game.time;
     const target = this.retaliationTarget(owner, creep);
     if (target) {
       creep.memory.retaliationMission = target;

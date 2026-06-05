@@ -150,8 +150,12 @@ export class Guard extends Role {
     const target = creep.pos.findClosestByRange(armed.length ? armed : hostiles);
     // Remember the ARMED attacker's owner so the overlord can deny that player's remote once this
     // room cools (sunk-asset retaliation #140). Harmless scouts/reservers (combatPower 0) don't
-    // earn revenge — only a creep we actually had to fight.
-    if (armed.length && target.owner) creep.memory.foughtOwner = target.owner.username;
+    // earn revenge. NOT while a mission is active: the en-route hunt re-enters engage, and
+    // re-stamping mid-mission could invalidate the locked target's deniability and drop a valid
+    // mission — a new attacker only re-targets once the current mission ends.
+    if (armed.length && target.owner && !creep.memory.retaliationMission) {
+      creep.memory.foughtOwner = target.owner.username;
+    }
 
     if (creep.memory.guardType === "melee") {
       this.note(creep, "guard:melee");
