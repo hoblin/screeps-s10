@@ -6,3 +6,6 @@ dist/
 # scratch dir: local SQLite mirror, generated images, scan/score JSON dumps
 tmp/
 /thoughts/
+
+# Claude Code local state (scheduler locks, etc.) — never commit
+.claude/
