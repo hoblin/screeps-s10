@@ -19,7 +19,8 @@
 #    bin/sapi get game/room-status "room=E15S7"   # raw GET /api/<path>?<query>&shard=
 #    bin/sapi eval '<js>'                # run JS in the live game console (returns messages.results)
 #    bin/sapi map E15S7 [--creeps ...]   # render a room: ASCII grid + TOON layers (see `map --help`)
-#    bin/sapi flag warband E16S7 [x y]   # place/move the warband objective flag (#174); also: flag list|remove <n>|clear
+#    bin/sapi flag warband E16S7 [x y]   # place/move the warband objective FLAG (#174); also: flag list|remove <n>|clear
+#    bin/sapi warband go E16S7 [x y]      # set the warband objective by MEMORY coords (no flag/vision); warband stop to recall
 #    bin/sapi warband set '<json>'       # set the warband composition spec (Memory.warband); also: warband show|clear
 #    bin/sapi --main obj W55S43          # target the main server instead of season
 #
@@ -167,6 +168,12 @@ print(json.dumps(data))" | out ;;
         console_eval "JSON.stringify({spec:Memory.warband||'(default)',combatants:Object.values(Game.creeps).filter(c=>c.memory.role==='combatant').map(c=>({u:c.memory.behaviors&&c.memory.behaviors.default,room:c.room.name,act:c.memory.behavior,launched:!!c.memory.launched}))})" ;;
       set)
         console_eval "Memory.warband=$2;'set warband: '+JSON.stringify(Memory.warband)" ;;
+      go)
+        # Set the objective by MEMORY coords (no flag, no vision needed): warband go <room> [x] [y]
+        room="$2"; x="${3:-25}"; y="${4:-25}"
+        console_eval "(Memory.warband=Memory.warband||{}).objective={roomName:'$room',x:$x,y:$y};'objective -> $room $x,$y'" ;;
+      stop)
+        console_eval "Memory.warband&&delete Memory.warband.objective;'objective cleared (stand down — flag, if any, still applies)'" ;;
       clear)
         console_eval "delete Memory.warband;'cleared warband spec (code defaults apply)'" ;;
     esac ;;
@@ -180,6 +187,6 @@ print(json.dumps(data))" | out ;;
       node bin/map.mjs "$@" ;;
 
   *)
-    sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'
     exit 1 ;;
 esac
