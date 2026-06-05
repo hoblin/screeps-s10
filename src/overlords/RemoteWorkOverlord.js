@@ -52,7 +52,7 @@ export class RemoteWorkOverlord extends Overlord {
     );
     const work = [];
     for (const s of this.colony.remoteSources()) {
-      if (Threat.isHot(s.room) || !mined.has(key(s))) continue;
+      if (Threat.isHotForEconomy(s.room) || !mined.has(key(s))) continue;
       const c = cont[key(s)];
       if (!c) continue; // miner assigned but not parked yet → tile/state unknown
       if (c.hits == null) work.push({ s, build: true, hits: 0 });

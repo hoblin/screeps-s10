@@ -35,7 +35,7 @@ export class RemoteWorker extends Role {
       // No assignment → the controller has no remote container work for it. Recycle.
       return this.recycleAtHome(creep, colony);
     }
-    if (Threat.isHot(target.room)) {
+    if (Threat.isHotForEconomy(target.room)) {
       this.note(creep, "rwork:hot");
       return this.retreatHome(creep, colony);
     }

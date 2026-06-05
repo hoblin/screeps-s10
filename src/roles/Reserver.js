@@ -44,7 +44,7 @@ export class Reserver extends Role {
     }
     const { room: targetRoom, controller: cp } = target;
 
-    if (Threat.isHot(targetRoom)) {
+    if (Threat.isHotForEconomy(targetRoom)) {
       this.note(creep, "reserve:hot");
       return this.retreatHome(creep, colony);
     }

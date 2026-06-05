@@ -34,7 +34,7 @@ export class RemoteMiningOverlord extends Overlord {
   // The domain's current target set: every mineable remote source whose room isn't
   // contested right now (#105). Value-ranked (remoteSources() already sorts).
   safeSources() {
-    return this.colony.remoteSources().filter((s) => !Threat.isHot(s.room));
+    return this.colony.remoteSources().filter((s) => !Threat.isHotForEconomy(s.room));
   }
 
   // One miner per safe source, once the home economy can invest (#89).

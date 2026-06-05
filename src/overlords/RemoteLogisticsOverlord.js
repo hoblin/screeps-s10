@@ -49,7 +49,7 @@ export class RemoteLogisticsOverlord extends Overlord {
         .map((c) => `${c.memory.remoteSource.room}:${c.memory.remoteSource.x}:${c.memory.remoteSource.y}`)
     );
     const demand = this.colony.remoteSources()
-      .filter((s) => isFinite(s.dist) && !Threat.isHot(s.room) && mined.has(`${s.room}:${s.x}:${s.y}`))
+      .filter((s) => isFinite(s.dist) && !Threat.isHotForEconomy(s.room) && mined.has(`${s.room}:${s.x}:${s.y}`))
       .reduce((sum, s) => sum + rate * s.dist, 0); // Σ r·d (tonne-tiles/tick)
     if (demand === 0) return 0;
     return Math.max(1, Math.ceil((2 * demand * FREIGHT_MARGIN) / (carry * HAULER_SPEED)));

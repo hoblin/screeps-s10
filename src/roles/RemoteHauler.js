@@ -35,7 +35,7 @@ export class RemoteHauler extends Hauler {
     // it the moment its room turns hot — read from the shared intel (#105), not a
     // local hostile scan (which fled a harmless scout and oscillated at the border).
     let target = creep.memory.haulTarget;
-    if (target && Threat.isHot(target.room)) target = creep.memory.haulTarget = null;
+    if (target && Threat.isHotForEconomy(target.room)) target = creep.memory.haulTarget = null;
     if (!target) {
       // No commitment. Carrying a partial load? Take it home rather than chase a new
       // target mid-route (that re-pick IS the oscillation, #86). Only an empty hauler
@@ -101,7 +101,7 @@ export class RemoteHauler extends Hauler {
   // no vision the term is 0 and we fall back to the value-ranked order
   // (remoteSources() is sorted best-first). Hot rooms are excluded.
   static pickHaulTarget(colony) {
-    const active = colony.remoteSources().filter((s) => !Threat.isHot(s.room));
+    const active = colony.remoteSources().filter((s) => !Threat.isHotForEconomy(s.room));
     if (!active.length) return null;
     const containers = Memory.colonyData?.[colony.name]?.remoteContainers || {};
     let best = null;

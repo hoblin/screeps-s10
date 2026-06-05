@@ -43,7 +43,7 @@ export class RemoteMiner extends Role {
     }
     const { room: targetRoom, x, y } = target;
 
-    if (Threat.isHot(targetRoom)) {
+    if (Threat.isHotForEconomy(targetRoom)) {
       this.note(creep, "rmine:hot");
       return this.retreatHome(creep, colony);
     }

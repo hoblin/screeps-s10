@@ -30,7 +30,7 @@ export class ReserveOverlord extends Overlord {
   safeRooms() {
     const byRoom = new Map();
     for (const s of this.colony.remoteSources()) {
-      if (Threat.isHot(s.room)) continue;
+      if (Threat.isHotForEconomy(s.room)) continue;
       if (!byRoom.has(s.room)) byRoom.set(s.room, { room: s.room, controller: s.controller });
     }
     return [...byRoom.values()];
