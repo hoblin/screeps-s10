@@ -79,6 +79,10 @@ export const Threat = {
     const threat = this.assess(room, hostiles);
     Memory.roomIntel[room.name] = {
       threat,
+      // #150: our own combat power present — lets the economy lens (isHotForEconomy) net
+      // a guard-held room to safe. Non-combat creeps (miners/haulers) score 0, so this is
+      // effectively the guard/escort force defending the room.
+      defense: room.find(FIND_MY_CREEPS).reduce((sum, c) => sum + this.combatPower(c), 0),
       profile: this.profile(room, hostiles),
       tick: Game.time,
       ...this.recon(room),
@@ -130,6 +134,19 @@ export const Threat = {
   isHot(roomName) {
     const intel = Memory.roomIntel?.[roomName];
     return !!intel && intel.threat > 0 && Game.time - intel.tick <= INTEL_FRESH_TICKS;
+  },
+
+  // Is a room unsafe for our ECONOMY right now? (#150) Separate from `isHot`, which drives
+  // GUARD DISPATCH — same anti-pattern as the old expansionReady catch-all: two unlike
+  // behaviours must not hang off one signal. This nets the room's gross `threat` by our own
+  // force present (`defense`): a guard-held *winning* room reads safe, so workers keep
+  // mining/hauling/reserving while the guard handles a harasser that bounces in and out — they
+  // flee only if our defender dies or leaves (net goes positive). Guard dispatch still reads
+  // the GROSS `isHot`/`threatOf`, so it sizes a guard for an uncovered room correctly.
+  isHotForEconomy(roomName) {
+    const intel = Memory.roomIntel?.[roomName];
+    if (!intel || Game.time - intel.tick > INTEL_FRESH_TICKS) return false;
+    return intel.threat > (intel.defense || 0);
   },
 
   // The hostiles' part profile from FRESH intel (or null if stale/unseen) — the read

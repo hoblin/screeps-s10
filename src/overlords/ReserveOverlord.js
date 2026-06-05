@@ -25,12 +25,13 @@ export class ReserveOverlord extends Overlord {
     return "reserver";
   }
 
-  // Distinct remote rooms we mine that aren't contested right now — one reserver each.
+  // Distinct remote rooms we mine that are economy-safe right now (a guard-held room still
+  // counts — Threat.isHotForEconomy, #150) — one reserver each.
   // Carries each room's controller tile (the model the reserver needs to navigate).
   safeRooms() {
     const byRoom = new Map();
     for (const s of this.colony.remoteSources()) {
-      if (Threat.isHot(s.room)) continue;
+      if (Threat.isHotForEconomy(s.room)) continue;
       if (!byRoom.has(s.room)) byRoom.set(s.room, { room: s.room, controller: s.controller });
     }
     return [...byRoom.values()];

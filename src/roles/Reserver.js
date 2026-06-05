@@ -14,9 +14,10 @@ import { Threat } from "../lib/Threat.js";
 //  The target room + controller tile are stamped by the ReserveOverlord at spawn
 //  (from the static expansion map, #88; one reserver per remote room, #102). That
 //  map already excluded Source-Keeper and enemy rooms; the LIVE safety the map can't
-//  give comes from the shared threat intel — if the room turns hot (#105) the
-//  reserver retreats home rather than feed itself to an invader, and returns once it
-//  cools (the map is a stale prior; volatile danger lives in Threat.isHot).
+//  give comes from the shared threat intel — if the room turns unsafe for the economy
+//  (Threat.isHotForEconomy, #150 — netted by our force present) the reserver retreats home
+//  rather than feed itself to an invader, and returns once it's safe (the map is a stale
+//  prior; volatile danger lives in the intel overlay).
 // ============================================================================
 export class Reserver extends Role {
   // Lowest movement priority of any role: a reserver isn't economy-critical and
@@ -33,9 +34,9 @@ export class Reserver extends Role {
   static run(creep, colony) {
     // The reserver just executes its assignment: ReserveOverlord (the domain
     // controller, #102) decides WHICH room this creep reserves and stamps it here,
-    // re-homing it when rooms go hot. If its room is contested it holds home, reading
-    // the SHARED threat intel (Threat.isHot, #105) — not a per-tick local hostile scan
-    // (which used to flee a harmless scout). It cools → the reserver returns.
+    // re-homing it when rooms go hot. It holds home when its room is unsafe FOR THE
+    // ECONOMY — Threat.isHotForEconomy (#150): the shared intel (#105) netted by our force
+    // present, so a guard-held room stays workable; it returns once the net threat clears.
     const target = creep.memory.reserveRoom;
     if (!target) {
       // No assignment → the controller has no safe room for it (or it's a legacy
@@ -44,7 +45,7 @@ export class Reserver extends Role {
     }
     const { room: targetRoom, controller: cp } = target;
 
-    if (Threat.isHot(targetRoom)) {
+    if (Threat.isHotForEconomy(targetRoom)) {
       this.note(creep, "reserve:hot");
       return this.retreatHome(creep, colony);
     }

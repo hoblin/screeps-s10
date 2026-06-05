@@ -17,7 +17,8 @@ import { Threat } from "../lib/Threat.js";
 //  The container tile is the miner's parking tile — the miner publishes it (and the
 //  container's live hits) into Memory.colonyData[...].remoteContainers, so the
 //  worker and the overlord share one source of truth. No assignment → recycle; room
-//  hot → hold home (reading the shared intel #105).
+//  unsafe FOR THE ECONOMY → hold home (Threat.isHotForEconomy, #150 — netted by our force
+//  present, so it keeps working while a guard holds the room).
 // ============================================================================
 export class RemoteWorker extends Role {
   // Below haulers: building a remote container is never more urgent than moving the
@@ -35,7 +36,7 @@ export class RemoteWorker extends Role {
       // No assignment → the controller has no remote container work for it. Recycle.
       return this.recycleAtHome(creep, colony);
     }
-    if (Threat.isHot(target.room)) {
+    if (Threat.isHotForEconomy(target.room)) {
       this.note(creep, "rwork:hot");
       return this.retreatHome(creep, colony);
     }

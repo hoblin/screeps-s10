@@ -44,7 +44,7 @@ export class RemoteWorkOverlord extends Overlord {
   // before REPAIR (damaged), most-damaged first. A source qualifies only if it's
   // currently MINED (a live miner is assigned — no point building a container at a
   // source nobody fills, and this also drops stale cache after a miner re-homes) and
-  // the room is safe.
+  // the room is economy-safe (Threat.isHotForEconomy, #150 — a guard-held room still works).
   needyWork() {
     const cont = this.remoteContainers();
     const mined = new Set(
@@ -52,7 +52,7 @@ export class RemoteWorkOverlord extends Overlord {
     );
     const work = [];
     for (const s of this.colony.remoteSources()) {
-      if (Threat.isHot(s.room) || !mined.has(key(s))) continue;
+      if (Threat.isHotForEconomy(s.room) || !mined.has(key(s))) continue;
       const c = cont[key(s)];
       if (!c) continue; // miner assigned but not parked yet → tile/state unknown
       if (c.hits == null) work.push({ s, build: true, hits: 0 });
