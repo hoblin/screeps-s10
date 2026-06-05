@@ -104,13 +104,15 @@ export class Guard extends Role {
     }
   }
 
-  // Within the post-engagement hold window (#160): true for GUARD_PARK_DELAY ticks after the last
-  // hostile contact. Keyed off the contact tick (stamped on engage), so it expires on its own and
-  // is never refreshed on clear ticks — the guard holds briefly, then parks exactly as before. A
-  // never-engaged guard (no lastEngaged) skips the hold and parks immediately on arrival.
+  // Within the post-engagement hold window (#160): true for the GUARD_PARK_DELAY clear ticks after
+  // the last hostile contact. `<=` (not `<`) so a delay of 5 yields a full 5 clear ticks of hold —
+  // `lastEngaged` is the LAST contact tick, and the first clear tick is already `now - last == 1`.
+  // Keyed off that contact tick (stamped on engage), so it expires on its own and is never
+  // refreshed on clear ticks; a never-engaged guard (no lastEngaged) skips the hold and parks
+  // immediately on arrival.
   static holding(creep) {
     const last = creep.memory.lastEngaged;
-    return last !== undefined && Game.time - last < GUARD_PARK_DELAY;
+    return last !== undefined && Game.time - last <= GUARD_PARK_DELAY;
   }
 
   // Heal self and fight the hostiles in the CURRENT room — armed first, then harmless
