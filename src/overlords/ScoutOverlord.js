@@ -17,7 +17,11 @@ const EMPTY_REPLAN_COOLDOWN = 50; // ticks before retrying a plan that came back
 const ESCORT_THRESHOLD = 2; // scout casualties in a room before it earns a guard escort (#147)
 const ESCORT_PRIORITY = 5; // escort spawns below economy/defence — clearing a blocker isn't urgent
 const SCORE_TILES_PER_ROOM = 50; // rough tiles/room — a [MOVE] scout walks 1 tile/tick, so this
-// × room-distance estimates the travel ticks to weigh against a Score's remaining decay (#24).
+// × room-distance is a FLOOR estimate of travel ticks to weigh against a Score's decay (#24).
+const DIVERSION_MARGIN = 100; // slack over that ETA before abandoning a diversion: covers in-room
+// depth + avoidHostiles detours. Past it the tile is contested/unreachable — release the scout.
+const DIVERSION_COOLDOWN = 200; // after abandoning a Score tile, ignore it this long so the fleet
+// doesn't churn onto a tile a rival is camping.
 
 // Room value by type (× staleness = priority). A room with a live ground Score is the prize
 // (banking it is the win), so it outranks everything; highways are transit corridors worth
@@ -141,6 +145,14 @@ export class ScoutOverlord extends Overlord {
     return ((Memory.colonyData[this.colony.name] ||= {}).scoutRoutes ||= {});
   }
 
+  // Recently-abandoned Score tiles (key → expiry tick): tiles a scout couldn't bank in time
+  // (a rival is camping it / it's unreachable), kept out of re-assignment for DIVERSION_COOLDOWN
+  // so the fleet doesn't churn back onto them. Pruned each pass; self-bounded.
+  get scoreCooldown() {
+    Memory.colonyData ||= {};
+    return ((Memory.colonyData[this.colony.name] ||= {}).scoreCooldown ||= {});
+  }
+
   run() {
     const routes = this.routes;
     const alive = new Set(this.assignedCreeps.map((c) => c.name));
@@ -204,11 +216,21 @@ export class ScoutOverlord extends Overlord {
   // Scout.collectScore, then resumes its route. Mirrors manageEscortMission, but a diversion
   // is transient (grab one tile and resume) where an escort mission is sustained.
   manageScoreDiversions(routes) {
-    // 1. Drop diversions whose target is no longer a live Score (banked, decayed, or intel
-    //    now shows it gone). The scout also self-clears on arrival (Scout.collectScore).
+    const cooldown = this.scoreCooldown;
+    for (const key in cooldown) if (cooldown[key] <= Game.time) delete cooldown[key]; // prune expired
+    // 1. Finish diversions. Past its deadline → abandon (the tile is contested/unreachable, e.g.
+    //    a rival camping the live Score) and cool the tile down so the fleet doesn't churn onto
+    //    it; else if the Score is gone (banked/decayed) → just clear. The scout also self-clears
+    //    on arrival (Scout.collectScore).
     for (const name in routes) {
       const d = routes[name].scoreDiversion;
-      if (d && !this.liveScore(d.room, d.x, d.y)) delete routes[name].scoreDiversion;
+      if (!d) continue;
+      if (Game.time > d.deadline) {
+        cooldown[this.scoreKey(d)] = Game.time + DIVERSION_COOLDOWN;
+        delete routes[name].scoreDiversion;
+      } else if (!this.liveScore(d.room, d.x, d.y)) {
+        delete routes[name].scoreDiversion;
+      }
     }
     // 2. Tiles already claimed by an active diversion — never double-assign one.
     const taken = new Set(
@@ -226,22 +248,30 @@ export class ScoutOverlord extends Overlord {
         !routes[c.name].scoreDiversion
     );
     if (!free.length) return;
-    // 4. Richest Score first; give each to the nearest scout that can reach it before decay.
+    // 4. Richest Score first; give each to the nearest scout that can reach it before decay,
+    //    skipping claimed or cooled-down tiles. dist 0 = the scout's own room (no floor — an
+    //    in-room Score is the closest there is). The deadline = ETA + margin bounds the attempt.
     for (const target of this.knownScores()) {
       if (!free.length) break;
-      if (taken.has(this.scoreKey(target))) continue;
+      const key = this.scoreKey(target);
+      if (taken.has(key) || cooldown[key]) continue;
       let best = null;
       let bestDist = Infinity;
       for (const c of free) {
-        const dist = Game.map.getRoomLinearDistance(c.pos.roomName, target.room) || 1;
+        const dist = Game.map.getRoomLinearDistance(c.pos.roomName, target.room);
         if (dist >= bestDist) continue;
         if (target.remaining <= dist * SCORE_TILES_PER_ROOM) continue; // can't arrive before decay
         bestDist = dist;
         best = c;
       }
       if (!best) continue;
-      routes[best.name].scoreDiversion = { room: target.room, x: target.x, y: target.y };
-      taken.add(this.scoreKey(target));
+      routes[best.name].scoreDiversion = {
+        room: target.room,
+        x: target.x,
+        y: target.y,
+        deadline: Game.time + bestDist * SCORE_TILES_PER_ROOM + DIVERSION_MARGIN,
+      };
+      taken.add(key);
       free.splice(free.indexOf(best), 1);
     }
   }
