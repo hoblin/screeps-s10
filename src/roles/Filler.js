@@ -13,9 +13,11 @@ import { bodyFromTemplate } from "../lib/BodyGenerator.js";
 //  the remote-hauler fleet. Activates once storage exists (Stage 3).
 // ============================================================================
 export class Filler extends Role {
-  // Below haulers/economy — the filler works the base cluster and shouldn't shove
-  // a miner/hauler off its post, but it still has a job, so above idle roles.
-  static movementPriority = 4;
+  // Logistics tier (= haulers, 2): the filler does critical short trips through the dense
+  // base cluster, so it must move as well as the other energy-movers and NOT be shoved aside
+  // by workers/upgraders (3) — else it can't keep the spawn topped, defeating its purpose.
+  // Ties with haulers/harvesters resolve without shoving; miners (1) still hold their posts.
+  static movementPriority = 2;
 
   // A plain hauler body (CARRY+MOVE, scaled to the budget) — just like our other haulers;
   // a bigger filler refills more of the cluster per short trip. (If it dies while the spawn
