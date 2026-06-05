@@ -19,6 +19,20 @@ import { Filler } from "./Filler.js";
 //  hold a creep (e.g. the TrafficManager reading creep.memory.role) reach the
 //  role's static declarations — like `movementPriority` — without a central
 //  switchboard that re-lists every role. Each role owns its own values.
+//
+//  ADDING A ROLE — touch these three places:
+//    1. Register it in the ROLES map below (role string → class).
+//    2. Set its static `movementPriority` per the ladder below (lower wins tile contention).
+//    3. Wire an Overlord to spawn/run it in Colony.js (+ its spawn `priority` — see the
+//       spawn-priority ladder in Overlord.js).
+//
+//  MOVEMENT-PRIORITY LADDER (the registry — keep in sync as roles are added):
+//    1  miner                            — static income; never pushed off its post
+//    2  hauler, harvester, filler        — energy movers (the filler pumps storage→spawn)
+//    3  guard, upgrader, worker, remoteHauler — combat / work
+//    4  remoteWorker, (Role default)
+//    5  remoteMiner, reserver            — remote, yields homeward
+//    8  scout                            — roams, yields to everyone
 // ============================================================================
 export const ROLES = {
   miner: Miner,
