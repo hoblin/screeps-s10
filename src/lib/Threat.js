@@ -74,12 +74,19 @@ export const Threat = {
   // along so the Guard layer can counter what's actually there (#118).
   observe(room) {
     Memory.roomIntel ||= {};
+    const prev = Memory.roomIntel[room.name];
     const hostiles = room.find(FIND_HOSTILE_CREEPS); // one scan, shared by both reads
+    const threat = this.assess(room, hostiles);
     Memory.roomIntel[room.name] = {
-      threat: this.assess(room, hostiles),
+      threat,
       profile: this.profile(room, hostiles),
       tick: Game.time,
       ...this.recon(room),
+      // #147 scout-casualty signal: carried across observations (observe overwrites the
+      // entry, so it must be re-spread), and RESET when the room is confirmed threat-free
+      // — a guard cleared it or the harasser left, so it re-opens to scouting.
+      scoutThreat: threat === 0 ? 0 : prev?.scoutThreat || 0,
+      scoutThreatTick: threat === 0 ? 0 : prev?.scoutThreatTick || 0,
     };
   },
 
@@ -139,6 +146,28 @@ export const Threat = {
     const intel = Memory.roomIntel?.[roomName];
     if (!intel || Game.time - intel.tick > INTEL_FRESH_TICKS) return 0;
     return intel.threat;
+  },
+
+  // #147 — record that a scout was hurt or killed in a room. The count grows with repeated
+  // casualties (a parked blocker) but is trusted only while FRESH (age < INTEL_FRESH_TICKS):
+  // staleness IS the decay, mirroring isHot, so a harasser that leaves fades and the room
+  // re-opens to a cheap re-probe. A stale prior count restarts from 0. Both the living-scout
+  // hit (Scout) and the death (ScoutOverlord) call this.
+  bumpScoutThreat(roomName) {
+    Memory.roomIntel ||= {};
+    const intel = (Memory.roomIntel[roomName] ||= { threat: 0, profile: {}, tick: Game.time });
+    const fresh = intel.scoutThreatTick && Game.time - intel.scoutThreatTick <= INTEL_FRESH_TICKS;
+    intel.scoutThreat = (fresh ? intel.scoutThreat || 0 : 0) + 1;
+    intel.scoutThreatTick = Game.time;
+  },
+
+  // The fresh scout-casualty count for a room (0 if never/stale) — the read path the scout
+  // planner deprioritises by, so scouts drain safe space first (#147).
+  scoutThreatOf(roomName) {
+    const intel = Memory.roomIntel?.[roomName];
+    if (!intel || !intel.scoutThreatTick) return 0;
+    if (Game.time - intel.scoutThreatTick > INTEL_FRESH_TICKS) return 0;
+    return intel.scoutThreat || 0;
   },
 
   // The full intel entry for a room (or null if never seen) — the read path for the
