@@ -147,30 +147,36 @@ export class GuardOverlord extends Overlord {
   // Sunk-asset retaliation (#140): an idle GARRISONING guard — one whose room has cooled, so it's
   // standing around (#128) — goes and denies the attacker's economy for free (zero marginal spawn).
   // The attacker is the owner of the last ARMED hostile this guard fought (stamped by Guard.engage).
-  // Defence > offence: a home threat instantly recalls it. Live roomIntel only — scouts keep owner/
+  // Defence > offence: it only dispatches once its OWN room is cleaned, and ANY home/remote threat
+  // recalls it back to defend (clean our footprint first). Live roomIntel only — scouts keep owner/
   // reserver/towers fresh map-wide (#142), so the pre-scout baked players-map is unnecessary.
   manageRetaliation(creep) {
     const mission = creep.memory.retaliationMission;
-    // Recall the instant home is threatened — drop the revenge, head home (home is in-footprint, so
-    // the release check leaves it; the guard defends or recycles there).
-    if (mission && this.homeTarget()) {
-      delete creep.memory.retaliationMission;
-      creep.memory.guardRoom = this.colony.name;
-      return;
-    }
-    // Keep an active mission only while the target is still a deniable room of that attacker (he may
-    // have left or built a tower since — re-confirmed as our vision refreshes the intel). Else recall.
     if (mission) {
+      // Defence > offence: cleaning our OWN footprint always comes first. If ANY home/remote target
+      // needs a guard and no other guard covers it, drop the revenge and go defend it — home-first
+      // (targets() is ordered that way). Retaliation is strictly idle-time work.
+      const covered = this.coveredRooms();
+      const need = this.targets().find((r) => !covered.has(r));
+      if (need) {
+        delete creep.memory.retaliationMission;
+        creep.memory.guardRoom = need;
+        return;
+      }
+      // Footprint is calm: keep the mission only while the target is still a deniable room of that
+      // attacker (he may have left / built a tower since — re-confirmed as our vision refreshes the
+      // intel). Else recall home.
       if (!this.deniable(mission, creep.memory.foughtOwner, creep)) {
         delete creep.memory.retaliationMission;
         creep.memory.guardRoom = this.colony.name;
       }
       return;
     }
-    // No mission: only an IDLE guard (on its post, room cooled to not-hot) with a remembered armed
-    // attacker is eligible. Find that attacker's nearest deniable remote it can reach in time.
+    // No mission: only an IDLE guard whose OWN room is already CLEANED (on its post, cooled to
+    // not-hot) with a remembered armed attacker may go on the offensive. Find that attacker's
+    // nearest deniable remote it can reach in time.
     if (creep.room.name !== creep.memory.guardRoom) return; // still in transit to its post
-    if (Threat.isHot(creep.memory.guardRoom)) return; // still fighting — not idle
+    if (Threat.isHot(creep.memory.guardRoom)) return; // own room still hot — clean it first
     const owner = creep.memory.foughtOwner;
     if (!owner) return;
     const target = this.retaliationTarget(owner, creep);
