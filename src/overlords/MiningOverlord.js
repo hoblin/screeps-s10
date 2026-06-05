@@ -84,13 +84,22 @@ export class MiningOverlord extends Overlord {
   sourceDistance() {
     const cache = this.miningPositionCache;
     if (!cache) return null;
-    if (cache.dist == null) {
-      const spawn = this.colony.spawns[0];
-      if (!spawn) return null;
+    const spawns = this.colony.spawns;
+    if (!spawns.length) return null;
+    // Size the lead to the WORST-CASE spawn — the Hatchery births the relief from whichever spawn
+    // is free, not necessarily spawns[0], so taking the farthest keeps the relief from ever
+    // arriving late. Static geometry, cached; recomputed only when the mining tile resets or a new
+    // spawn appears (RCL7/8 add spawns) — never per tick.
+    if (cache.dist == null || cache.distSpawns !== spawns.length) {
       const tile = new RoomPosition(cache.x, cache.y, cache.roomName);
-      const d = this.colony.pathLength(spawn.pos, tile); // steps to range 1 of the tile
-      cache.dist = d === Infinity ? -1 : d + 1; // +1: miner stands ON the tile; -1 = unreachable
-    } //                                           (a JSON-safe sentinel — Infinity serialises to null)
+      let far = -1; // -1 = unreachable from every spawn (JSON-safe sentinel; Infinity → null)
+      for (const s of spawns) {
+        const d = this.colony.pathLength(s.pos, tile); // steps to range 1 of the tile
+        if (d !== Infinity) far = Math.max(far, d + 1); // +1: the miner stands ON the tile
+      }
+      cache.dist = far;
+      cache.distSpawns = spawns.length;
+    }
     return cache.dist >= 0 ? cache.dist : null;
   }
 
