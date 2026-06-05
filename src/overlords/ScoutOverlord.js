@@ -9,11 +9,12 @@ import expansionMap from "../data/expansionMap.json";
 // Tunables (ship and observe — we always tune live).
 // Self-balancing scout count (#159): a small always-on baseline + a storage-surplus delta, so the
 // score fleet scales with the energy inflow-vs-consumption balance (storage level = its integral).
-const SCOUT_BASELINE = 2; // always-on scouts for vision + minimal score — the soft floor the count
-// never drops below except the hard gates (recovery / home attack / pre-2b / no map).
+const SCOUT_BASELINE = 2; // always-on scouts for vision + minimal score — the soft floor; the count
+// never drops below it except when a hard gate forces 0 (recovery / home attack / pre-2b / no map).
 const SCORE_FLEET_RESERVE = 40000; // bank this storage cushion before funding any EXTRA score scout
-// — surplus drains into RCL first (upgraders, #137, reserve 20k); the score fleet grows only once
-// storage banks comfortably on top of that.
+// — a higher cushion than the upgrader reserve (#137, 20k), so the score fleet grows only once
+// storage banks well above the level that first feeds extra upgraders (the two then scale together;
+// scouts cost ~nothing in energy, so the real coupling is spawn-time, not the shared storage).
 const ENERGY_PER_SCORE_SCOUT = 20000; // storage surplus above the reserve per extra score scout. A
 // LARGE step (slow climb): scouts cost ~nothing in energy, so the loop closes via spawn-time
 // competition, not energy drain — a small step would outrun that loose feedback.
