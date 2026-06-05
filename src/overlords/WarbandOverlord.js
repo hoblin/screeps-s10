@@ -35,11 +35,13 @@ const DEFAULT_SPEC = {
 //       OVERRIDE it for custom power — `body` as an explicit module array, or as a
 //       scalable template { base, extra, max } — see unitBody(). The override is the
 //       commander's order (command input), not the controller re-deciding the body.
-//   (b) Command the group by a destination point — a FLAG (name starts with
-//       "warband") marks the objective room/point. The overlord points every member
-//       at it; MOVE the flag to drive the operation (flag E16S7 → clear the
-//       gatekeeper squad; move it to E18S7 → seize + hold the remote). Remove the
-//       flag → stand down (recall home, no replacements; re-flag to re-muster).
+//   (b) Command the group by a destination — either a FLAG (name starts with
+//       "warband", the visual / game-client lever) OR a memory objective
+//       (Memory.warband.objective = { roomName, x, y }, the CLI lever — no
+//       createFlag-vision needed); see objective(). The overlord points every member
+//       at it; MOVE the flag / rewrite the objective to drive the operation (→ E16S7
+//       clear the gatekeeper; → E18S7 seize + hold). Clear both → stand down (recall
+//       home, no replacements; re-issue to re-muster).
 //
 //  Doctrine: it's COMMANDED, so it does NOT gate on Threat.winnable — that gate is
 //  HEAL-blind (Threat.combatPower ignores HEAL, so a healing squad reads as falsely
@@ -59,9 +61,17 @@ export class WarbandOverlord extends Overlord {
     return "combatant";
   }
 
-  // The commander's objective flag (first flag named "warband*"), or null = stand down.
-  objectiveFlag() {
-    return Object.values(Game.flags).find((f) => f.name.startsWith(FLAG_PREFIX)) || null;
+  // The commander's objective, normalised to { roomName, x, y }, or null = stand down. Two levers:
+  // a `warband*` FLAG (the visual / game-client lever, takes precedence when present) OR a memory
+  // objective `Memory.warband.objective = { roomName, x, y }` (the programmatic / CLI lever — no
+  // createFlag-vision needed). Flag wins if both are set, so a dropped flag always overrides the
+  // memory coords; remove it to fall back to them.
+  objective() {
+    const flag = Object.values(Game.flags).find((f) => f.name.startsWith(FLAG_PREFIX));
+    if (flag) return { roomName: flag.pos.roomName, x: flag.pos.x, y: flag.pos.y };
+    const o = this.spec().objective;
+    if (o && o.roomName) return { roomName: o.roomName, x: o.x ?? 25, y: o.y ?? 25 };
+    return null;
   }
 
   // The composition spec: code default overlaid with the live Memory override.
@@ -83,7 +93,7 @@ export class WarbandOverlord extends Overlord {
   // Spawn for the first unit below its count. Counts the SPECIFIC unit, never assignedCreeps.length; only while a
   // flag stands (no order → no muster; survivors then idle home and aren't replaced as they expire).
   generateSpawnRequest() {
-    if (!this.objectiveFlag()) return null;
+    if (!this.objective()) return null;
     for (const unit of this.units()) {
       if (!behaviorClass(unit.default)) continue; // typo'd/unknown behavior in a live spec → skip, don't throw
       if (this.membersOf(unit).length < unit.count) return this.spawnRequest(unit);
@@ -138,25 +148,26 @@ export class WarbandOverlord extends Overlord {
 
   // Reconcile the objective onto every member each tick, then drive them.
   run() {
-    const flag = this.objectiveFlag();
+    const objective = this.objective();
     const rallied = this.rallied();
-    for (const creep of this.assignedCreeps) this.command(creep, flag, rallied);
+    for (const creep of this.assignedCreeps) this.command(creep, objective, rallied);
     super.run();
   }
 
-  // Point one member at the right place (the behaviors re-read this next tick — moving the flag
-  // retasks the live group, #39). The LAUNCHED latch lives on the creep (model state, not controller
-  // state): once the warband has mustered, the member latches launched and STAYS launched even if a
-  // squadmate later dies — so a loss never yanks the survivors back to rally; the loss just respawns.
-  // A member advances to the flag only once launched AND home is safe; otherwise it sits at home —
-  // which covers BOTH the pre-launch rally AND the home-defence recall (defence > offence, #122).
-  command(creep, flag, rallied) {
+  // Point one member at the right place (the behaviors re-read this next tick — moving the flag or
+  // rewriting the memory objective retasks the live group, #39). The LAUNCHED latch lives on the creep
+  // (model state, not controller state): once the warband has mustered, the member latches launched and
+  // STAYS launched even if a squadmate later dies — so a loss never yanks the survivors back to rally;
+  // the loss just respawns. A member advances to the objective only once launched AND home is safe;
+  // otherwise it sits at home — which covers BOTH the pre-launch rally AND the home-defence recall
+  // (defence > offence, #122).
+  command(creep, objective, rallied) {
     if (rallied) creep.memory.launched = true;
     const home = this.colony.name;
-    const advance = flag && creep.memory.launched && !Threat.isHot(home);
-    creep.memory.target = advance ? flag.pos.roomName : home;
-    if (flag) {
-      creep.memory.point = { x: flag.pos.x, y: flag.pos.y, roomName: flag.pos.roomName };
+    const advance = objective && creep.memory.launched && !Threat.isHot(home);
+    creep.memory.target = advance ? objective.roomName : home;
+    if (objective) {
+      creep.memory.point = { x: objective.x, y: objective.y, roomName: objective.roomName };
       creep.memory.targetOwner = this.spec().targetOwner || null; // raidRoom en-route hunt
     } else {
       // Stand-down: clear the objective fields so a holdPoint unit doesn't keep holding a stale tile.
