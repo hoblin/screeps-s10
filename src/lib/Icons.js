@@ -22,9 +22,10 @@ export const ACTION_ICON = {
   build: "🔨",
   repair: "🔧",
   upgrade: "🎮", pump: "🎮", // controller
-  melee: "⚔️", ranged: "🏹", // guard combat
+  melee: "⚔️", ranged: "🏹", // guard / warband combat (Guard + behaviors #39)
   park: "🛡️", // guard garrisoning a cleared room's controller
   deny: "🗡️", // guard denying an attacker's remote — sunk-asset retaliation (#140)
+  heal: "💉", regroup: "🏃", // warband healer mending an ally / member regrouping (#39)
   score: "💰", // scout diverting to bank a ground Score (#24)
   recycle: "♻️",
   "no-target": "❔",
@@ -33,7 +34,7 @@ export const ACTION_ICON = {
 // Role → icon, for the spawn label.
 export const ROLE_ICON = {
   miner: "⛏️", hauler: "🚚", worker: "🔨", upgrader: "🎮", reserver: "🚩",
-  harvester: "🌾", guard: "⚔️",
+  harvester: "🌾", guard: "⚔️", combatant: "⚔️",
   remoteMiner: "⛏️", remoteHauler: "🚚", remoteWorker: "🔨",
 };
 

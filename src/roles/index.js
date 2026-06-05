@@ -12,6 +12,7 @@ import { Guard } from "./Guard.js";
 import { Scout } from "./Scout.js";
 import { Escort } from "./Escort.js";
 import { Filler } from "./Filler.js";
+import { Combatant } from "./Combatant.js";
 
 // ============================================================================
 //  Role registry — the one place that maps a creep's role STRING (as stored in
@@ -24,7 +25,7 @@ import { Filler } from "./Filler.js";
 //    1. Register it in the ROLES map below (role string → class).
 //    2. Set its static `movementPriority` (lower wins tile contention; each role documents
 //       its own rank). Current ladder: 1 miner · 2 hauler/harvester/filler ·
-//       3 guard/upgrader/worker/remoteHauler · 4 remoteWorker/(default) ·
+//       3 guard/combatant/upgrader/worker/remoteHauler · 4 remoteWorker/(default) ·
 //       5 remoteMiner/reserver · 8 scout. Also set `static avoidHostiles = true` if it's a
 //       non-combat creep that traverses contested space (#145 — routes around kill-zones).
 //    3. Wire an Overlord to spawn/run it in Colony.js (+ its spawn `priority` — ladder in
@@ -44,6 +45,7 @@ export const ROLES = {
   scout: Scout,
   escort: Escort,
   filler: Filler,
+  combatant: Combatant, // generic warband creep — conduct from its memory.behaviors set (#39)
 };
 
 // Resolve a role string to its class, defaulting to the base Role (so an unknown
