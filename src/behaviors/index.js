@@ -5,6 +5,7 @@ import { FocusFire } from "./combat/FocusFire.js";
 import { HealGroup } from "./combat/HealGroup.js";
 import { KiteScreen } from "./combat/KiteScreen.js";
 import { KillClosest } from "./combat/KillClosest.js";
+import { HoldPosition } from "./combat/HoldPosition.js";
 
 // ============================================================================
 //  Behavior registry (#39) — maps a behavior NAME (as stored in a creep's
@@ -27,6 +28,9 @@ import { KillClosest } from "./combat/KillClosest.js";
 //   • killClosest — lure-proof area denial: attack the NEAREST hostile (any kind),
 //                  anchored, never chasing the bait — the counter to a kiting harasser
 //                  that pulls the squad off the economy it's screening.
+//   • holdPosition — PIN to coordinates, spread in a group-sized radius (no tile-fight),
+//                  engage what enters the zone, stray briefly to strike then return —
+//                  garrison a chokepoint/kill-zone without drifting off it.
 //
 //  A buffer/booster archetype is a future slot (needs labs/boosts — Stage 4).
 // ============================================================================
@@ -37,6 +41,7 @@ export const BEHAVIORS = {
   healGroup: HealGroup,
   kiteScreen: KiteScreen,
   killClosest: KillClosest,
+  holdPosition: HoldPosition,
 };
 
 // Resolve a behavior name to its class, or null (an unknown/typo'd name is a no-op
