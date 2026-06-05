@@ -4,8 +4,12 @@ import { behaviorClass } from "../behaviors/index.js";
 import { bodyFromTemplate } from "../lib/BodyGenerator.js";
 import { Threat } from "../lib/Threat.js";
 
-const WARBAND_PRIORITY = 5; // offence YIELDS to all economy + home defence (DefenseOverlord 1, GuardOverlord
-// 4): the warband musters as the single spawn allows, never starving the economy or a home defender (#122).
+const WARBAND_PRIORITY = 2; // Just below the spawn-critical tier (Mining + Defense + Filler at 1) and
+// above all routine economy/expansion. The warband is MANUALLY commanded — a flag/objective is a
+// deliberate order for force NOW (offence, or a critical manual defense), so it musters IMMEDIATELY,
+// yielding only to the infra that KEEPS the spawn running (the filler loads the extensions the warband
+// itself needs to spawn at full size). At 5 it tied with remote expansion and starved (never spawned).
+// It only spawns while commanded and to a fixed count — a brief one-off muster, not a standing drain.
 const FLAG_PREFIX = "warband"; // a flag whose name starts with this marks the warband's objective room/point
 
 // Default composition — a list of UNITS (the commander's "order a creep by {behaviors}" interface):
