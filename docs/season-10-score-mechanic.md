@@ -112,12 +112,15 @@ highway collectors" model was wrong (Season-1 carryover) and is fully retracted.
 
 ## Downstream work
 
-- **`Threat.recon` bug:** records score under a non-existent `FIND_SCORE_CONTAINERS`
-  guard (always false) → score never recorded. Fix to `FIND_SCORES` (store
-  `{x,y,score,ticksToDecay}`) so the intel layer feeds collectors.
-- **#24 — Score collection fleet:** re-scoped to a `ScoreOverlord` + `scorer` role
-  (`[MOVE]`) that paths to the best-value reachable `Score` from intel. No
-  dismantle/deposit pipeline.
-- **#48 — Scoring v3:** the highway-collector-distance term is retracted; re-scope
-  to whatever still adds value (e.g. weighting rooms by observed Score spawn rate),
-  or close if economy scoring already suffices.
+- **`Threat.recon` (shipped, #157):** records ground Scores via `FIND_SCORES` into
+  `roomIntel[room].score` (`{x,y,score,ticksToDecay}`) — the intel that feeds the fleet.
+- **#24 — Score collection (shipped):** the **`ScoutOverlord` diverts the closest free
+  scout** onto a reachable ground Score tile, then it resumes its route. No separate
+  `ScoreOverlord`/collector role and no deposit pipeline — a fast `[MOVE]` scout already
+  IS the ideal score creep, so the existing scout fleet is reused.
+- **#159 — fleet scaling:** the scout count is `floor(haulers / 3)` and the overlord sits
+  above haulers in spawn priority; scaling the score fleet without choking the economy
+  (surplus-driven sizing/priority) is the open follow-up — the win scales with coverage ×
+  speed (more scouts + spawns + colonies).
+- **#48 — Scoring v3:** closed. Score spawns uniformly map-wide, so a claim's location
+  confers no score advantage and region scoring stays economy-based.

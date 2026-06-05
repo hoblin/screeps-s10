@@ -249,19 +249,21 @@ export class ScoutOverlord extends Overlord {
     );
     if (!free.length) return;
     // 4. Richest Score first; give each to the nearest scout that can reach it before decay,
-    //    skipping claimed or cooled-down tiles. dist 0 = the scout's own room (no floor — an
-    //    in-room Score is the closest there is). The deadline = ETA + margin bounds the attempt.
+    //    skipping claimed or cooled-down tiles. Room-distance picks the nearest scout (dist 0 =
+    //    its own room = closest), while the reach/deadline ETA adds +1 room so even an in-room
+    //    Score is held to one room's worth of tiles — we never chase one we can't reach in time.
     for (const target of this.knownScores()) {
       if (!free.length) break;
       const key = this.scoreKey(target);
       if (taken.has(key) || cooldown[key]) continue;
       let best = null;
-      let bestDist = Infinity;
+      let bestEta = Infinity;
       for (const c of free) {
         const dist = Game.map.getRoomLinearDistance(c.pos.roomName, target.room);
-        if (dist >= bestDist) continue;
-        if (target.remaining <= dist * SCORE_TILES_PER_ROOM) continue; // can't arrive before decay
-        bestDist = dist;
+        const eta = (dist + 1) * SCORE_TILES_PER_ROOM; // +1: always count the destination room
+        if (eta >= bestEta) continue;
+        if (target.remaining <= eta) continue; // can't arrive before decay
+        bestEta = eta;
         best = c;
       }
       if (!best) continue;
@@ -269,7 +271,7 @@ export class ScoutOverlord extends Overlord {
         room: target.room,
         x: target.x,
         y: target.y,
-        deadline: Game.time + bestDist * SCORE_TILES_PER_ROOM + DIVERSION_MARGIN,
+        deadline: Game.time + bestEta + DIVERSION_MARGIN,
       };
       taken.add(key);
       free.splice(free.indexOf(best), 1);
