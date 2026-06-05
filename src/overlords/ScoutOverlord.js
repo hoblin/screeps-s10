@@ -100,6 +100,14 @@ export class ScoutOverlord extends Overlord {
     if (!stageAtLeast(this.colony, "2b:Hauling")) return 0;
     if (this.colony.health.recovering) return 0;
     if (Threat.isHot(this.colony.name)) return 0;
+    // Let logistics bootstrap first (#159 review): scouts sit ABOVE haulers in spawn priority, so
+    // spawning the always-on baseline before the first hauler exists would preempt the very hauler
+    // that entering 2b spins up to start moving container energy — stalling the economy at the
+    // transition. Hold at 0 until energy is actually being hauled.
+    const haulers =
+      this.colony.creepsWithRole("hauler").length +
+      this.colony.creepsWithRole("remoteHauler").length;
+    if (haulers === 0) return 0;
     return SCOUT_BASELINE + this.surplusScouts();
   }
 
