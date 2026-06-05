@@ -80,7 +80,7 @@ export class WarbandOverlord extends Overlord {
     return this.assignedCreeps.filter((c) => c.memory.behaviors?.default === unit.default);
   }
 
-  // Spawn the first short unit. Counts the SPECIFIC unit, never assignedCreeps.length; only while a
+  // Spawn for the first unit below its count. Counts the SPECIFIC unit, never assignedCreeps.length; only while a
   // flag stands (no order → no muster; survivors then idle home and aren't replaced as they expire).
   generateSpawnRequest() {
     if (!this.objectiveFlag()) return null;
@@ -104,7 +104,7 @@ export class WarbandOverlord extends Overlord {
     const cap = this.colony.spawnEnergyBudget();
     const budget = unit.budget ? Math.min(unit.budget, cap) : cap;
     const b = unit.body;
-    if (Array.isArray(b)) return b; // explicit module array, e.g. [TOUGH,RANGED_ATTACK,...,MOVE]
+    if (Array.isArray(b)) return b; // explicit module array (verbatim — the commander sizes it within ecap)
     if (b && b.base) {
       return bodyFromTemplate(b.base, { extra: b.extra || [], max: b.max || 0, energy: budget });
     }
@@ -157,7 +157,11 @@ export class WarbandOverlord extends Overlord {
     creep.memory.target = advance ? flag.pos.roomName : home;
     if (flag) {
       creep.memory.point = { x: flag.pos.x, y: flag.pos.y, roomName: flag.pos.roomName };
-      creep.memory.targetOwner = this.spec().targetOwner || undefined; // raidRoom en-route hunt
+      creep.memory.targetOwner = this.spec().targetOwner || null; // raidRoom en-route hunt
+    } else {
+      // Stand-down: clear the objective fields so a holdPoint unit doesn't keep holding a stale tile.
+      creep.memory.point = null;
+      creep.memory.targetOwner = null;
     }
   }
 
