@@ -5,7 +5,7 @@ import { stageAtLeast } from "../lib/Stages.js";
 import expansionMap from "../data/expansionMap.json";
 
 // Tunables (ship and observe — we always tune live).
-const DESIRED_SCOUTS = 2; // small continuous fleet
+const HAULERS_PER_SCOUT = 3; // one scout per N haulers (ceil) — scouting scales with the economy
 const SCAN_RADIUS = 6; // BFS room-radius from home to consider (a scout's reach)
 const ROUTE_CAP = 8; // max rooms per assigned leg (loose TTL cap; early death frees the tail)
 const STALE_MAX = 20000; // staleness cap; a never-seen room uses this as its age
@@ -31,30 +31,40 @@ const VALUE = { collector: 6, highway: 4, unknown: 3, player: 2, neutral: 1 };
 //  are by scout identity and auto-free when a scout leaves assignedCreeps (dead),
 //  the GuardOverlord released-guard pattern; no tick-expiry.
 //
-//  Not RCL8-gated (the score race is open now): the LOW overlord priority IS the
-//  spare-capacity gate — a scout spawns only when nothing more important wants the
-//  single spawn (a spawn-idle latch chronically falses on a busy spawn).
+//  Not RCL8-gated (the score race is open now). The needed count scales with the hauler
+//  army (ceil(allHaulers / 3)) and the overlord sits just ABOVE haulers in spawn priority,
+//  so scouts and haulers grow in lockstep from a fresh start — demand ticks up only as the
+//  fleet crosses each multiple, never a burst — and the proportional count is the throttle.
+//  (Adding scouts to an already-large fleet is a one-time catch-up the storage buffer
+//  absorbs.) Home defence still preempts: desiredCount drops to 0 while home is attacked.
 // ============================================================================
 export class ScoutOverlord extends Overlord {
   constructor(colony) {
-    // Priority 8: below all economy (≤5) and defence (4) — scouts take the spawn only
-    // in genuine gaps, so they never compete with anything that matters.
-    super(colony, { priority: 8 });
+    // Priority 2 — above haulers (Logistics is 3), just after Mining (1) / Work (2). Safe
+    // to sit here because desiredCount is a bounded fraction of the hauler fleet and a
+    // scout is cheap (2 parts); it stands down entirely while home is under attack.
+    super(colony, { priority: 2 });
   }
 
   get role() {
     return "scout";
   }
 
-  // Scout once the economy is self-sustaining (Stage 2b) and we're not in crisis. The
-  // count is flat; the priority gate (not a health latch) decides when one actually spawns.
-  // Requires an expansionMap entry: it carries the SK/enemy-core avoid list, without which
-  // we can't route scouts safely — so no map entry (e.g. an unscanned room) ⇒ no scouts.
+  // Scout count scales with the hauler army: ceil(allHaulers / HAULERS_PER_SCOUT). Since
+  // expansion (and so the hauler count) only grows once the home economy is fulfilled,
+  // scouts appear when expansion starts and grow with the fleet — no fixed number to tune.
+  // Gated to 0 when: no expansionMap entry (it carries the SK/enemy-core avoid list — no
+  // safe routing without it), before Stage 2b, in workforce recovery, or while HOME is
+  // under attack (we sit above guards in priority, so stand down to let defence spawn).
   desiredCount() {
     if (!expansionMap[this.colony.name]) return 0;
     if (!stageAtLeast(this.colony, "2b:Hauling")) return 0;
     if (this.colony.health.recovering) return 0;
-    return DESIRED_SCOUTS;
+    if (Threat.isHot(this.colony.name)) return 0;
+    const haulers =
+      this.colony.creepsWithRole("hauler").length +
+      this.colony.creepsWithRole("remoteHauler").length;
+    return Math.ceil(haulers / HAULERS_PER_SCOUT);
   }
 
   bodyFor(energyBudget) {
