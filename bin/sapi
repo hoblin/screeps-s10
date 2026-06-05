@@ -17,6 +17,7 @@
 #    bin/sapi owners E15S7 E16S7 ...     # map-stats owner0 (ownership snapshot)
 #    bin/sapi mem status                 # Memory.status (gz-decoded) — or roomLog.E15S7, etc.
 #    bin/sapi get game/room-status "room=E15S7"   # raw GET /api/<path>?<query>&shard=
+#    bin/sapi eval '<js>'                # run JS in the live game console (returns messages.results)
 #    bin/sapi --main obj W55S43          # target the main server instead of season
 #
 #  Filtering — add --jq '<filter>' to filter via jq; the result stream is slurped into a
@@ -112,6 +113,26 @@ print(json.dumps(data))" | out ;;
     # raw GET: bin/sapi get <path> ["extra=query&more=1"]  (shard appended automatically)
     sep="?"; [[ "$1" == *"?"* ]] && sep="&"
     api_get "${1}${sep}${2:-}&shard=$SHARD" | out ;;
+
+  eval|console)
+    # Evaluate JS in the live game console. The execute_command MCP hits "invalid shard", so
+    # POST via the screeps-api WebSocket with the right shard and print messages.results.
+    apipath="/"; case "$SERVER" in *"/season") apipath="/season/" ;; esac
+    cd "$ROOT" # so node resolves screeps-api from the project's node_modules
+    SCREEPS_TOKEN="$SCREEPS_TOKEN" SAPI_PATH="$apipath" SAPI_SHARD="$SHARD" SAPI_EXPR="$*" node --input-type=module <<'NODE'
+import { ScreepsAPI } from "screeps-api";
+const api = new ScreepsAPI({ token: process.env.SCREEPS_TOKEN, protocol: "https", hostname: "screeps.com", port: 443, path: process.env.SAPI_PATH });
+await api.socket.connect();
+api.socket.subscribe("console");
+api.socket.on("console", (ev) => {
+  const m = ev.data && ev.data.messages;
+  if (m && m.results) m.results.forEach((l) => console.log(l));
+});
+await api.raw.user.console(process.env.SAPI_EXPR, process.env.SAPI_SHARD);
+await new Promise((r) => setTimeout(r, 8000));
+process.exit(0);
+NODE
+    ;;
 
   *)
     sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'

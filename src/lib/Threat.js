@@ -95,11 +95,11 @@ export const Threat = {
   },
 
   // Structural snapshot recorded alongside the threat on every observation (#142): who
-  // holds the room, its HOSTILE tower count, and (Season only) any ScoreContainers /
-  // ScoreCollectors. One writer, refreshed for free on every visit. Consumers:
+  // holds the room, its HOSTILE tower count, and (Season only) any ground Score objects.
+  // One writer, refreshed for free on every visit. Consumers:
   //   • scout priority — staleness + room value (#142)
   //   • retaliation target/route safety — tower-free check (#140)
-  //   • score collection — container/collector locations (#24/#48)
+  //   • score collection — ground Score object locations (#24)
   // `towers` counts HOSTILE towers only, so our own room reads 0 (not a danger to us).
   recon(room) {
     const ctrl = room.controller;
@@ -111,18 +111,17 @@ export const Threat = {
         filter: (s) => s.structureType === STRUCTURE_TOWER,
       }).length,
     };
-    // ScoreContainers/Collectors exist only on the Season server; the same universal
-    // bundle also runs on the main shard, so guard the finds (constants undefined there).
-    if (typeof FIND_SCORE_CONTAINERS !== "undefined") {
-      out.score = room.find(FIND_SCORE_CONTAINERS).map((c) => ({
-        x: c.pos.x,
-        y: c.pos.y,
-        amount: c.store ? c.store[RESOURCE_SCORE] : c.score,
-        decay: c.ticksToDecay,
+    // Ground Score objects (Season 10): a creep banks the points by occupying the tile
+    // (no structure/carry — see docs/season-10-score-mechanic.md). FIND_SCORES is
+    // season-only and the same universal bundle runs on shard2 where it's undefined, so
+    // guard the find. Feeds the ScoutOverlord's score-diversion (#24).
+    if (typeof FIND_SCORES !== "undefined") {
+      out.score = room.find(FIND_SCORES).map((s) => ({
+        x: s.pos.x,
+        y: s.pos.y,
+        score: s.score,
+        ticksToDecay: s.ticksToDecay,
       }));
-    }
-    if (typeof FIND_SCORE_COLLECTORS !== "undefined") {
-      out.collectors = room.find(FIND_SCORE_COLLECTORS).map((c) => ({ x: c.pos.x, y: c.pos.y }));
     }
     return out;
   },

@@ -16,10 +16,17 @@ const SCOUT_THREAT_PENALTY = 0.05; // recently killed a scout / live armed threa
 const EMPTY_REPLAN_COOLDOWN = 50; // ticks before retrying a plan that came back empty
 const ESCORT_THRESHOLD = 2; // scout casualties in a room before it earns a guard escort (#147)
 const ESCORT_PRIORITY = 5; // escort spawns below economy/defence — clearing a blocker isn't urgent
+const SCORE_TILES_PER_ROOM = 50; // rough tiles/room — a [MOVE] scout walks 1 tile/tick, so this
+// × room-distance is a FLOOR estimate of travel ticks to weigh against a Score's decay (#24).
+const DIVERSION_MARGIN = 100; // slack over that ETA before abandoning a diversion: covers in-room
+// depth + avoidHostiles detours. Past it the tile is contested/unreachable — release the scout.
+const DIVERSION_COOLDOWN = 200; // after abandoning a Score tile, ignore it this long so the fleet
+// doesn't churn onto a tile a rival is camping.
 
-// Room value by type (× staleness = priority). Score structures are the prize, so their
-// rooms outrank everything; a known collector (a banking site) is kept freshest of all.
-const VALUE = { collector: 6, highway: 4, unknown: 3, player: 2, neutral: 1 };
+// Room value by type (× staleness = priority). A room with a live ground Score is the prize
+// (banking it is the win), so it outranks everything; highways are transit corridors worth
+// keeping fresh; then never-seen > player (intel for #140) > plain neutral.
+const VALUE = { score: 6, highway: 4, unknown: 3, player: 2, neutral: 1 };
 
 // ============================================================================
 //  ScoutOverlord — keeps map intel fresh by roaming cheap scouts (#142).
@@ -35,6 +42,13 @@ const VALUE = { collector: 6, highway: 4, unknown: 3, player: 2, neutral: 1 };
 //  claimed, so the next scout fans out elsewhere — no overlap, no idling. Claims
 //  are by scout identity and auto-free when a scout leaves assignedCreeps (dead),
 //  the GuardOverlord released-guard pattern; no tick-expiry.
+//
+//  Score diversion (#24): the Kernel's observe pass records ground Score objects into
+//  roomIntel; this overlord then diverts the CLOSEST free scout (no escort mission, not
+//  fleeing) to step on a reachable Score tile — banking the points IS the season win — then
+//  the scout resumes its route. The win scales with coverage × speed: more scouts + spawns +
+//  colonies grab more Score before it decays. A fast [MOVE] scout is already the ideal score
+//  creep, so there's no separate collector role.
 //
 //  Not RCL8-gated (the score race is open now). The needed count scales with the hauler
 //  army (floor(allHaulers / 3)) and the overlord sits just ABOVE haulers in spawn priority,
@@ -131,6 +145,14 @@ export class ScoutOverlord extends Overlord {
     return ((Memory.colonyData[this.colony.name] ||= {}).scoutRoutes ||= {});
   }
 
+  // Recently-abandoned Score tiles (key → expiry tick): tiles a scout couldn't bank in time
+  // (a rival is camping it / it's unreachable), kept out of re-assignment for DIVERSION_COOLDOWN
+  // so the fleet doesn't churn back onto them. Pruned each pass; self-bounded.
+  get scoreCooldown() {
+    Memory.colonyData ||= {};
+    return ((Memory.colonyData[this.colony.name] ||= {}).scoreCooldown ||= {});
+  }
+
   run() {
     const routes = this.routes;
     const alive = new Set(this.assignedCreeps.map((c) => c.name));
@@ -144,6 +166,8 @@ export class ScoutOverlord extends Overlord {
     }
     // Detect a persistent winnable blocker and (re)assign the escort mission (#147).
     this.manageEscortMission(routes);
+    // Divert the closest free scout onto a known, reachable ground Score tile (#24).
+    this.manageScoreDiversions(routes);
 
     // Give every live SCOUT a fresh leg if it has none or finished its last one (escorts
     // have no route — they follow their scout). A mission scout is forced onto the blocker
@@ -159,6 +183,7 @@ export class ScoutOverlord extends Overlord {
         routes[creep.name] = { route: [plan.escortMission], index: 0, tick: Game.time, escortMission: plan.escortMission };
         continue;
       }
+      if (plan?.scoreDiversion) continue; // detouring to a Score — keep its route intact to resume
       if (plan && plan.index < plan.route.length) continue; // still walking its route
       if (plan && plan.route.length === 0 && Game.time - plan.tick < EMPTY_REPLAN_COOLDOWN) continue;
       routes[creep.name] = { route: this.planRoute(creep.pos.roomName), index: 0, tick: Game.time };
@@ -184,6 +209,106 @@ export class ScoutOverlord extends Overlord {
     if (scout) routes[scout.name].escortMission = blocker;
   }
 
+  // Score-diversion lifecycle (#24): clear diversions whose Score was banked/decayed, then
+  // hand each still-live, reachable Score to the CLOSEST free scout (one Score per scout,
+  // de-conflicted so two scouts never chase the same tile). A free scout = a live, routed
+  // scout with no escort mission, no diversion yet, and not fleeing. The scout detours via
+  // Scout.collectScore, then resumes its route. Mirrors manageEscortMission, but a diversion
+  // is transient (grab one tile and resume) where an escort mission is sustained.
+  manageScoreDiversions(routes) {
+    const cooldown = this.scoreCooldown;
+    for (const key in cooldown) if (cooldown[key] <= Game.time) delete cooldown[key]; // prune expired
+    // 1. Finish diversions. Past its deadline → abandon (the tile is contested/unreachable, e.g.
+    //    a rival camping the live Score) and cool the tile down so the fleet doesn't churn onto
+    //    it; else if the Score is gone (banked/decayed) → just clear. The scout also self-clears
+    //    on arrival (Scout.collectScore).
+    for (const name in routes) {
+      const d = routes[name].scoreDiversion;
+      if (!d) continue;
+      if (Game.time > d.deadline) {
+        cooldown[this.scoreKey(d)] = Game.time + DIVERSION_COOLDOWN;
+        delete routes[name].scoreDiversion;
+      } else if (!this.liveScore(d.room, d.x, d.y)) {
+        delete routes[name].scoreDiversion;
+      }
+    }
+    // 2. Tiles already claimed by an active diversion — never double-assign one.
+    const taken = new Set(
+      Object.values(routes)
+        .map((p) => (p.scoreDiversion ? this.scoreKey(p.scoreDiversion) : null))
+        .filter(Boolean)
+    );
+    // 3. Free scouts available to divert.
+    const free = this.assignedCreeps.filter(
+      (c) =>
+        c.memory.role === "scout" &&
+        (c.memory.fleeUntil || 0) <= Game.time &&
+        routes[c.name] &&
+        !routes[c.name].escortMission &&
+        !routes[c.name].scoreDiversion
+    );
+    if (!free.length) return;
+    // 4. Richest Score first; give each to the nearest scout that can reach it before decay,
+    //    skipping claimed or cooled-down tiles. Room-distance picks the nearest scout (dist 0 =
+    //    its own room = closest), while the reach/deadline ETA adds +1 room so even an in-room
+    //    Score is held to one room's worth of tiles — we never chase one we can't reach in time.
+    for (const target of this.knownScores()) {
+      if (!free.length) break;
+      const key = this.scoreKey(target);
+      if (taken.has(key) || cooldown[key]) continue;
+      let best = null;
+      let bestEta = Infinity;
+      for (const c of free) {
+        const dist = Game.map.getRoomLinearDistance(c.pos.roomName, target.room);
+        const eta = (dist + 1) * SCORE_TILES_PER_ROOM; // +1: always count the destination room
+        if (eta >= bestEta) continue;
+        if (target.remaining <= eta) continue; // can't arrive before decay
+        bestEta = eta;
+        best = c;
+      }
+      if (!best) continue;
+      routes[best.name].scoreDiversion = {
+        room: target.room,
+        x: target.x,
+        y: target.y,
+        deadline: Game.time + bestEta + DIVERSION_MARGIN,
+      };
+      taken.add(key);
+      free.splice(free.indexOf(best), 1);
+    }
+  }
+
+  // Every known ground Score still expected alive, richest first. `remaining` discounts the
+  // recorded decay by how long ago we last saw the room (we may be en route to a room not yet
+  // re-observed), so a long-stale sighting self-expires rather than sending a scout on a
+  // wild goose chase.
+  knownScores() {
+    const out = [];
+    const intel = Memory.roomIntel || {};
+    for (const room in intel) {
+      const seen = intel[room];
+      const age = Game.time - (seen.tick || 0);
+      for (const s of seen.score || []) {
+        const remaining = (s.ticksToDecay || 0) - age;
+        if (remaining > 0) out.push({ room, x: s.x, y: s.y, score: s.score || 0, remaining });
+      }
+    }
+    return out.sort((a, b) => b.score - a.score);
+  }
+
+  // Is a Score still believed alive at this tile (latest intel, decay-adjusted)?
+  liveScore(room, x, y) {
+    const seen = Memory.roomIntel?.[room];
+    if (!seen?.score) return false;
+    const age = Game.time - (seen.tick || 0);
+    return seen.score.some((s) => s.x === x && s.y === y && (s.ticksToDecay || 0) - age > 0);
+  }
+
+  // Stable key for a Score tile — de-conflicts diversions (one scout per tile).
+  scoreKey(s) {
+    return `${s.room}:${s.x}:${s.y}`;
+  }
+
   // The best persistent, winnable, VALUABLE blocker within reach (or null): a room that has
   // killed scouts ≥ ESCORT_THRESHOLD times, is worth scouting (highway/score), still holds a
   // mobile threat, and that an affordable escort out-guns by the win-margin (#130).
@@ -204,9 +329,10 @@ export class ScoutOverlord extends Overlord {
     return best;
   }
 
-  // Only escort into rooms whose intel is worth the spawn: highways / known score sites.
+  // Only escort into rooms whose intel is worth the spawn: highway corridors / rooms with a
+  // known ground Score worth grabbing.
   worthEscorting(room) {
-    return this.isHighway(room) || !!Threat.intelFor(room)?.collectors?.length;
+    return this.isHighway(room) || !!Threat.intelFor(room)?.score?.length;
   }
 
   // Greedy route from a start room: repeatedly hop to the best value-per-distance room,
@@ -276,18 +402,18 @@ export class ScoutOverlord extends Overlord {
     return out;
   }
 
-  // Value of scanning a room: a known banking site (collector) > highway (where score
-  // structures spawn) > never-seen > a player's room (intel for #140) > plain neutral.
+  // Value of scanning a room: a live ground Score (the prize — go grab it) > highway corridor
+  // > never-seen > a player's room (intel for #140) > plain neutral.
   roomValue(room, intel) {
-    if (intel?.collectors?.length) return VALUE.collector;
+    if (intel?.score?.length) return VALUE.score;
     if (this.isHighway(room)) return VALUE.highway;
     if (!intel) return VALUE.unknown;
     if (intel.owner || intel.reserver) return VALUE.player;
     return VALUE.neutral;
   }
 
-  // A highway / sector-border room: a coordinate divisible by 10 (E10S7, E15S20, …),
-  // where ScoreContainers spawn and ScoreCollectors live.
+  // A highway / sector-border room: a coordinate divisible by 10 (E10S7, E15S20, …) — a
+  // transit corridor a scout passes through to reach many rooms quickly.
   isHighway(room) {
     const m = /^[WE](\d+)[NS](\d+)$/.exec(room);
     return !!m && (Number(m[1]) % 10 === 0 || Number(m[2]) % 10 === 0);

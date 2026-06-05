@@ -8,22 +8,24 @@ const FLEE_TICKS = 10; // stay in flee mode this long after the LAST hit (hyster
 //
 //  Pure vision-delivery: the scout just walks its overlord-assigned route; the
 //  Kernel's per-room `Threat.observe` pass records everything it sees (owner,
-//  towers, score structures, threat) the moment it has vision of a room. So the
+//  towers, ground Score objects, threat) the moment it has vision of a room. So the
 //  scout itself records nothing about a room's contents — it only DELIVERS vision
 //  to stale rooms and advances along its route (the route + claim live in the
 //  overlord's registry, Memory.colonyData[c].scoutRoutes — the single source of
 //  truth; the scout reads its entry by name and advances the index on arrival).
 //
-//  TWO MODES (#147):
-//   • normal — walk the route, deliver vision.
+//  THREE MODES:
+//   • normal — walk the route, deliver vision (#142).
+//   • score  — when the overlord stamps a `scoreDiversion` (a known ground Score within
+//     reach, #24), detour to OCCUPY that tile, which banks the points, then resume the
+//     route at the same index. Score is collectible from tick 0 — this is the win.
 //   • flee   — entered the instant the scout takes damage; it records the room as
-//     scout-dangerous (so the planner deprioritises it), ABANDONS its route, and
-//     retreats toward HOME (the fixed safe anchor — the macro "back the way it came",
-//     which also draws a chaser toward our tower) with a free parting ranged shot. A
-//     1-RANGED scout can't win, so surviving to scout elsewhere beats marching deeper
-//     in. Hysteresis (FLEE_TICKS after the last hit) lets it escape; once safe, the
-//     overlord re-plans a route that avoids the room it fled. (Supersedes #142's
-//     retaliate-and-continue.)
+//     scout-dangerous (so the planner deprioritises it), ABANDONS its route + any score
+//     diversion, and retreats toward HOME (the fixed safe anchor — "back the way it
+//     came", which also draws a chaser toward our tower). A defenceless [MOVE] scout
+//     can't fight, so surviving to scout elsewhere beats marching deeper in. Hysteresis
+//     (FLEE_TICKS after the last hit) lets it escape; once safe, the overlord re-plans a
+//     route that avoids the room it fled. (Supersedes #142's retaliate-and-continue.)
 // ============================================================================
 export class Scout extends Role {
   // Lowest priority — a non-essential roamer yields its tile to everyone.
@@ -32,11 +34,14 @@ export class Scout extends Role {
   // Route around hostile ranged kill-zones (#145) — a scout was one-shot pathing past one.
   static avoidHostiles = true;
 
-  // One RANGED_ATTACK for cheap self-defence (we're energy-rich; matches the rival
-  // meta) + one MOVE to carry it. The ranged part adds swamp fatigue (slower on swamp
-  // than a pure [MOVE]) but is free on roads/plains; only loosens the route-length cap.
+  // Pure [MOVE] — SPEED is the win lever (race rivals to a Score tile before it decays,
+  // deliver vision faster), and a [MOVE]-only creep takes 1 tile/tick on any terrain (zero
+  // fatigue) and costs just 50. Self-defence is covered without a body part by three layers:
+  // escort clears persistent blockers (#149), reactive-flee bails on the first hit (#148),
+  // and avoidHostiles routes around ranged kill-zones (#145) — so the old lone RANGED_ATTACK
+  // (which couldn't win a fight anyway and added swamp fatigue) is dropped.
   static bodyFor(_energyBudget) {
-    return [RANGED_ATTACK, MOVE];
+    return [MOVE];
   }
 
   static run(creep, colony) {
@@ -47,6 +52,11 @@ export class Scout extends Role {
     creep.memory.lastHits = creep.hits;
 
     if (this.fleeing(creep)) return this.flee(creep, colony);
+
+    // Score mode (#24): the overlord stamped a known Score in reach — detour to occupy
+    // its tile (banks the points). collectScore returns false once banked/gone, so we
+    // fall through and resume the route at the same index this very tick.
+    if (plan?.scoreDiversion && this.collectScore(creep, plan)) return;
 
     // Normal mode: walk the assigned route, delivering vision.
     if (!plan || !plan.route || plan.index >= plan.route.length) {
@@ -81,33 +91,47 @@ export class Scout extends Role {
   }
 
   // Enter (or refresh) flee mode: record the room as scout-dangerous, refresh the flee
-  // window, and ABANDON the current route (index → end) so the overlord re-plans a safe one
-  // once flee ends — otherwise the scout would walk straight back into the room it fled. The
-  // threat bump fires only on the TRANSITION into flee, so a sustained attack counts as one
-  // episode, not one per tick.
+  // window, ABANDON the current route (index → end) so the overlord re-plans a safe one once
+  // flee ends — otherwise the scout would walk straight back into the room it fled — and DROP
+  // any score diversion (survival outranks a few points; another scout or a later pass grabs
+  // it). The threat bump fires only on the TRANSITION into flee, so a sustained attack counts
+  // as one episode, not one per tick.
   static enterFlee(creep, plan) {
     if (!this.fleeing(creep)) Threat.bumpScoutThreat(creep.room.name);
     creep.memory.fleeUntil = Game.time + FLEE_TICKS;
     if (plan && plan.route) plan.index = plan.route.length;
+    if (plan) delete plan.scoreDiversion;
   }
 
   static fleeing(creep) {
     return (creep.memory.fleeUntil || 0) > Game.time;
   }
 
-  // Retreat toward HOME with a free parting shot at the closest armed hostile in range.
-  // Home is the fixed safe anchor (and tower cover); per-room back-stepping would yo-yo into
-  // the very room being fled, so we head for the anchor instead.
+  // Retreat toward HOME — the fixed safe anchor (and tower cover); per-room back-stepping
+  // would yo-yo into the very room being fled, so we head for the anchor instead. A pure
+  // [MOVE] scout has no shot to fire back — speeding away IS the whole defence.
   static flee(creep, colony) {
     this.note(creep, "scout:flee");
-    const armed = creep.pos
-      .findInRange(FIND_HOSTILE_CREEPS, 3)
-      .filter((h) => Threat.combatPower(h) > 0);
-    const attacker = creep.pos.findClosestByRange(armed);
-    if (attacker) creep.rangedAttack(attacker);
-
     if (creep.room.name !== colony.name) {
       creep.travelTo(new RoomPosition(25, 25, colony.name), { range: 20 });
     }
+  }
+
+  // Score mode (#24): occupy the diverted Score tile to bank its points, then resume.
+  // Returns true while still travelling there; false once the points are banked (we're on
+  // the tile) or the Score is gone (a rival/decay took it — we can see the room and the tile
+  // is empty), having cleared the diversion so run() resumes the route this tick.
+  static collectScore(creep, plan) {
+    const d = plan.scoreDiversion;
+    const tile = new RoomPosition(d.x, d.y, d.room);
+    const inRoom = creep.room.name === d.room;
+    const gone = inRoom && tile.lookFor(LOOK_SCORE).length === 0;
+    if (creep.pos.isEqualTo(tile) || gone) {
+      delete plan.scoreDiversion;
+      return false;
+    }
+    this.note(creep, "scout:score");
+    creep.travelTo(tile); // range 0 (default) — we must stand ON the tile to bank it
+    return true;
   }
 }
