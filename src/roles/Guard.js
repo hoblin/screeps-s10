@@ -77,38 +77,44 @@ export class Guard extends Role {
       return;
     }
 
-    // On station. Heal, then sweep EVERY hostile — armed first, then mop the harmless
-    // stragglers (scouts, reservers contesting our reservation) so the room is left
-    // truly clean. Once clean, garrison the controller and hold for life.
+    // On station. Fight any hostiles (armed first, then mop harmless stragglers); once the
+    // room is clean, garrison the controller and hold for life.
+    if (this.engage(creep)) return;
+    const ctrl = creep.room.controller;
+    if (ctrl && !creep.pos.inRangeTo(ctrl, 1)) {
+      this.note(creep, "guard:to-post");
+      creep.travelTo(ctrl, { range: 1 });
+    } else {
+      this.note(creep, "guard:park"); // garrison: defend the controller, deny reservers, keep intel fresh
+    }
+  }
+
+  // Heal self and fight the hostiles in the CURRENT room — armed first, then harmless
+  // stragglers. Returns true if there were hostiles (we engaged), false if the room is
+  // clear. The combat nucleus, free of any room/garrison/follow logic, so both the
+  // garrison Guard and the follow Escort (#147) share it.
+  static engage(creep) {
     if (creep.getActiveBodyparts(HEAL) > 0 && creep.hits < creep.hitsMax) creep.heal(creep);
     const hostiles = creep.room.find(FIND_HOSTILE_CREEPS);
-    if (!hostiles.length) {
-      const ctrl = creep.room.controller;
-      if (ctrl && !creep.pos.inRangeTo(ctrl, 1)) {
-        this.note(creep, "guard:to-post");
-        creep.travelTo(ctrl, { range: 1 });
-      } else {
-        this.note(creep, "guard:park"); // garrison: defend the controller, deny reservers, keep intel fresh
-      }
-      return;
-    }
+    if (!hostiles.length) return false;
     const armed = hostiles.filter((h) => Threat.combatPower(h) > 0);
     const target = creep.pos.findClosestByRange(armed.length ? armed : hostiles);
 
     if (creep.memory.guardType === "melee") {
       this.note(creep, "guard:melee");
       if (creep.attack(target) === ERR_NOT_IN_RANGE) creep.travelTo(target, { range: 1 });
-      return;
+      return true;
     }
 
-    // Ranged: shoot from range 3 and kite — step away if the enemy closes inside 3,
-    // close if it's drifting out, so we keep dealing damage while taking little.
+    // Ranged: shoot from range 3 and kite — step away if the enemy closes inside 3, close
+    // if it's drifting out, so we keep dealing damage while taking little.
     this.note(creep, "guard:ranged");
     const range = creep.pos.getRangeTo(target);
     if (hostiles.length > 1 && range <= 1) creep.rangedMassAttack();
     else if (range <= KITE_RANGE) creep.rangedAttack(target);
     if (range < KITE_RANGE) this.kiteAway(creep, armed.length ? armed : hostiles);
     else if (range > KITE_RANGE) creep.travelTo(target, { range: KITE_RANGE });
+    return true;
   }
 
   // Retreat to restore kite distance WITHOUT self-cornering (#130). The death case was
