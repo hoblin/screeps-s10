@@ -92,17 +92,23 @@ export class WarbandOverlord extends Overlord {
   }
 
   // The body for a unit. Default: READ off its default behavior (the model owns it). Override (the
-  // commander's "+ body" order, for custom power): `unit.body` as either an explicit module array
-  // (used verbatim — must fit energyCapacityAvailable) or a template { base, extra, max } scaled to
-  // the budget. The controller never INVENTS a body — it uses the behavior's or the commander's.
+  // commander's "+ body" order): `unit.body` as either an explicit module array (used verbatim) or a
+  // template { base, extra, max } scaled to the budget. The controller never INVENTS a body — it uses
+  // the behavior's or the commander's.
+  //
+  // SIZING: the body scales to the colony's full spawn budget (energyCapacityAvailable) by DEFAULT —
+  // but a unit may set `budget` to cap it LOWER, so a developed colony can still order CHEAP units (a
+  // swarm, a probe, a throwaway) instead of being forced to max-size everything. Capped at the colony's
+  // budget (can't order a body it can't afford). The explicit module array ignores this (it IS the body).
   unitBody(unit) {
-    const budget = this.colony.spawnEnergyBudget();
+    const cap = this.colony.spawnEnergyBudget();
+    const budget = unit.budget ? Math.min(unit.budget, cap) : cap;
     const b = unit.body;
     if (Array.isArray(b)) return b; // explicit module array, e.g. [TOUGH,RANGED_ATTACK,...,MOVE]
     if (b && b.base) {
       return bodyFromTemplate(b.base, { extra: b.extra || [], max: b.max || 0, energy: budget });
     }
-    return behaviorClass(unit.default).bodyFor(budget); // behavior's default body
+    return behaviorClass(unit.default).bodyFor(budget); // behavior's default body, sized to the budget
   }
 
   // Build a member of `unit`. The behavior SET + group tag are stamped so BehaviorMachine drives it;
