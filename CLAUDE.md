@@ -18,6 +18,12 @@ earlier "transposed `x*50+y`" belief (#96/#97) was a false-premise mistake (natu
 objects can sit on walls, so "objects on non-walls" proved nothing); reverted in #111.
 The live bot uses game coords + native pathfinding and was never affected.
 
+`bin/sapi` is the live-ops API wrapper (the sanctioned exception to "crawler-only" — for
+transient live state: `obj`/`mem`/`eval`/`score`). **`bin/sapi map <ROOM>`** renders a room
+as a token-lean ASCII grid + opt-in TOON layers (`--creeps`/`--structures`/`--score`/… ,
+`--tick N` for history, `--emoji` for a human) — run **`bin/sapi map --help`** for the glyph
+legend and all flags. Reach for it instead of hand-rolling a `room-objects` eval.
+
 ## Architecture in one breath
 - `Kernel` drives the tick (CPU guard, discovers colonies). `Colony` is the per-room aggregate that wires `HiveCluster`s + `Overlord`s.
 - **Overlord** = a goal manager owning creeps + ONE responsibility. It decides spawn requests (`generateSpawnRequest`) and runs its creeps (`run`). Stage-gated via `stageAtLeast(colony, "2b:Hauling")` from `src/lib/Stages.js`.
