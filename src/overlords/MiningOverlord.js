@@ -4,6 +4,9 @@ import { LinkedMiner } from "../roles/LinkedMiner.js";
 import { ContainerPlanner } from "../lib/ContainerPlanner.js";
 import { stageAtLeast } from "../lib/Stages.js";
 
+const REPLACE_MARGIN = 20; // ticks of slack so the JIT relief lands slightly BEFORE the incumbent
+// dies (traffic / re-path jitter), never after — a brief two-miner overlap is harmless (#168).
+
 // ============================================================================
 //  MiningOverlord — owns the static mining of ONE source (Overmind-style:
 //  one overlord instance per source). The Colony creates one of these for each
@@ -46,7 +49,49 @@ export class MiningOverlord extends Overlord {
   // the moment static mining starts paying off.
   desiredCount() {
     if (!stageAtLeast(this.colony, "2:StaticMining")) return 0;
-    return 1;
+    // Just-in-time relief (#168): once the on-station miner is within its spawn+travel lead of
+    // dying, declare the source needs TWO — the base spawn gate then orders the relief NOW so it
+    // arrives as the incumbent expires (near-zero unmined gap). The relief is already counted by
+    // assignedCreeps (spawning ttl=undefined, then traveling ttl≈full), so exactly ONE is ordered;
+    // once the incumbent dies the lead no longer matches and this drops back to 1. The dying miner
+    // keeps mining until real death (run() ignores TTL). Killed early → no incumbent → reads 1,
+    // count 0 → immediate reactive replacement, exactly as before.
+    return this.incumbentDying() ? 2 : 1;
+  }
+
+  // True when an on-station miner is within `replacementLead` ticks of dying — the trigger to
+  // pre-order its relief. Spawning creeps (ttl undefined) and a fresh traveling relief (ttl ≈
+  // CREEP_LIFE_TIME) are far above the lead, so only the genuine incumbent fires this.
+  incumbentDying() {
+    const lead = this.replacementLead();
+    if (!lead) return false; // geometry unknown yet → fall back to reactive replacement
+    return this.assignedCreeps.some((c) => c.ticksToLive !== undefined && c.ticksToLive < lead);
+  }
+
+  // Ticks between ordering a relief and it standing on the post: spawn time + travel time.
+  // spawnTicks = CREEP_SPAWN_TIME × body parts; travel = path distance × the body's ticks-per-tile
+  // (a WORK-heavy miner is sub-1-tile/tick). Plus a small margin so the relief lands slightly early.
+  replacementLead() {
+    const dist = this.sourceDistance();
+    if (dist == null) return 0;
+    const body = this.bodyFor(this.colony.spawnEnergyBudget());
+    return body.length * CREEP_SPAWN_TIME + dist * Miner.ticksPerTile(body) + REPLACE_MARGIN;
+  }
+
+  // Cached spawn→mining-tile path distance (static geometry — computed ONCE then reused; a
+  // per-tick pathLength would be wasted CPU). Stored alongside the mining position. Returns null
+  // until the position is established, or if the tile is unreachable.
+  sourceDistance() {
+    const cache = this.miningPositionCache;
+    if (!cache) return null;
+    if (cache.dist == null) {
+      const spawn = this.colony.spawns[0];
+      if (!spawn) return null;
+      const tile = new RoomPosition(cache.x, cache.y, cache.roomName);
+      const d = this.colony.pathLength(spawn.pos, tile); // steps to range 1 of the tile
+      cache.dist = d === Infinity ? -1 : d + 1; // +1: miner stands ON the tile; -1 = unreachable
+    } //                                           (a JSON-safe sentinel — Infinity serialises to null)
+    return cache.dist >= 0 ? cache.dist : null;
   }
 
   // The role class to field for this source: LinkedMiner (a Miner + CARRY that feeds
