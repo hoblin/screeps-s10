@@ -6,14 +6,14 @@ import { Filler } from "../roles/Filler.js";
 //
 //  One filler per storage (a room has at most one storage, so this is 0 or 1). The
 //  built storage IS the trigger — no stage gate needed; a storage can't exist before
-//  RCL4 anyway. Priority ABOVE haulers: the delivery leg is short, and the filler's
-//  presence keeps the spawn fed from the buffer, which speeds the spawning of every
-//  other creep — so it's worth fielding ahead of the remote-fed hauler fleet. Miners
-//  (1) and workers (2) still spawn first, so the recovery bootstrap is never starved.
+//  RCL4 anyway. TOP priority (1, with Mining + Defense): the filler is what LOADS the
+//  spawn + extensions from the storage buffer, so without it NOTHING spawns at full
+//  size — it gates the spawning of every other creep (the warband included). A dead
+//  filler is a spawn-loop emergency, so it's replaced before all routine economy.
 // ============================================================================
 export class FillerOverlord extends Overlord {
   constructor(colony) {
-    super(colony, { priority: 2 });
+    super(colony, { priority: 1 });
   }
 
   get role() {
