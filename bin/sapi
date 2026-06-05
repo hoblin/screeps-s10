@@ -19,6 +19,8 @@
 #    bin/sapi get game/room-status "room=E15S7"   # raw GET /api/<path>?<query>&shard=
 #    bin/sapi eval '<js>'                # run JS in the live game console (returns messages.results)
 #    bin/sapi map E15S7 [--creeps ...]   # render a room: ASCII grid + TOON layers (see `map --help`)
+#    bin/sapi flag warband E16S7 [x y]   # place/move the warband objective flag (#174); also: flag list|remove <n>|clear
+#    bin/sapi warband set '<json>'       # set the warband composition spec (Memory.warband); also: warband show|clear
 #    bin/sapi --main obj W55S43          # target the main server instead of season
 #
 #  Filtering — add --jq '<filter>' to filter via jq; the result stream is slurped into a
@@ -76,6 +78,27 @@ api_post() { curl -s "$SERVER/api/$1" -H "X-Token: $SCREEPS_TOKEN" -H "Content-T
 # Build a JSON array literal from the remaining positional args (room names).
 json_rooms() { printf '%s\n' "$@" | python3 -c 'import json,sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))'; }
 
+# Evaluate a JS expression in the live game console and print messages.results. The execute_command
+# MCP hits "invalid shard", so we POST via the screeps-api WebSocket with the right shard. This is the
+# ONE write path into the live game (flags, Memory, …) — eval/flag/warband all route through it.
+console_eval() {
+  local apipath="/"; case "$SERVER" in *"/season") apipath="/season/" ;; esac
+  cd "$ROOT" # so node resolves screeps-api from the project's node_modules
+  SCREEPS_TOKEN="$SCREEPS_TOKEN" SAPI_PATH="$apipath" SAPI_SHARD="$SHARD" SAPI_EXPR="$1" node --input-type=module <<'NODE'
+import { ScreepsAPI } from "screeps-api";
+const api = new ScreepsAPI({ token: process.env.SCREEPS_TOKEN, protocol: "https", hostname: "screeps.com", port: 443, path: process.env.SAPI_PATH });
+await api.socket.connect();
+api.socket.subscribe("console");
+api.socket.on("console", (ev) => {
+  const m = ev.data && ev.data.messages;
+  if (m && m.results) m.results.forEach((l) => console.log(l));
+});
+await api.raw.user.console(process.env.SAPI_EXPR, process.env.SAPI_SHARD);
+await new Promise((r) => setTimeout(r, 8000));
+process.exit(0);
+NODE
+}
+
 ensure_token
 cmd="${1:-}"; shift || true
 
@@ -116,24 +139,37 @@ print(json.dumps(data))" | out ;;
     api_get "${1}${sep}${2:-}&shard=$SHARD" | out ;;
 
   eval|console)
-    # Evaluate JS in the live game console. The execute_command MCP hits "invalid shard", so
-    # POST via the screeps-api WebSocket with the right shard and print messages.results.
-    apipath="/"; case "$SERVER" in *"/season") apipath="/season/" ;; esac
-    cd "$ROOT" # so node resolves screeps-api from the project's node_modules
-    SCREEPS_TOKEN="$SCREEPS_TOKEN" SAPI_PATH="$apipath" SAPI_SHARD="$SHARD" SAPI_EXPR="$*" node --input-type=module <<'NODE'
-import { ScreepsAPI } from "screeps-api";
-const api = new ScreepsAPI({ token: process.env.SCREEPS_TOKEN, protocol: "https", hostname: "screeps.com", port: 443, path: process.env.SAPI_PATH });
-await api.socket.connect();
-api.socket.subscribe("console");
-api.socket.on("console", (ev) => {
-  const m = ev.data && ev.data.messages;
-  if (m && m.results) m.results.forEach((l) => console.log(l));
-});
-await api.raw.user.console(process.env.SAPI_EXPR, process.env.SAPI_SHARD);
-await new Promise((r) => setTimeout(r, 8000));
-process.exit(0);
-NODE
-    ;;
+    console_eval "$*" ;;
+
+  flag)
+    # Commander's destination lever (#174): place/move/remove the warband objective flag. Flags drive
+    # the warband — drop one in a room to send the group there; move it to advance the operation.
+    sub="${1:-list}"
+    case "$sub" in
+      list|ls)
+        console_eval "Object.values(Game.flags).map(f=>f.name+' @ '+f.pos.roomName+' '+f.pos.x+','+f.pos.y).join(' | ')||'(no flags)'" ;;
+      remove|rm)
+        console_eval "Game.flags['$2']?(Game.flags['$2'].remove(),'removed $2'):'no flag named $2'" ;;
+      clear)
+        console_eval "Object.values(Game.flags).filter(f=>f.name.indexOf('warband')===0).map(f=>(f.remove(),f.name)).join(',')||'(no warband flags)'" ;;
+      *)
+        # place/move: flag <name> <room> [x] [y]  (default centre 25,25)
+        name="$1"; room="$2"; x="${3:-25}"; y="${4:-25}"
+        console_eval "(()=>{const p=new RoomPosition($x,$y,'$room');const f=Game.flags['$name'];if(f){f.setPosition(p);return 'moved $name -> $room $x,$y';}return 'createFlag $name @ $room $x,$y -> '+p.createFlag('$name');})()" ;;
+    esac ;;
+
+  warband)
+    # Commander's composition lever (#174): show/set/clear the warband spec (Memory.warband). set takes
+    # a JSON object, e.g. warband set '{"units":[{"default":"raidRoom","nodes":["focusFire"],"count":3}],"targetOwner":"Robalian"}'
+    sub="${1:-show}"
+    case "$sub" in
+      show)
+        console_eval "JSON.stringify({spec:Memory.warband||'(default)',combatants:Object.values(Game.creeps).filter(c=>c.memory.role==='combatant').map(c=>({u:c.memory.behaviors&&c.memory.behaviors.default,room:c.room.name,act:c.memory.behavior,launched:!!c.memory.launched}))})" ;;
+      set)
+        console_eval "Memory.warband=$2;'set warband: '+JSON.stringify(Memory.warband)" ;;
+      clear)
+        console_eval "delete Memory.warband;'cleared warband spec (code defaults apply)'" ;;
+    esac ;;
 
   map|render)
     # Render a room as an ASCII spatial grid + opt-in TOON layers (see `map --help`).
@@ -144,6 +180,6 @@ NODE
       node bin/map.mjs "$@" ;;
 
   *)
-    sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
     exit 1 ;;
 esac
