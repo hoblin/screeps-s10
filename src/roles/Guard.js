@@ -107,52 +107,45 @@ export class Guard extends Role {
     const range = creep.pos.getRangeTo(target);
     if (hostiles.length > 1 && range <= 1) creep.rangedMassAttack();
     else if (range <= KITE_RANGE) creep.rangedAttack(target);
-    if (range < KITE_RANGE) this.kiteAway(creep, target);
+    if (range < KITE_RANGE) this.kiteAway(creep, armed.length ? armed : hostiles);
     else if (range > KITE_RANGE) creep.travelTo(target, { range: KITE_RANGE });
   }
 
-  // Step back to restore kite distance WITHOUT self-cornering (#130). The old kite
-  // moved blindly opposite the target and froze when that single tile was a wall or a
-  // room exit (the #119 safety) — which is exactly how guard_8142 died, pinned at the
-  // west edge. Instead, score every OPEN neighbour by distance-from-target and take the
-  // farthest, so at an edge we step sideways to keep distance rather than freeze. Fully
-  // boxed in (no open tile) → hold and keep firing.
-  static kiteAway(creep, target) {
-    const tiles = this.openNeighbours(creep);
-    if (!tiles.length) return;
-    let best = null;
-    let bestRange = -Infinity;
-    for (const tile of tiles) {
-      const range = tile.getRangeTo(target);
-      if (range > bestRange) {
-        bestRange = range;
-        best = tile;
-      }
-    }
-    if (best) creep.move(creep.pos.getDirectionTo(best));
+  // Retreat to restore kite distance WITHOUT self-cornering (#130). The death case was
+  // guard_8142 kiting straight into the west edge and freezing. A greedy "best adjacent
+  // tile" still self-traps in concave terrain (a swamp/wall pocket) because it only looks
+  // one tile ahead — so we flee with a real path search: PathFinder routes AWAY from EVERY
+  // threat with full lookahead, stepping around small obstacles and never into a dead end,
+  // and shuns swamp via the default terrain cost. The cost matrix blocks room-exit tiles
+  // (#119 — stay in the room), obstacle structures, and other creeps. We take the first
+  // step and re-plan next tick; an empty path (boxed in, or already at range) → hold and
+  // keep firing (the ranged shot above already fired this tick).
+  static kiteAway(creep, threats) {
+    const goals = threats.map((t) => ({ pos: t.pos, range: KITE_RANGE }));
+    const { path } = PathFinder.search(creep.pos, goals, {
+      flee: true,
+      maxRooms: 1,
+      roomCallback: () => this.kiteCostMatrix(creep.room),
+    });
+    if (path.length) creep.move(creep.pos.getDirectionTo(path[0]));
   }
 
-  // The adjacent tiles a guard may retreat onto: INTERIOR only (never x/y 0|49 — the
-  // #119 exit safety keeps it from leaving the room), not a wall, and not blocked by a
-  // non-walkable structure or another creep. Returns RoomPositions (possibly empty).
-  static openNeighbours(creep) {
-    const terrain = creep.room.getTerrain();
-    const tiles = [];
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        if (dx === 0 && dy === 0) continue;
-        const x = creep.pos.x + dx;
-        const y = creep.pos.y + dy;
-        if (x <= 0 || x >= 49 || y <= 0 || y >= 49) continue; // #119: never an exit tile
-        if (terrain.get(x, y) === TERRAIN_MASK_WALL) continue;
-        if (creep.room.lookForAt(LOOK_CREEPS, x, y).length) continue;
-        const blocked = creep.room
-          .lookForAt(LOOK_STRUCTURES, x, y)
-          .some((s) => OBSTACLE_OBJECT_TYPES.includes(s.structureType));
-        if (blocked) continue;
-        tiles.push(new RoomPosition(x, y, creep.room.name));
-      }
+  // Cost matrix for the kite flee search: hard-block the room-exit ring (#119 — never
+  // leave the room), every non-walkable structure, and every other creep (can't path onto
+  // an occupied tile). Walls come free from terrain; swamp stays costly via PathFinder's
+  // default swampCost, so the flee naturally prefers plains.
+  static kiteCostMatrix(room) {
+    const matrix = new PathFinder.CostMatrix();
+    for (let i = 0; i < 50; i++) {
+      matrix.set(0, i, 0xff);
+      matrix.set(49, i, 0xff);
+      matrix.set(i, 0, 0xff);
+      matrix.set(i, 49, 0xff);
     }
-    return tiles;
+    for (const s of room.find(FIND_STRUCTURES)) {
+      if (OBSTACLE_OBJECT_TYPES.includes(s.structureType)) matrix.set(s.pos.x, s.pos.y, 0xff);
+    }
+    for (const c of room.find(FIND_CREEPS)) matrix.set(c.pos.x, c.pos.y, 0xff);
+    return matrix;
   }
 }
