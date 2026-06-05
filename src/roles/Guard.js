@@ -23,6 +23,12 @@ const GUARD_PARK_DELAY = 5; // ticks to hold the spot after the last hostile con
 //  fresh via vision); only the overlord releasing it (room left the footprint) sends
 //  it home. Bailing on a false alarm happens only in transit (room cooled en route).
 //
+//  Retaliation (#140): once its room cools, the OVERLORD may redirect this idle guard to deny the
+//  attacker's tower-free remote — it stamps the enemy room as `guardRoom` + a `retaliationMission`.
+//  The guard then travels and engages/holds there exactly as it garrisons home, denying his economy
+//  (the in-transit empty-bail is suppressed for the mission). The armed attacker's owner is
+//  remembered here in `engage` as `creep.memory.foughtOwner`.
+//
 //  Type is rock-paper-scissors to the enemy profile (chosen by the overlord):
 //   • "ranged" — RANGED_ATTACK + HEAL + MOVE: kites melee (they can't reach us) and
 //     out-sustains a ranged mirror. The robust counter to any MOBILE threat.
@@ -71,8 +77,11 @@ export class Guard extends Role {
     // mopping; and we never bail blind (no vision → trust the dispatch, keep going).
     // The on-arrival scan below then decides mop / park / (nothing to do →) garrison.
     if (creep.room.name !== room) {
+      // Bail on a confirmed-empty room in transit — but NOT on a retaliation mission (#140): a
+      // momentarily-empty enemy remote isn't a false alarm, it's the target; the overlord owns
+      // when that mission ends (recall / tower / he left).
       const seen = Game.rooms[room];
-      if (seen && seen.find(FIND_HOSTILE_CREEPS).length === 0) {
+      if (seen && !creep.memory.retaliationMission && seen.find(FIND_HOSTILE_CREEPS).length === 0) {
         creep.memory.guardRoom = null;
         return this.recycleAtHome(creep, colony);
       }
@@ -100,7 +109,9 @@ export class Guard extends Role {
       this.note(creep, "guard:to-post");
       creep.travelTo(ctrl, { range: 1 });
     } else {
-      this.note(creep, "guard:park"); // garrison: defend the controller, deny reservers, keep intel fresh
+      // Garrison: defend the controller, deny reservers, keep intel fresh. On a retaliation
+      // mission (#140) the "controller" is the ATTACKER's — parking there denies HIS remote.
+      this.note(creep, creep.memory.retaliationMission ? "guard:deny" : "guard:park");
     }
   }
 
@@ -125,6 +136,10 @@ export class Guard extends Role {
     if (!hostiles.length) return false;
     const armed = hostiles.filter((h) => Threat.combatPower(h) > 0);
     const target = creep.pos.findClosestByRange(armed.length ? armed : hostiles);
+    // Remember the ARMED attacker's owner so the overlord can deny that player's remote once this
+    // room cools (sunk-asset retaliation #140). Harmless scouts/reservers (combatPower 0) don't
+    // earn revenge — only a creep we actually had to fight.
+    if (armed.length && target.owner) creep.memory.foughtOwner = target.owner.username;
 
     if (creep.memory.guardType === "melee") {
       this.note(creep, "guard:melee");

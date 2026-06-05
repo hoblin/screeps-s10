@@ -2,6 +2,11 @@ import { Overlord } from "./Overlord.js";
 import { Guard } from "../roles/Guard.js";
 import { Threat } from "../lib/Threat.js";
 
+// Retaliation tunables (#140 — sunk-asset offence; ship and observe).
+const RETALIATE_FRESH = 1000; // a target/route room's intel must be this fresh (ticks) to trust it
+const RETALIATE_TILES_PER_ROOM = 50; // rough tiles/room → travel ticks for the TTL gate
+const RETALIATE_MIN_DENY = 100; // remaining life the guard needs AFTER arrival to do real damage
+
 // ============================================================================
 //  GuardOverlord — owns the combat-clearing domain (#118, Levels 2-3 of the
 //  threat ladder; home defense added in #122). A cheap enemy harasser can deny a
@@ -129,11 +134,96 @@ export class GuardOverlord extends Overlord {
       ...this.colony.remoteSources().map((s) => s.room),
     ]);
     for (const creep of this.assignedCreeps) {
-      if (creep.memory.guardRoom && !footprint.has(creep.memory.guardRoom)) {
+      this.manageRetaliation(creep); // sunk-asset offence (#140) — may redirect an idle guard
+      // Release a guard whose room left our footprint — UNLESS it's on a retaliation mission, whose
+      // target (the attacker's remote) is off-footprint by definition.
+      if (creep.memory.guardRoom && !footprint.has(creep.memory.guardRoom) && !creep.memory.retaliationMission) {
         creep.memory.guardRoom = null;
       }
     }
     super.run();
+  }
+
+  // Sunk-asset retaliation (#140): an idle GARRISONING guard — one whose room has cooled, so it's
+  // standing around (#128) — goes and denies the attacker's economy for free (zero marginal spawn).
+  // The attacker is the owner of the last ARMED hostile this guard fought (stamped by Guard.engage).
+  // Defence > offence: a home threat instantly recalls it. Live roomIntel only — scouts keep owner/
+  // reserver/towers fresh map-wide (#142), so the pre-scout baked players-map is unnecessary.
+  manageRetaliation(creep) {
+    const mission = creep.memory.retaliationMission;
+    // Recall the instant home is threatened — drop the revenge, head home (home is in-footprint, so
+    // the release check leaves it; the guard defends or recycles there).
+    if (mission && this.homeTarget()) {
+      delete creep.memory.retaliationMission;
+      creep.memory.guardRoom = this.colony.name;
+      return;
+    }
+    // Keep an active mission only while the target is still a deniable room of that attacker (he may
+    // have left or built a tower since — re-confirmed as our vision refreshes the intel). Else recall.
+    if (mission) {
+      if (!this.deniable(mission, creep.memory.foughtOwner, creep)) {
+        delete creep.memory.retaliationMission;
+        creep.memory.guardRoom = this.colony.name;
+      }
+      return;
+    }
+    // No mission: only an IDLE guard (on its post, room cooled to not-hot) with a remembered armed
+    // attacker is eligible. Find that attacker's nearest deniable remote it can reach in time.
+    if (creep.room.name !== creep.memory.guardRoom) return; // still in transit to its post
+    if (Threat.isHot(creep.memory.guardRoom)) return; // still fighting — not idle
+    const owner = creep.memory.foughtOwner;
+    if (!owner) return;
+    const target = this.retaliationTarget(owner, creep);
+    if (target) {
+      creep.memory.retaliationMission = target;
+      creep.memory.guardRoom = target; // the in-transit branch carries it there
+    }
+  }
+
+  // The nearest reachable, winnable, tower-free room owned/reserved by `owner` that this guard can
+  // reach AND still have life to damage — or null. Only a guard's own deniable candidates trigger a
+  // (cost-bearing) route search, so this stays cheap.
+  retaliationTarget(owner, creep) {
+    const intel = Memory.roomIntel || {};
+    let best = null;
+    let bestLen = Infinity;
+    for (const room in intel) {
+      if (!this.deniable(room, owner, creep)) continue;
+      const route = this.towerFreeRoute(creep.room.name, room);
+      if (!route || route.length >= bestLen) continue;
+      const travel = route.length * RETALIATE_TILES_PER_ROOM;
+      if ((creep.ticksToLive || CREEP_LIFE_TIME) < travel + RETALIATE_MIN_DENY) continue; // can't arrive + act
+      bestLen = route.length;
+      best = room;
+    }
+    return best;
+  }
+
+  // Is `room` a deniable target of `owner`: his (owned or reserved) room, tower-free, fresh intel,
+  // and winnable by this guard's current body.
+  deniable(room, owner, creep) {
+    if (!owner) return false;
+    const intel = Memory.roomIntel?.[room];
+    if (!intel || Game.time - intel.tick > RETALIATE_FRESH) return false;
+    if (intel.towers > 0) return false;
+    if (intel.owner !== owner && intel.reserver !== owner) return false;
+    return Threat.winnable(creep.body.map((p) => p.type), room);
+  }
+
+  // A multi-room route from→to avoiding rooms with hostile towers AND rooms we haven't freshly
+  // scouted (never path a guard BLIND into a possible tower — only down a vetted tower-free
+  // corridor). Returns the route array, or null if none. The destination is vetted by deniable().
+  towerFreeRoute(from, to) {
+    if (from === to) return [];
+    const route = Game.map.findRoute(from, to, {
+      routeCallback: (roomName) => {
+        if (roomName === to) return 1;
+        const intel = Memory.roomIntel?.[roomName];
+        if (!intel || Game.time - intel.tick > RETALIATE_FRESH) return Infinity; // unscouted → blind
+        return intel.towers > 0 ? Infinity : 1; // known tower → avoid
+      },
+    });
+    return Array.isArray(route) ? route : null; // ERR_NO_PATH → null
   }
 
   runCreep(creep) {
