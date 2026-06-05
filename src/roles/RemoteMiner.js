@@ -16,7 +16,8 @@ import { Threat } from "../lib/Threat.js";
 //  pile; a self-built container (less decay over the long haul) is a later
 //  refinement. The target room + source tile are stamped by RemoteMiningOverlord
 //  (#102 — one miner per source). The map already excluded SK/enemy rooms; if its
-//  room turns hot (shared intel #105) the miner retreats home until it cools.
+//  room turns unsafe for the economy (Threat.isHotForEconomy, #150 — gross intel #105
+//  netted by our guard present) the miner retreats home until it's safe again.
 // ============================================================================
 export class RemoteMiner extends Role {
   // Low priority: it lives parked on a foreign source, far from home traffic.
@@ -32,9 +33,9 @@ export class RemoteMiner extends Role {
     // The miner just executes its assignment: RemoteMiningOverlord (the domain
     // controller, #102) decides WHICH source this creep serves and stamps it here —
     // and re-homes it when rooms go hot. The role only reads its current target.
-    // If its room is contested it holds home, reading the SHARED threat intel
-    // (Threat.isHot, #105) — not a per-tick local hostile scan, which is what used to
-    // flee a harmless scout and oscillate at the border.
+    // It holds home when its room is unsafe FOR THE ECONOMY — Threat.isHotForEconomy
+    // (#150): the shared intel (#105) netted by our own force present, so it keeps mining
+    // while a guard holds the room and flees only if the guard can't (net threat positive).
     const target = creep.memory.remoteSource;
     if (!target) {
       // No assignment → the controller has no safe source for it (or it's a legacy

@@ -11,9 +11,10 @@ import { Threat } from "../lib/Threat.js";
 //  SAME freight-turnover model (#84) summed over every source we're actually mining:
 //    N = ceil( 2·Σ(r·d)·margin / (C·v) )
 //  r = a remote miner's output, d = that source's one-way haul (static map), C =
-//  hauler capacity. Demand is summed only over sources with a LIVE miner in a
-//  non-hot room — so the fleet tracks real production (it grows as miners come
-//  online, not ahead of them) and ignores contested rooms. Sustaining this haul of
+//  hauler capacity. Demand is summed only over sources with a LIVE miner in an
+//  economy-safe room — so the fleet tracks real production (it grows as miners come
+//  online, not ahead of them) and ignores under-defended rooms (Threat.isHotForEconomy,
+//  #150 — a guard-held room keeps its haulers). Sustaining this haul of
 //  already-committed production is NOT expansion (it collects a return on a remote we
 //  already paid for), so it is NOT expansionReady-gated (#131): expansionReady is the
 //  "start a NEW remote" trigger and self-throttles to false when the spawn is busy —
@@ -61,7 +62,8 @@ export class RemoteLogisticsOverlord extends Overlord {
 
   // No per-creep target stamp: the fleet is shared and each hauler picks its remote
   // pickup live from colony.remoteSources() (the fullest active pile), re-routing off
-  // a contested room on its own (#105). The base spawn tags are enough.
+  // an economy-unsafe room on its own (Threat.isHotForEconomy, #150 — a guard-held room
+  // keeps its haulers). The base spawn tags are enough.
   runCreep(creep) {
     RemoteHauler.run(creep, this.colony);
   }

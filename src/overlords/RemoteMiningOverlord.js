@@ -9,8 +9,9 @@ import { Threat } from "../lib/Threat.js";
 //  stateless controller over a domain, and the stateful things — a source's tile,
 //  a miner's current assignment, a room's threat — are the model (the static map,
 //  creep memory, the intel overlay). Owning the domain in one place is what makes
-//  cross-source decisions trivial: when a room turns hot we re-home its miners onto
-//  a free safe source (or pull them back) with full visibility — no coordination
+//  cross-source decisions trivial: when a room turns economy-unsafe (Threat.isHotForEconomy,
+//  #150) we re-home its miners onto a free safe source (or pull them back) with full
+//  visibility — no coordination
 //  between per-source instances.
 //
 //  Allocation: one miner per safe source (reachable + not currently hot), value
@@ -31,8 +32,9 @@ export class RemoteMiningOverlord extends Overlord {
     return "remoteMiner";
   }
 
-  // The domain's current target set: every mineable remote source whose room isn't
-  // contested right now (#105). Value-ranked (remoteSources() already sorts).
+  // The domain's current target set: every mineable remote source whose room is
+  // economy-safe right now (Threat.isHotForEconomy, #150 — a guard-held room still
+  // counts; only an under-defended threat excludes it). Value-ranked (remoteSources() sorts).
   safeSources() {
     return this.colony.remoteSources().filter((s) => !Threat.isHotForEconomy(s.room));
   }

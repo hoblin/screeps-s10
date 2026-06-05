@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+# ============================================================================
+#  sapi — Screeps API helper for live-ops (QOL wrapper; NOT bot runtime).
+#
+#  DRYs the auth + curl + shard boilerplate I kept rewriting per call. Defaults
+#  to the SEASON server/shard; pass --main (or SAPI_SERVER/SAPI_SHARD env) for
+#  shard2. Output goes through `toon` by default; add --json for raw JSON.
+#
+#  Token resolution (no secret in the repo): $SCREEPS_TOKEN env → tmp/.sapi-token
+#  (gitignored cache) → 1Password (fetched once, then cached). To force a refresh,
+#  delete tmp/.sapi-token.
+#
+#  Usage:
+#    bin/sapi time                       # game time
+#    bin/sapi obj E15S7 [--json]         # room-objects
+#    bin/sapi score E0S22 E10S10 ...     # room-objects filtered to score structures
+#    bin/sapi owners E15S7 E16S7 ...     # map-stats owner0 (ownership snapshot)
+#    bin/sapi mem status                 # Memory.status (gz-decoded) — or roomLog.E15S7, etc.
+#    bin/sapi get game/room-status "room=E15S7"   # raw GET /api/<path>?<query>&shard=
+#    bin/sapi --main obj W55S43          # target the main server instead of season
+#
+#  Filtering — add --jq '<filter>' to filter via jq; the result stream is slurped into a
+#  JSON array and rendered with toon (readable tables). Write STREAMING filters (emit one
+#  value per match); add --json after --jq for raw jq output instead.
+#    bin/sapi obj E15S7 --jq '.objects[]|select(.type=="tower")|{x,y,e:.store.energy}'
+#    bin/sapi owners E15S7 E16S7 --jq '.stats|to_entries[]|{room:.key,own:.value.own}'
+#    bin/sapi obj E10S7 --jq '.objects[]|select(.type=="creep")|.user' --json | sort -u
+# ============================================================================
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TOKFILE="$ROOT/tmp/.sapi-token"
+
+SERVER="${SAPI_SERVER:-https://screeps.com/season}"
+SHARD="${SAPI_SHARD:-shardSeason}"
+JSON=0
+JQ=""
+
+# Flags can appear anywhere; --jq consumes the next arg as its filter.
+args=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --main) SERVER="https://screeps.com"; SHARD="shard2" ;;
+    --json) JSON=1 ;;
+    --jq) shift; JQ="${1:-.}" ;;
+    *) args+=("$1") ;;
+  esac
+  shift
+done
+set -- "${args[@]}"
+
+ensure_token() {
+  [ -n "${SCREEPS_TOKEN:-}" ] && return
+  if [ -s "$TOKFILE" ]; then SCREEPS_TOKEN="$(cat "$TOKFILE")"; return; fi
+  export OP_SESSION_my="$(printf '%s' 'ItuS0tVfzTX6HXsi2a33' | op signin --account my --raw)"
+  SCREEPS_TOKEN="$(op item get 'Screeps API token' --vault Bonk --account my --fields credential --reveal 2>/dev/null)"
+  mkdir -p "$ROOT/tmp"; ( umask 077; printf '%s' "$SCREEPS_TOKEN" >"$TOKFILE" )
+}
+
+# Emit a JSON stream:
+#   --jq         → filter, slurp the result stream into a valid JSON array, render via toon
+#   --jq --json  → filter, raw jq output (for piping)
+#   --json       → raw curl JSON
+#   (default)    → toon
+out() {
+  if [ -n "$JQ" ]; then
+    if [ "$JSON" = 1 ]; then jq "$JQ"; else jq "$JQ" | jq -s '.' | toon; fi
+  elif [ "$JSON" = 1 ]; then cat
+  else toon; fi
+}
+
+api_get()  { curl -s "$SERVER/api/$1" -H "X-Token: $SCREEPS_TOKEN"; }
+api_post() { curl -s "$SERVER/api/$1" -H "X-Token: $SCREEPS_TOKEN" -H "Content-Type: application/json" -d "$2"; }
+
+# Build a JSON array literal from the remaining positional args (room names).
+json_rooms() { printf '%s\n' "$@" | python3 -c 'import json,sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))'; }
+
+ensure_token
+cmd="${1:-}"; shift || true
+
+case "$cmd" in
+  time)
+    api_get "game/time?shard=$SHARD" | out ;;
+
+  obj|objects)
+    api_get "game/room-objects?room=$1&shard=$SHARD" | out ;;
+
+  score)
+    # room-objects for each room, filtered to score structures (collectors/containers).
+    for r in "$@"; do
+      api_get "game/room-objects?room=$r&shard=$SHARD" | python3 -c "
+import json,sys
+try: d=json.load(sys.stdin)
+except: sys.exit()
+for o in (d.get('objects') or []):
+    if 'score' in (o.get('type') or '').lower():
+        print('$r', json.dumps({k:o.get(k) for k in ('type','x','y','score','decayTime','store')}))"
+      sleep 0.12
+    done ;;
+
+  owners)
+    api_post "game/map-stats" "{\"rooms\":$(json_rooms "$@"),\"statName\":\"owner0\",\"shard\":\"$SHARD\"}" | out ;;
+
+  mem|memory)
+    api_get "user/memory?path=$1&shard=$SHARD" | python3 -c "
+import json,sys,base64,zlib
+d=json.load(sys.stdin); data=d.get('data')
+if isinstance(data,str) and data.startswith('gz:'):
+    data=json.loads(zlib.decompress(base64.b64decode(data[3:]),16+zlib.MAX_WBITS))
+print(json.dumps(data))" | out ;;
+
+  get)
+    # raw GET: bin/sapi get <path> ["extra=query&more=1"]  (shard appended automatically)
+    sep="?"; [[ "$1" == *"?"* ]] && sep="&"
+    api_get "${1}${sep}${2:-}&shard=$SHARD" | out ;;
+
+  *)
+    sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'
+    exit 1 ;;
+esac

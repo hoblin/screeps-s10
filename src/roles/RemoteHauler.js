@@ -31,9 +31,9 @@ export class RemoteHauler extends Hauler {
   // ---- collect: cross to a remote source and grab the miner's ground pile -----
   static collect(creep, colony) {
     // Hold the source we committed to for this load trip (latched in haulTarget; the
-    // base Hauler.run clears it on the full-load edge so the next trip re-picks). Drop
-    // it the moment its room turns hot — read from the shared intel (#105), not a
-    // local hostile scan (which fled a harmless scout and oscillated at the border).
+    // base Hauler.run clears it on the full-load edge so the next trip re-picks). Drop it
+    // the moment its room is unsafe FOR THE ECONOMY — Threat.isHotForEconomy (#150): the
+    // shared intel (#105) netted by our force present, so a guard-held room keeps its hauler.
     let target = creep.memory.haulTarget;
     if (target && Threat.isHotForEconomy(target.room)) target = creep.memory.haulTarget = null;
     if (!target) {
@@ -99,7 +99,8 @@ export class RemoteHauler extends Hauler {
   // source container's contents (#114), since once a container is built the energy
   // banks there instead of on the ground. A miner gives us vision of its room; with
   // no vision the term is 0 and we fall back to the value-ranked order
-  // (remoteSources() is sorted best-first). Hot rooms are excluded.
+  // (remoteSources() is sorted best-first). Rooms unsafe FOR THE ECONOMY are excluded
+  // (Threat.isHotForEconomy, #150 — a guard-held room stays a target).
   static pickHaulTarget(colony) {
     const active = colony.remoteSources().filter((s) => !Threat.isHotForEconomy(s.room));
     if (!active.length) return null;

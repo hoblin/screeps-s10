@@ -44,7 +44,7 @@ export class RemoteWorkOverlord extends Overlord {
   // before REPAIR (damaged), most-damaged first. A source qualifies only if it's
   // currently MINED (a live miner is assigned — no point building a container at a
   // source nobody fills, and this also drops stale cache after a miner re-homes) and
-  // the room is safe.
+  // the room is economy-safe (Threat.isHotForEconomy, #150 — a guard-held room still works).
   needyWork() {
     const cont = this.remoteContainers();
     const mined = new Set(
