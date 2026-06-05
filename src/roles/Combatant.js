@@ -12,10 +12,10 @@ import { BehaviorMachine } from "../behaviors/BehaviorMachine.js";
 //  than frozen to one role. A warband draws its members from the combat catalog
 //  (raidRoom / holdPoint / focusFire / healGroup / kiteScreen).
 //
-//  No overlord spawns combatants yet — the #174 command interface + a WarbandOverlord
-//  do that. Registering the role here makes the layer REACHABLE and runnable in the
-//  meantime (a hand-spawned combatant with a behaviors set just works), and gives it
-//  a combat movement rank, without touching or destabilising any existing role.
+//  WarbandOverlord (#174) spawns + drives combatants via the flag-commanded warband;
+//  a hand-spawned combatant with a behaviors set also just works (the registry entry
+//  makes the layer reachable). The role only carries a combat movement rank — all
+//  conduct lives in the behaviors, so no existing role is touched.
 // ============================================================================
 export class Combatant extends Role {
   // Combat rank, same as Guard — it has somewhere to be and shouldn't be shoved by idlers.

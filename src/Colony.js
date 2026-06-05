@@ -12,6 +12,7 @@ import { GuardOverlord } from "./overlords/GuardOverlord.js";
 import { DefenseOverlord } from "./overlords/DefenseOverlord.js";
 import { ScoutOverlord } from "./overlords/ScoutOverlord.js";
 import { FillerOverlord } from "./overlords/FillerOverlord.js";
+import { WarbandOverlord } from "./overlords/WarbandOverlord.js";
 import { RoomHealthCheck } from "./lib/RoomHealthCheck.js";
 import { Miner } from "./roles/Miner.js";
 import { bodyCost } from "./lib/BodyGenerator.js";
@@ -75,6 +76,7 @@ export class Colony {
       new GuardOverlord(this), // clears winnable threats in the remote footprint (#118)
       new DefenseOverlord(this), // places + operates towers (no-op until RCL3)
       new ScoutOverlord(this), // roams cheap scouts to keep map intel fresh (#142)
+      new WarbandOverlord(this), // commander's manual offence: flag-commanded warband (#174)
     ];
   }
 
