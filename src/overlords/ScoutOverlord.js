@@ -9,6 +9,8 @@ const DESIRED_SCOUTS = 2; // small continuous fleet
 const SCAN_RADIUS = 6; // BFS room-radius from home to consider (a scout's reach)
 const ROUTE_CAP = 8; // max rooms per assigned leg (loose TTL cap; early death frees the tail)
 const STALE_MAX = 20000; // staleness cap; a never-seen room uses this as its age
+const CLAIMED_PENALTY = 0.1; // another scout's queued room: deprioritise, don't exclude
+const EMPTY_REPLAN_COOLDOWN = 50; // ticks before retrying a plan that came back empty
 
 // Room value by type (× staleness = priority). Score structures are the prize, so their
 // rooms outrank everything; a known collector (a banking site) is kept freshest of all.
@@ -46,7 +48,10 @@ export class ScoutOverlord extends Overlord {
 
   // Scout once the economy is self-sustaining (Stage 2b) and we're not in crisis. The
   // count is flat; the priority gate (not a health latch) decides when one actually spawns.
+  // Requires an expansionMap entry: it carries the SK/enemy-core avoid list, without which
+  // we can't route scouts safely — so no map entry (e.g. an unscanned room) ⇒ no scouts.
   desiredCount() {
+    if (!expansionMap[this.colony.name]) return 0;
     if (!stageAtLeast(this.colony, "2b:Hauling")) return 0;
     if (this.colony.health.recovering) return 0;
     return DESIRED_SCOUTS;
@@ -71,22 +76,26 @@ export class ScoutOverlord extends Overlord {
     const alive = new Set(this.assignedCreeps.map((c) => c.name));
     // Claim-by-liveness: a route whose scout is gone releases its rooms (just delete it).
     for (const name in routes) if (!alive.has(name)) delete routes[name];
-    // Give every live scout a fresh leg if it has none or finished its last one.
+    // Give every live scout a fresh leg if it has none or finished its last one. An empty
+    // plan (no candidates this tick) backs off for a cooldown so we don't re-run the BFS
+    // every tick for a scout that has nowhere to go.
     for (const creep of this.assignedCreeps) {
       const plan = routes[creep.name];
-      if (!plan || plan.index >= plan.route.length) {
-        routes[creep.name] = { route: this.planRoute(creep.pos.roomName), index: 0 };
-      }
+      if (plan && plan.index < plan.route.length) continue; // still walking its route
+      if (plan && plan.route.length === 0 && Game.time - plan.tick < EMPTY_REPLAN_COOLDOWN) continue;
+      routes[creep.name] = { route: this.planRoute(creep.pos.roomName), index: 0, tick: Game.time };
     }
     super.run();
   }
 
-  // Greedy route from a start room: repeatedly hop to the best value-per-distance room
-  // among the unclaimed candidates, up to ROUTE_CAP. Value-per-distance keeps the chain
-  // from zig-zagging across the map.
+  // Greedy route from a start room: repeatedly hop to the best value-per-distance room,
+  // up to ROUTE_CAP. Rooms another live scout already queued are kept in the pool but
+  // heavily DEPRIORITISED (× CLAIMED_PENALTY), not excluded — so the fleet fans out, yet
+  // a scout can still take a uniquely-valuable room (a chokepoint) another claimed rather
+  // than be starved; their target sets just diverge. Value-per-distance avoids zig-zags.
   planRoute(fromRoom) {
     const claimed = this.claimedRooms();
-    const pool = this.candidateRooms().filter((c) => !claimed.has(c.room));
+    const pool = this.candidateRooms();
     const route = [];
     let cursor = fromRoom;
     while (route.length < ROUTE_CAP && pool.length) {
@@ -94,7 +103,8 @@ export class ScoutOverlord extends Overlord {
       let bestScore = -Infinity;
       for (let i = 0; i < pool.length; i++) {
         const dist = Game.map.getRoomLinearDistance(cursor, pool[i].room) || 1;
-        const score = pool[i].score / dist;
+        let score = pool[i].score / dist;
+        if (claimed.has(pool[i].room)) score *= CLAIMED_PENALTY;
         if (score > bestScore) {
           bestScore = score;
           bestIdx = i;

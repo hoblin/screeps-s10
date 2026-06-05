@@ -1,4 +1,5 @@
 import { Role } from "./Role.js";
+import { Threat } from "../lib/Threat.js";
 
 // ============================================================================
 //  Scout — roams the map to keep room intel fresh (#142).
@@ -53,14 +54,18 @@ export class Scout extends Role {
     creep.travelTo(new RoomPosition(25, 25, target), { range: 20 });
   }
 
-  // Fire back only when actually damaged this tick (hits dropped since last seen). Never
-  // chases or steps off-route — just punishes an attacker already in range, then records
-  // this tick's hits for next time.
+  // Fire back only when actually damaged this tick (hits dropped since last seen), and
+  // only at an ARMED hostile in range — never a passing worker, and never off-route (a
+  // tower-inflicted hit with no armed creep nearby just gets recorded, not chased). Then
+  // store this tick's hits for next time.
   static retaliate(creep) {
     const previous = creep.memory.lastHits ?? creep.hitsMax;
     if (creep.hits < previous) {
-      const attacker = creep.pos.findClosestByRange(FIND_HOSTILE_CREEPS);
-      if (attacker && creep.pos.getRangeTo(attacker) <= 3) creep.rangedAttack(attacker);
+      const armed = creep.pos
+        .findInRange(FIND_HOSTILE_CREEPS, 3)
+        .filter((h) => Threat.combatPower(h) > 0);
+      const attacker = creep.pos.findClosestByRange(armed);
+      if (attacker) creep.rangedAttack(attacker);
     }
     creep.memory.lastHits = creep.hits;
   }
