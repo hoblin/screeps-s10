@@ -116,24 +116,26 @@ export class Guard extends Role {
   // tile" still self-traps in concave terrain (a swamp/wall pocket) because it only looks
   // one tile ahead — so we flee with a real path search: PathFinder routes AWAY from EVERY
   // threat with full lookahead, stepping around small obstacles and never into a dead end,
-  // and shuns swamp via the default terrain cost. The cost matrix blocks room-exit tiles
-  // (#119 — stay in the room), obstacle structures, and other creeps. We take the first
-  // step and re-plan next tick; an empty path (boxed in, or already at range) → hold and
-  // keep firing (the ranged shot above already fired this tick).
+  // and shuns swamp via the default terrain cost. The first step is handed to travelTo (not
+  // a raw move) so it registers with the traffic resolver and can shove a lower-priority
+  // idler out of the retreat rather than be walled in. We re-plan next tick; an empty path
+  // (boxed in, or already at range) → hold and keep firing (the ranged shot already fired).
   static kiteAway(creep, threats) {
+    const matrix = this.kiteCostMatrix(creep.room); // built once per call, not per callback
     const goals = threats.map((t) => ({ pos: t.pos, range: KITE_RANGE }));
     const { path } = PathFinder.search(creep.pos, goals, {
       flee: true,
       maxRooms: 1,
-      roomCallback: () => this.kiteCostMatrix(creep.room),
+      roomCallback: () => matrix,
     });
-    if (path.length) creep.move(creep.pos.getDirectionTo(path[0]));
+    if (path.length) creep.travelTo(path[0]);
   }
 
-  // Cost matrix for the kite flee search: hard-block the room-exit ring (#119 — never
-  // leave the room), every non-walkable structure, and every other creep (can't path onto
-  // an occupied tile). Walls come free from terrain; swamp stays costly via PathFinder's
-  // default swampCost, so the flee naturally prefers plains.
+  // Cost matrix for the kite flee search: hard-block the room-exit ring (#119 — never leave
+  // the room), every movement-blocking structure (obstacles + hostile ramparts), and every
+  // HOSTILE creep (can't be shoved or stepped onto). Friendly creeps are left walkable so
+  // the traffic resolver can shove a lower-priority idler aside instead of walling the guard
+  // in. Walls come free from terrain; swamp stays costly via the default swampCost.
   static kiteCostMatrix(room) {
     const matrix = new PathFinder.CostMatrix();
     for (let i = 0; i < 50; i++) {
@@ -143,9 +145,16 @@ export class Guard extends Role {
       matrix.set(i, 49, 0xff);
     }
     for (const s of room.find(FIND_STRUCTURES)) {
-      if (OBSTACLE_OBJECT_TYPES.includes(s.structureType)) matrix.set(s.pos.x, s.pos.y, 0xff);
+      if (this.blocksMovement(s)) matrix.set(s.pos.x, s.pos.y, 0xff);
     }
-    for (const c of room.find(FIND_CREEPS)) matrix.set(c.pos.x, c.pos.y, 0xff);
+    for (const c of room.find(FIND_HOSTILE_CREEPS)) matrix.set(c.pos.x, c.pos.y, 0xff);
     return matrix;
+  }
+
+  // A structure blocks our movement: any standard obstacle type, plus a rampart we don't
+  // own and that isn't public (an enemy rampart is impassable; ours / a public one is not).
+  static blocksMovement(structure) {
+    if (structure.structureType === STRUCTURE_RAMPART) return !structure.my && !structure.isPublic;
+    return OBSTACLE_OBJECT_TYPES.includes(structure.structureType);
   }
 }
