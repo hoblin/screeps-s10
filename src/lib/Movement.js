@@ -48,7 +48,9 @@ export const Movement = {
           const x = s.x + dx;
           const y = s.y + dy;
           if (x < 0 || x > 49 || y < 0 || y > 49) continue;
-          matrix.set(x, y, Math.min(254, matrix.get(x, y) + DANGER_COST));
+          const base = matrix.get(x, y);
+          if (base >= 255) continue; // already impassable (wall/obstacle) — never unblock it
+          matrix.set(x, y, Math.min(254, base + DANGER_COST));
         }
       }
     }
