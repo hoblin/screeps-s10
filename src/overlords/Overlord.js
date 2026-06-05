@@ -40,9 +40,20 @@ export class Overlord {
 
   // ---- hooks for subclasses to override ------------------------------------
 
-  /** String role name carried by this overlord's creeps. */
+  /** Primary role name — used for the default spawn body/memory and the identifier. */
   get role() {
     throw new Error("Overlord subclass must define get role()");
+  }
+
+  /**
+   * Every role this overlord owns. Defaults to just the primary role, so a normal
+   * single-role overlord is unchanged. A controller that drives a SET of roles for one
+   * task (e.g. ScoutOverlord owning "scout" + an optional "escort") overrides this to
+   * list them all; `assignedCreeps` then claims creeps across the whole set and
+   * `runCreep` dispatches by `creep.memory.role`.
+   */
+  get roles() {
+    return [this.role];
   }
 
   /** How many creeps this overlord wants alive. */
@@ -75,11 +86,9 @@ export class Overlord {
    *  - Per-instance overlords claim only creeps tagged with their identifier.
    */
   get assignedCreeps() {
-    const creepsOfRole = this.colony.creepsWithRole(this.role);
-    if (!this.instanceId) return creepsOfRole;
-    return creepsOfRole.filter(
-      (creep) => creep.memory.overlord === this.identifier
-    );
+    const creeps = this.roles.flatMap((role) => this.colony.creepsWithRole(role));
+    if (!this.instanceId) return creeps;
+    return creeps.filter((creep) => creep.memory.overlord === this.identifier);
   }
 
   // ---- shared machinery ----------------------------------------------------

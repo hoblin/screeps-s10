@@ -183,6 +183,18 @@ export const Threat = {
     return Memory.roomIntel?.[roomName]?.tick ?? -Infinity;
   },
 
+  // A room is "winnable" only when a proposed combat BODY out-guns the room's assessed
+  // threat by this factor — not merely beats it (#130). A thin margin (50 vs 40) loses to
+  // a positioning slip, so require comfortable superiority and otherwise leave the room
+  // alone. Shared by GuardOverlord (remote clears) and ScoutOverlord (escort clears).
+  WIN_MARGIN: 1.5,
+
+  // Can a guard with `body` clear `roomName` with a comfortable margin? The go/no-go gate
+  // both combat consumers use before committing a creep.
+  winnable(body, roomName) {
+    return this.guardCombatPower(body) >= this.threatOf(roomName) * this.WIN_MARGIN;
+  },
+
   // Lethal power of a proposed guard BODY (a plain part array) — symmetric to
   // combatPower(creep), so the overlord can ask "does the guard I can afford out-gun
   // the room's threat?" before committing one.

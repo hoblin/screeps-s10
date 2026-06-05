@@ -1,5 +1,7 @@
 import { Overlord } from "./Overlord.js";
 import { Scout } from "../roles/Scout.js";
+import { Escort } from "../roles/Escort.js";
+import { Guard } from "../roles/Guard.js";
 import { Threat } from "../lib/Threat.js";
 import { stageAtLeast } from "../lib/Stages.js";
 import expansionMap from "../data/expansionMap.json";
@@ -12,6 +14,8 @@ const STALE_MAX = 20000; // staleness cap; a never-seen room uses this as its ag
 const CLAIMED_PENALTY = 0.1; // another scout's queued room: deprioritise, don't exclude
 const SCOUT_THREAT_PENALTY = 0.05; // recently killed a scout / live armed threat: deprioritise hard
 const EMPTY_REPLAN_COOLDOWN = 50; // ticks before retrying a plan that came back empty
+const ESCORT_THRESHOLD = 2; // scout casualties in a room before it earns a guard escort (#147)
+const ESCORT_PRIORITY = 5; // escort spawns below economy/defence — clearing a blocker isn't urgent
 
 // Room value by type (× staleness = priority). Score structures are the prize, so their
 // rooms outrank everything; a known collector (a banking site) is kept freshest of all.
@@ -51,6 +55,13 @@ export class ScoutOverlord extends Overlord {
     return "scout";
   }
 
+  // Owns two roles: scouts (always) + an optional escort (#147) — a guard that follows a
+  // mission scout to clear a persistent winnable blocker so a valuable room re-opens to
+  // scouting. One controller, the whole domain — no cross-overlord coordination.
+  get roles() {
+    return ["scout", "escort"];
+  }
+
   // Scout count scales with the hauler army: floor(allHaulers / HAULERS_PER_SCOUT) — 0 until
   // 3 haulers, then 3→1, 6→2, …. Since expansion (and so the hauler count) only grows once
   // the home economy is fulfilled, scouts appear when expansion starts and grow with the
@@ -69,12 +80,49 @@ export class ScoutOverlord extends Overlord {
     return Math.floor(haulers / HAULERS_PER_SCOUT);
   }
 
-  bodyFor(energyBudget) {
-    return Scout.bodyFor(energyBudget);
+  // Spawn an escort FIRST if a mission scout needs a bodyguard, else a scout (counting only
+  // scouts — assignedCreeps now includes escorts too). Fully overrides the base count gate.
+  generateSpawnRequest() {
+    const escort = this.escortSpawnRequest();
+    if (escort) return escort;
+    if (this.colony.creepsWithRole("scout").length >= this.desiredCount()) return null;
+    return {
+      priority: this.priority,
+      role: "scout",
+      body: Scout.bodyFor(this.colony.spawnEnergyBudget()),
+      memory: { role: "scout", colony: this.colony.name, overlord: this.identifier },
+    };
+  }
+
+  // A guard sized to the blocker's threat for a mission scout that lacks a live escort.
+  escortSpawnRequest() {
+    const mission = Object.entries(this.routes).find(([, p]) => p.escortMission);
+    if (!mission) return null;
+    const [scoutName, plan] = mission;
+    if (!Game.creeps[scoutName]) return null; // the scout must be alive to be followed
+    const covered = this.assignedCreeps.some(
+      (c) => c.memory.role === "escort" && c.memory.escortScout === scoutName
+    );
+    if (covered) return null;
+    const profile = Threat.profileFor(plan.escortMission);
+    if (!profile) return null; // intel went stale — don't spawn blind
+    return {
+      priority: ESCORT_PRIORITY,
+      role: "escort",
+      body: Guard.bodyFor(this.colony.spawnEnergyBudget(), profile),
+      memory: {
+        role: "escort",
+        colony: this.colony.name,
+        overlord: this.identifier,
+        escortScout: scoutName,
+        guardType: Guard.counterType(profile),
+      },
+    };
   }
 
   runCreep(creep) {
-    Scout.run(creep, this.colony);
+    if (creep.memory.role === "escort") Escort.run(creep, this.colony);
+    else Scout.run(creep, this.colony);
   }
 
   // The route/claim registry — the single source of truth, owned here, walked by scouts.
@@ -94,18 +142,71 @@ export class ScoutOverlord extends Overlord {
       if (routes[name].lastRoom) Threat.bumpScoutThreat(routes[name].lastRoom);
       delete routes[name];
     }
-    // Give every live scout a fresh leg if it has none or finished its last one. A fleeing
-    // scout (it abandoned its route on attack) is left alone until it's safe, then re-planned
-    // onto a route that avoids the room it fled. An empty plan (no candidates) backs off for
-    // a cooldown so we don't re-run the BFS every tick for a scout with nowhere to go.
+    // Detect a persistent winnable blocker and (re)assign the escort mission (#147).
+    this.manageEscortMission(routes);
+
+    // Give every live SCOUT a fresh leg if it has none or finished its last one (escorts
+    // have no route — they follow their scout). A mission scout is forced onto the blocker
+    // until it's cleared. A fleeing scout is left alone until safe, then re-planned. An empty
+    // plan (no candidates) backs off for a cooldown so we don't re-run the BFS every tick.
     for (const creep of this.assignedCreeps) {
+      if (creep.memory.role !== "scout") continue;
       if ((creep.memory.fleeUntil || 0) > Game.time) continue; // fleeing — don't touch its route
       const plan = routes[creep.name];
+      if (plan?.escortMission) {
+        const onBlocker = plan.route.length === 1 && plan.route[0] === plan.escortMission;
+        if (onBlocker && plan.index < plan.route.length) continue; // still heading to the blocker
+        routes[creep.name] = { route: [plan.escortMission], index: 0, tick: Game.time, escortMission: plan.escortMission };
+        continue;
+      }
       if (plan && plan.index < plan.route.length) continue; // still walking its route
       if (plan && plan.route.length === 0 && Game.time - plan.tick < EMPTY_REPLAN_COOLDOWN) continue;
       routes[creep.name] = { route: this.planRoute(creep.pos.roomName), index: 0, tick: Game.time };
     }
     super.run();
+  }
+
+  // Escort-mission lifecycle (#147): clear a mission once its blocker is cleared (scoutThreat
+  // back to 0), and — if none is active and a persistent winnable blocker exists — assign it
+  // to a live scout (one mission at a time). The forced route + the spawned escort then do
+  // the work; `escortSpawnRequest` reads the mission to field the bodyguard.
+  manageEscortMission(routes) {
+    for (const name in routes) {
+      const blocker = routes[name].escortMission;
+      if (blocker && Threat.scoutThreatOf(blocker) === 0) delete routes[name].escortMission;
+    }
+    if (Object.values(routes).some((p) => p.escortMission)) return; // one mission at a time
+    const blocker = this.findBlocker();
+    if (!blocker) return;
+    const scout = this.assignedCreeps.find(
+      (c) => c.memory.role === "scout" && routes[c.name] && !routes[c.name].escortMission
+    );
+    if (scout) routes[scout.name].escortMission = blocker;
+  }
+
+  // The best persistent, winnable, VALUABLE blocker within reach (or null): a room that has
+  // killed scouts ≥ ESCORT_THRESHOLD times, is worth scouting (highway/score), still holds a
+  // mobile threat, and that an affordable escort out-guns by the win-margin (#130).
+  findBlocker() {
+    const budget = this.colony.spawnEnergyBudget();
+    let best = null;
+    let bestThreat = 0;
+    for (const room of this.roomsWithinRadius(this.colony.name, SCAN_RADIUS)) {
+      const casualties = Threat.scoutThreatOf(room);
+      if (casualties < ESCORT_THRESHOLD || casualties <= bestThreat) continue;
+      if (!this.worthEscorting(room)) continue;
+      const profile = Threat.profileFor(room);
+      if (!profile || profile.attack + profile.ranged === 0) continue; // need a creep to kill
+      if (!Threat.winnable(Guard.bodyFor(budget, profile), room)) continue;
+      best = room;
+      bestThreat = casualties;
+    }
+    return best;
+  }
+
+  // Only escort into rooms whose intel is worth the spawn: highways / known score sites.
+  worthEscorting(room) {
+    return this.isHighway(room) || !!Threat.intelFor(room)?.collectors?.length;
   }
 
   // Greedy route from a start room: repeatedly hop to the best value-per-distance room,
@@ -137,13 +238,17 @@ export class ScoutOverlord extends Overlord {
     return route;
   }
 
-  // Every room any live scout still has queued — the claim set the next plan avoids.
+  // Every room any live scout still has queued — the claim set the next plan avoids. A
+  // mission scout's blocker is claimed for the WHOLE mission (not just while it's queued in
+  // the route): on arrival the scout sits at index === route.length, which would otherwise
+  // drop the claim for a tick and let another scout get routed into the harasser.
   claimedRooms() {
     const claimed = new Set();
     const routes = this.routes;
     for (const name in routes) {
       const plan = routes[name];
       for (let i = plan.index; i < plan.route.length; i++) claimed.add(plan.route[i]);
+      if (plan.escortMission) claimed.add(plan.escortMission);
     }
     return claimed;
   }
