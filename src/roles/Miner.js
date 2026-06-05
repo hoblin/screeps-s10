@@ -32,6 +32,20 @@ export class Miner extends Role {
     return bodyFromTemplate([WORK, MOVE, MOVE], { extra: [WORK], max: 4, energy: energyBudget });
   }
 
+  // Ticks to cross ONE plain tile en route (the body's locomotion — the miner knows its own
+  // speed). Screeps fatigue rule: every body part generates fatigue per step EXCEPT MOVE parts and
+  // EMPTY CARRY parts (this is why an empty hauler returns at full speed). A miner travels to its
+  // post EMPTY, so only its WORK parts generate fatigue — CARRY (LinkedMiner) is empty and excluded.
+  // Plain = 2 fatigue/heavy-part/step; each MOVE clears 2/tick ⇒ ticksPerTile = ceil(heavy / move),
+  // min 1. Plain is the conservative assumption (roads only make it faster, so this never under-
+  // times a route); used to schedule JIT relief (#168). 5 WORK + 2 MOVE → 3 ticks/tile.
+  static ticksPerTile(body) {
+    const move = body.filter((p) => p === MOVE).length;
+    if (!move) return body.length; // degenerate — a miner always carries MOVE
+    const heavy = body.filter((p) => p !== MOVE && p !== CARRY).length;
+    return Math.max(1, Math.ceil(heavy / move));
+  }
+
   // Energy/tick this body extracts at a given spawn-energy budget: WORK×HARVEST_POWER
   // capped at the source regen (SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME = 10/tick).
   // The logistics fleet sizes itself to this PREDICTED production (#84) — reasoning
