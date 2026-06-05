@@ -11,6 +11,7 @@ import { RemoteWorker } from "./RemoteWorker.js";
 import { Guard } from "./Guard.js";
 import { Scout } from "./Scout.js";
 import { Escort } from "./Escort.js";
+import { Filler } from "./Filler.js";
 
 // ============================================================================
 //  Role registry — the one place that maps a creep's role STRING (as stored in
@@ -18,6 +19,15 @@ import { Escort } from "./Escort.js";
 //  hold a creep (e.g. the TrafficManager reading creep.memory.role) reach the
 //  role's static declarations — like `movementPriority` — without a central
 //  switchboard that re-lists every role. Each role owns its own values.
+//
+//  ADDING A ROLE — touch these three places:
+//    1. Register it in the ROLES map below (role string → class).
+//    2. Set its static `movementPriority` (lower wins tile contention; each role documents
+//       its own rank). Current ladder: 1 miner · 2 hauler/harvester/filler ·
+//       3 guard/upgrader/worker/remoteHauler · 4 remoteWorker/(default) ·
+//       5 remoteMiner/reserver · 8 scout.
+//    3. Wire an Overlord to spawn/run it in Colony.js (+ its spawn `priority` — ladder in
+//       Overlord.js).
 // ============================================================================
 export const ROLES = {
   miner: Miner,
@@ -32,6 +42,7 @@ export const ROLES = {
   guard: Guard,
   scout: Scout,
   escort: Escort,
+  filler: Filler,
 };
 
 // Resolve a role string to its class, defaulting to the base Role (so an unknown

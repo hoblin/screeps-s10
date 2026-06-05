@@ -17,7 +17,7 @@ export class Role {
   // and a future Behavior (#39) can override per-creep on top of that. The
   // ordering encodes the economy's critical path: logistics (miner/hauler)
   // outranks work, work outranks idling, so a creep that physically moves energy
-  // is never walled in by a consumer.
+  // is never walled in by a consumer. (Full ladder + new-role checklist: roles/index.js.)
   static movementPriority = 4;
 
   // Movement priority while merely GATHERING/PARKING (empty) — the LOWEST rank of

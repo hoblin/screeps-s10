@@ -30,6 +30,12 @@ export class Overlord {
    *                                        same role don't fight over creeps.
    *                                        Omit for singleton overlords (one per
    *                                        role); the role name alone is enough.
+   *
+   * SPAWN-PRIORITY LADDER (lowest number first; the Hatchery fulfils the highest-priority
+   * request it can afford; each overlord documents its own rank). Current ladder:
+   *   1 Mining/Defense · 2 Work/Scout/Filler · 3 Logistics · 4 Upgrade/Guard ·
+   *   5 Reserve/RemoteMining/RemoteWork/RemoteLogistics.
+   * New overlord: pick a tier, set it in super(colony, { priority }).
    */
   constructor(colony, { priority = 5, instanceId = null } = {}) {
     this.colony = colony;

@@ -11,6 +11,7 @@ import { RemoteLogisticsOverlord } from "./overlords/RemoteLogisticsOverlord.js"
 import { GuardOverlord } from "./overlords/GuardOverlord.js";
 import { DefenseOverlord } from "./overlords/DefenseOverlord.js";
 import { ScoutOverlord } from "./overlords/ScoutOverlord.js";
+import { FillerOverlord } from "./overlords/FillerOverlord.js";
 import { RoomHealthCheck } from "./lib/RoomHealthCheck.js";
 import { Miner } from "./roles/Miner.js";
 import { bodyCost } from "./lib/BodyGenerator.js";
@@ -60,6 +61,7 @@ export class Colony {
       ...miningOverlords,
       new WorkOverlord(this),
       new LogisticsOverlord(this), // requests 0 haulers until 2b:Hauling stage
+      new FillerOverlord(this), // storage → spawn/extensions pump, once storage is built (#152)
       new UpgradeOverlord(this),
       // Remote expansion: three domain controllers (#18 C1/C2, multi-source #102).
       // Each OWNS its whole domain across all remotes — reserving, mining, hauling —
