@@ -23,6 +23,12 @@ const GUARD_PARK_DELAY = 5; // ticks to hold the spot after the last hostile con
 //  fresh via vision); only the overlord releasing it (room left the footprint) sends
 //  it home. Bailing on a false alarm happens only in transit (room cooled en route).
 //
+//  Retaliation (#140): once its room cools, the OVERLORD may redirect this idle guard to deny the
+//  attacker's tower-free remote — it stamps the enemy room as `guardRoom` + a `retaliationMission`.
+//  The guard then travels and engages/holds there exactly as it garrisons home, denying his economy
+//  (the in-transit empty-bail is suppressed for the mission). The armed attacker's owner is
+//  remembered here in `engage` as `creep.memory.foughtOwner`.
+//
 //  Type is rock-paper-scissors to the enemy profile (chosen by the overlord):
 //   • "ranged" — RANGED_ATTACK + HEAL + MOVE: kites melee (they can't reach us) and
 //     out-sustains a ranged mirror. The robust counter to any MOBILE threat.
@@ -71,10 +77,21 @@ export class Guard extends Role {
     // mopping; and we never bail blind (no vision → trust the dispatch, keep going).
     // The on-arrival scan below then decides mop / park / (nothing to do →) garrison.
     if (creep.room.name !== room) {
+      // Bail on a confirmed-empty room in transit — but NOT on a retaliation mission (#140): a
+      // momentarily-empty enemy remote isn't a false alarm, it's the target; the overlord owns
+      // when that mission ends (recall / tower / he left).
       const seen = Game.rooms[room];
-      if (seen && seen.find(FIND_HOSTILE_CREEPS).length === 0) {
+      if (seen && !creep.memory.retaliationMission && seen.find(FIND_HOSTILE_CREEPS).length === 0) {
         creep.memory.guardRoom = null;
         return this.recycleAtHome(creep, colony);
+      }
+      // En-route on a retaliation mission (#140): if the locked offender's creeps are in THIS room,
+      // fight them; else travel on. A mobile guard hunting the owner along the route — the jumper
+      // can't shake it the way it escapes a garrison — but it never DIVERTS off-route to chase (the
+      // route through his territory does the following), so it still reaches the remote to deny it.
+      if (creep.memory.retaliationMission && this.engage(creep, creep.memory.foughtOwner)) {
+        creep.memory.lastEngaged = Game.time;
+        return;
       }
       this.note(creep, "guard:to-room");
       creep.travelTo(new RoomPosition(25, 25, room), { range: 20 });
@@ -100,7 +117,9 @@ export class Guard extends Role {
       this.note(creep, "guard:to-post");
       creep.travelTo(ctrl, { range: 1 });
     } else {
-      this.note(creep, "guard:park"); // garrison: defend the controller, deny reservers, keep intel fresh
+      // Garrison: defend the controller, deny reservers, keep intel fresh. On a retaliation
+      // mission (#140) the "controller" is the ATTACKER's — parking there denies HIS remote.
+      this.note(creep, creep.memory.retaliationMission ? "guard:deny" : "guard:park");
     }
   }
 
@@ -118,13 +137,25 @@ export class Guard extends Role {
   // Heal self and fight the hostiles in the CURRENT room — armed first, then harmless
   // stragglers. Returns true if there were hostiles (we engaged), false if the room is
   // clear. The combat nucleus, free of any room/garrison/follow logic, so both the
-  // garrison Guard and the follow Escort (#147) share it.
-  static engage(creep) {
+  // garrison Guard and the follow Escort (#147) share it. Optional `ownerFilter` (a username)
+  // narrows it to ONE player's creeps — the en-route retaliation hunt (#140).
+  static engage(creep, ownerFilter) {
     if (creep.getActiveBodyparts(HEAL) > 0 && creep.hits < creep.hitsMax) creep.heal(creep);
-    const hostiles = creep.room.find(FIND_HOSTILE_CREEPS);
+    let hostiles = creep.room.find(FIND_HOSTILE_CREEPS);
+    // ownerFilter (en-route retaliation, #140): fight ONLY the locked offender's creeps, so the
+    // guard hunts him along the route without getting pinned by an SK or another player it passes.
+    if (ownerFilter) hostiles = hostiles.filter((h) => h.owner && h.owner.username === ownerFilter);
     if (!hostiles.length) return false;
     const armed = hostiles.filter((h) => Threat.combatPower(h) > 0);
     const target = creep.pos.findClosestByRange(armed.length ? armed : hostiles);
+    // Remember the ARMED attacker's owner so the overlord can deny that player's remote once this
+    // room cools (sunk-asset retaliation #140). Harmless scouts/reservers (combatPower 0) don't
+    // earn revenge. NOT while a mission is active: the en-route hunt re-enters engage, and
+    // re-stamping mid-mission could invalidate the locked target's deniability and drop a valid
+    // mission — a new attacker only re-targets once the current mission ends.
+    if (armed.length && target.owner && !creep.memory.retaliationMission) {
+      creep.memory.foughtOwner = target.owner.username;
+    }
 
     if (creep.memory.guardType === "melee") {
       this.note(creep, "guard:melee");
