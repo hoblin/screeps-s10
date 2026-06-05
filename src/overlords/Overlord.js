@@ -31,14 +31,11 @@ export class Overlord {
    *                                        Omit for singleton overlords (one per
    *                                        role); the role name alone is enough.
    *
-   * SPAWN-PRIORITY LADDER (the registry — keep in sync as overlords are added; the
-   * Hatchery fulfils the highest-priority request it can afford, lowest number first):
-   *   1  Mining, Defense                 — income + the tower (the colony's floor)
-   *   2  Work, Scout, Filler             — bootstrap workers / map intel / spawn-cluster feed
-   *   3  Logistics                       — home haulers
-   *   4  Upgrade, Guard                  — controller / combat-clearing
-   *   5  Reserve, RemoteMining/Work/Logistics — the remote economy (after the home economy)
-   * New overlord: pick a tier here, set it in super(colony, { priority }).
+   * SPAWN-PRIORITY LADDER (lowest number first; the Hatchery fulfils the highest-priority
+   * request it can afford; each overlord documents its own rank). Current ladder:
+   *   1 Mining/Defense · 2 Work/Scout/Filler · 3 Logistics · 4 Upgrade/Guard ·
+   *   5 Reserve/RemoteMining/RemoteWork/RemoteLogistics.
+   * New overlord: pick a tier, set it in super(colony, { priority }).
    */
   constructor(colony, { priority = 5, instanceId = null } = {}) {
     this.colony = colony;
