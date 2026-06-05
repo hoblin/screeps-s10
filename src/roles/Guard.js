@@ -5,6 +5,8 @@ import { Threat } from "../lib/Threat.js";
 const KITE_RANGE = 3; // RANGED_ATTACK reach — a ranged guard fights from exactly here
 const MELEE_MAX = 9; // max [ATTACK,MOVE] repeats (melee path: future core-clearing)
 const RANGED_MAX = 6; // max [RANGED_ATTACK,MOVE] repeats on the ranged body
+const GUARD_PARK_DELAY = 5; // ticks to hold the spot after the last hostile contact before walking
+// back to park — long enough to shoot a harasser that ducks across the border and returns (#160).
 
 // ============================================================================
 //  Guard — the colony's combat creep: clears a contested remote so the economy
@@ -14,7 +16,9 @@ const RANGED_MAX = 6; // max [RANGED_ATTACK,MOVE] repeats on the ranged body
 //  WHICH hot room is winnable and stamps it (+ the body TYPE) at spawn; this role
 //  travels there, kills the armed threat, mops up the harmless stragglers (scouts /
 //  reservers), then GARRISONS the room — parks on its controller and holds for life,
-//  re-engaging anything that wanders in (#128). It never recycles on clear (a
+//  re-engaging anything that wanders in (#128). After a fight it holds the spot a few ticks
+//  before walking back to park, so a harasser that ducks across the border and returns is shot
+//  on the spot rather than re-chased from the controller (#160). It never recycles on clear (a
 //  stationed guard answers the next poke with no rebuild and keeps the room's intel
 //  fresh via vision); only the overlord releasing it (room left the footprint) sends
 //  it home. Bailing on a false alarm happens only in transit (room cooled en route).
@@ -79,7 +83,18 @@ export class Guard extends Role {
 
     // On station. Fight any hostiles (armed first, then mop harmless stragglers); once the
     // room is clean, garrison the controller and hold for life.
-    if (this.engage(creep)) return;
+    if (this.engage(creep)) {
+      creep.memory.lastEngaged = Game.time; // mark contact for the post-clear hold (#160)
+      return;
+    }
+    // Just cleared: hold the spot for a few ticks before walking back to park (#160), so a
+    // harasser that ducked across the border and returns is shot from here instead of re-chased
+    // from the controller (the old controller↔border oscillation). A retask/recall exits earlier
+    // — it trips the in-transit branch above before this is reached.
+    if (this.holding(creep)) {
+      this.note(creep, "guard:hold");
+      return;
+    }
     const ctrl = creep.room.controller;
     if (ctrl && !creep.pos.inRangeTo(ctrl, 1)) {
       this.note(creep, "guard:to-post");
@@ -87,6 +102,17 @@ export class Guard extends Role {
     } else {
       this.note(creep, "guard:park"); // garrison: defend the controller, deny reservers, keep intel fresh
     }
+  }
+
+  // Within the post-engagement hold window (#160): true for the GUARD_PARK_DELAY clear ticks after
+  // the last hostile contact. `<=` (not `<`) so a delay of 5 yields a full 5 clear ticks of hold —
+  // `lastEngaged` is the LAST contact tick, and the first clear tick is already `now - last == 1`.
+  // Keyed off that contact tick (stamped on engage), so it expires on its own and is never
+  // refreshed on clear ticks; a never-engaged guard (no lastEngaged) skips the hold and parks
+  // immediately on arrival.
+  static holding(creep) {
+    const last = creep.memory.lastEngaged;
+    return last !== undefined && Game.time - last <= GUARD_PARK_DELAY;
   }
 
   // Heal self and fight the hostiles in the CURRENT room — armed first, then harmless
