@@ -2,6 +2,12 @@ import { Overlord } from "./Overlord.js";
 import { Guard } from "../roles/Guard.js";
 import { Threat } from "../lib/Threat.js";
 
+// A remote is only "winnable" when the guard we can afford out-guns the threat by this
+// factor — not merely beats it (#130). A thin margin (e.g. 50 vs 40) loses to a single
+// positioning slip; require comfortable superiority and otherwise leave the room Level-1
+// rather than feed a guard to a coin-flip. Home defense is exempt (unconditional floor).
+const WIN_MARGIN = 1.5;
+
 // ============================================================================
 //  GuardOverlord — owns the combat-clearing domain (#118, Levels 2-3 of the
 //  threat ladder; home defense added in #122). A cheap enemy harasser can deny a
@@ -37,8 +43,9 @@ export class GuardOverlord extends Overlord {
   }
 
   // Distinct remote rooms that are hot AND winnable: the guard we can afford out-guns
-  // the room's assessed threat. Reads intel (threat + profile) — no live vision
-  // needed, it was recorded when a creep last saw the room. Memoized per tick.
+  // the room's assessed threat by WIN_MARGIN (#130 — a comfortable margin, not a coin-
+  // flip). Reads intel (threat + profile) — no live vision needed, it was recorded when
+  // a creep last saw the room. Memoized per tick.
   hotWinnableRooms() {
     if (this._hotWinnable !== undefined) return this._hotWinnable;
     const budget = this.colony.spawnEnergyBudget();
@@ -51,7 +58,7 @@ export class GuardOverlord extends Overlord {
       // Level-1 (clearing a core is a later capability).
       if (!profile || profile.attack + profile.ranged === 0) return false;
       const body = Guard.bodyFor(budget, profile);
-      return Threat.guardCombatPower(body) > Threat.threatOf(room);
+      return Threat.guardCombatPower(body) >= Threat.threatOf(room) * WIN_MARGIN;
     });
     return this._hotWinnable;
   }
