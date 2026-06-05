@@ -7,7 +7,18 @@ import { stageAtLeast } from "../lib/Stages.js";
 import expansionMap from "../data/expansionMap.json";
 
 // Tunables (ship and observe — we always tune live).
-const HAULERS_PER_SCOUT = 3; // one scout per N haulers (floor) — scouting scales with the economy
+// Self-balancing scout count (#159): a small always-on baseline + a storage-surplus delta, so the
+// score fleet scales with the energy inflow-vs-consumption balance (storage level = its integral).
+const SCOUT_BASELINE = 2; // always-on scouts for vision + minimal score — the soft floor; the count
+// never drops below it except when a hard gate forces 0 (recovery / home attack / pre-2b / no map).
+const SCORE_FLEET_RESERVE = 40000; // bank this storage cushion before funding any EXTRA score scout
+// — a higher cushion than the upgrader reserve (#137, 20k), so the score fleet grows only once
+// storage banks well above the level that first feeds extra upgraders (the two then scale together;
+// scouts cost ~nothing in energy, so the real coupling is spawn-time, not the shared storage).
+const ENERGY_PER_SCORE_SCOUT = 20000; // storage surplus above the reserve per extra score scout. A
+// LARGE step (slow climb): scouts cost ~nothing in energy, so the loop closes via spawn-time
+// competition, not energy drain — a small step would outrun that loose feedback.
+const SCORE_SCOUT_MAX = 6; // cap on the surplus bonus so the single spawn isn't swamped.
 const SCAN_RADIUS = 6; // BFS room-radius from home to consider (a scout's reach)
 const ROUTE_CAP = 8; // max rooms per assigned leg (loose TTL cap; early death frees the tail)
 const STALE_MAX = 20000; // staleness cap; a never-seen room uses this as its age
@@ -50,18 +61,21 @@ const VALUE = { score: 6, highway: 4, unknown: 3, player: 2, neutral: 1 };
 //  colonies grab more Score before it decays. A fast [MOVE] scout is already the ideal score
 //  creep, so there's no separate collector role.
 //
-//  Not RCL8-gated (the score race is open now). The needed count scales with the hauler
-//  army (floor(allHaulers / 3)) and the overlord sits just ABOVE haulers in spawn priority,
-//  so scouts and haulers grow in lockstep from a fresh start — demand ticks up only as the
-//  fleet crosses each multiple (3→1, 6→2, …), never a burst — and the count is the throttle.
-//  (Adding scouts to an already-large fleet is a one-time catch-up the storage buffer
-//  absorbs.) Home defence still preempts: desiredCount drops to 0 while home is attacked.
+//  Not RCL8-gated (the score race is open now). The count SELF-BALANCES against the economy by
+//  STORAGE LEVEL (#159) — storage is the integral of the energy inflow-vs-consumption balance, so
+//  a small always-on baseline (vision + minimal score) plus a storage-surplus delta funds extra
+//  score scouts only when energy is genuinely banking. Storage draining collapses the delta back
+//  to the baseline, freeing the single spawn for the economy (the win waits for the economy to
+//  recover); surplus building grows the score fleet — coverage × speed. The count is the lever
+//  (the spawn model balances by count, not priority-interleave), mirroring the UpgradeOverlord
+//  storage-delta (#137). Home defence / recovery / pre-2b / no-map still drop desiredCount to 0.
 // ============================================================================
 export class ScoutOverlord extends Overlord {
   constructor(colony) {
-    // Priority 2 — above haulers (Logistics is 3), just after Mining (1) / Work (2). Safe
-    // to sit here because desiredCount is a bounded fraction of the hauler fleet and a
-    // scout is cheap (2 parts); it stands down entirely while home is under attack.
+    // Priority 2 — above haulers (Logistics is 3), alongside Work/Filler (2). Safe to sit here
+    // because desiredCount is a small baseline plus a storage-surplus-capped delta (#159) — it
+    // only grows the fleet when the economy is banking energy — and a scout is dirt cheap ([MOVE]);
+    // it stands down entirely while home is under attack.
     super(colony, { priority: 2 });
   }
 
@@ -76,22 +90,40 @@ export class ScoutOverlord extends Overlord {
     return ["scout", "escort"];
   }
 
-  // Scout count scales with the hauler army: floor(allHaulers / HAULERS_PER_SCOUT) — 0 until
-  // 3 haulers, then 3→1, 6→2, …. Since expansion (and so the hauler count) only grows once
-  // the home economy is fulfilled, scouts appear when expansion starts and grow with the
-  // fleet — no fixed number to tune.
-  // Gated to 0 when: no expansionMap entry (it carries the SK/enemy-core avoid list — no
-  // safe routing without it), before Stage 2b, in workforce recovery, or while HOME is
-  // under attack (we sit above guards in priority, so stand down to let defence spawn).
+  // Self-balancing count (#159): the always-on baseline plus a storage-surplus delta.
+  // Gated to 0 first (hard overrides, stand fully down): no expansionMap entry (it carries the
+  // SK/enemy-core avoid list — no safe routing without it), before Stage 2b, in workforce
+  // recovery, or while HOME is under attack (we sit above guards in priority, so stand down to
+  // let defence spawn).
   desiredCount() {
     if (!expansionMap[this.colony.name]) return 0;
     if (!stageAtLeast(this.colony, "2b:Hauling")) return 0;
     if (this.colony.health.recovering) return 0;
     if (Threat.isHot(this.colony.name)) return 0;
+    // Let logistics bootstrap first (#159 review): scouts sit ABOVE haulers in spawn priority, so
+    // spawning the always-on baseline before the first hauler exists would preempt the very hauler
+    // that entering 2b spins up to start moving container energy — stalling the economy at the
+    // transition. Hold at 0 until energy is actually being hauled.
     const haulers =
       this.colony.creepsWithRole("hauler").length +
       this.colony.creepsWithRole("remoteHauler").length;
-    return Math.floor(haulers / HAULERS_PER_SCOUT);
+    if (haulers === 0) return 0;
+    return SCOUT_BASELINE + this.surplusScouts();
+  }
+
+  // Extra score scouts proportional to the banked storage surplus above a reserve, capped (#159).
+  // Storage level is the integral of the energy inflow-vs-consumption balance, so the count tracks
+  // it: surplus building → more scouts; storage draining → the delta collapses to the baseline,
+  // freeing the spawn for the economy. Pre-storage (the 2b→3 window) → 0, so the count is the
+  // baseline alone until storage exists. Read live, not smoothed: the per-scout energy step
+  // (ENERGY_PER_SCORE_SCOUT) dwarfs per-tick storage jitter, so the count can't chatter — the
+  // reserve doubles as a dead-band (same anti-chatter idiom as the #137 upgrader delta). No
+  // separate `recovering` guard: desiredCount already returns 0 there before this runs.
+  surplusScouts() {
+    const storage = this.colony.room.storage;
+    if (!storage) return 0;
+    const surplus = storage.store[RESOURCE_ENERGY] - SCORE_FLEET_RESERVE;
+    return Math.min(Math.max(Math.floor(surplus / ENERGY_PER_SCORE_SCOUT), 0), SCORE_SCOUT_MAX);
   }
 
   // Spawn an escort FIRST if a mission scout needs a bodyguard, else a scout (counting only
