@@ -10,6 +10,7 @@ import { RemoteWorkOverlord } from "./overlords/RemoteWorkOverlord.js";
 import { RemoteLogisticsOverlord } from "./overlords/RemoteLogisticsOverlord.js";
 import { GuardOverlord } from "./overlords/GuardOverlord.js";
 import { DefenseOverlord } from "./overlords/DefenseOverlord.js";
+import { ScoutOverlord } from "./overlords/ScoutOverlord.js";
 import { RoomHealthCheck } from "./lib/RoomHealthCheck.js";
 import { Miner } from "./roles/Miner.js";
 import { bodyCost } from "./lib/BodyGenerator.js";
@@ -71,6 +72,7 @@ export class Colony {
       new RemoteLogisticsOverlord(this), // one shared fleet hauls them all home
       new GuardOverlord(this), // clears winnable threats in the remote footprint (#118)
       new DefenseOverlord(this), // places + operates towers (no-op until RCL3)
+      new ScoutOverlord(this), // roams cheap scouts to keep map intel fresh (#142)
     ];
   }
 

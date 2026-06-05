@@ -79,7 +79,41 @@ export const Threat = {
       threat: this.assess(room, hostiles),
       profile: this.profile(room, hostiles),
       tick: Game.time,
+      ...this.recon(room),
     };
+  },
+
+  // Structural snapshot recorded alongside the threat on every observation (#142): who
+  // holds the room, its HOSTILE tower count, and (Season only) any ScoreContainers /
+  // ScoreCollectors. One writer, refreshed for free on every visit. Consumers:
+  //   • scout priority — staleness + room value (#142)
+  //   • retaliation target/route safety — tower-free check (#140)
+  //   • score collection — container/collector locations (#24/#48)
+  // `towers` counts HOSTILE towers only, so our own room reads 0 (not a danger to us).
+  recon(room) {
+    const ctrl = room.controller;
+    const out = {
+      owner: ctrl?.owner?.username || null,
+      reserver: ctrl?.reservation?.username || null,
+      rcl: ctrl?.level || 0,
+      towers: room.find(FIND_HOSTILE_STRUCTURES, {
+        filter: (s) => s.structureType === STRUCTURE_TOWER,
+      }).length,
+    };
+    // ScoreContainers/Collectors exist only on the Season server; the same universal
+    // bundle also runs on the main shard, so guard the finds (constants undefined there).
+    if (typeof FIND_SCORE_CONTAINERS !== "undefined") {
+      out.score = room.find(FIND_SCORE_CONTAINERS).map((c) => ({
+        x: c.pos.x,
+        y: c.pos.y,
+        amount: c.store ? c.store[RESOURCE_SCORE] : c.score,
+        decay: c.ticksToDecay,
+      }));
+    }
+    if (typeof FIND_SCORE_COLLECTORS !== "undefined") {
+      out.collectors = room.find(FIND_SCORE_COLLECTORS).map((c) => ({ x: c.pos.x, y: c.pos.y }));
+    }
+    return out;
   },
 
   // Is a room believed dangerous? True only on a FRESH observation with lethal
@@ -105,6 +139,19 @@ export const Threat = {
     const intel = Memory.roomIntel?.[roomName];
     if (!intel || Game.time - intel.tick > INTEL_FRESH_TICKS) return 0;
     return intel.threat;
+  },
+
+  // The full intel entry for a room (or null if never seen) — the read path for the
+  // scout planner (#142), which wants the structural fields (owner/towers/score) even
+  // when stale; freshness is judged separately via lastSeen.
+  intelFor(roomName) {
+    return Memory.roomIntel?.[roomName] || null;
+  },
+
+  // Game.time of the last observation, or -Infinity if never seen — so a never-seen room
+  // sorts as maximally stale for the scout route planner (#142).
+  lastSeen(roomName) {
+    return Memory.roomIntel?.[roomName]?.tick ?? -Infinity;
   },
 
   // Lethal power of a proposed guard BODY (a plain part array) — symmetric to
