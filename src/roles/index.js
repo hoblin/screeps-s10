@@ -11,6 +11,7 @@ import { RemoteWorker } from "./RemoteWorker.js";
 import { Guard } from "./Guard.js";
 import { Scout } from "./Scout.js";
 import { Escort } from "./Escort.js";
+import { Filler } from "./Filler.js";
 
 // ============================================================================
 //  Role registry — the one place that maps a creep's role STRING (as stored in
@@ -32,6 +33,7 @@ export const ROLES = {
   guard: Guard,
   scout: Scout,
   escort: Escort,
+  filler: Filler,
 };
 
 // Resolve a role string to its class, defaulting to the base Role (so an unknown
