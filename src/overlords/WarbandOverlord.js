@@ -1,6 +1,7 @@
 import { Overlord } from "./Overlord.js";
 import { Combatant } from "../roles/Combatant.js";
 import { behaviorClass } from "../behaviors/index.js";
+import { bodyFromTemplate } from "../lib/BodyGenerator.js";
 import { Threat } from "../lib/Threat.js";
 
 const WARBAND_PRIORITY = 5; // offence YIELDS to all economy + home defence (DefenseOverlord 1, GuardOverlord
@@ -27,10 +28,13 @@ const DEFAULT_SPEC = {
 //  its behavior (the model owns its conduct AND its body) and applies it to creeps,
 //  and all durable state lives in the model (creep.memory). Two interfaces:
 //
-//   (a) Order units by their behaviors — the composition spec (Memory.warband, or
-//       the default): a list of { default, nodes, count } units. The overlord spawns
-//       to match, sizing each body from behaviorClass(unit.default).bodyFor and
-//       stamping the behavior set onto the creep.
+//   (a) Order units by their behaviors (+ optional body) — the composition spec
+//       (Memory.warband, or the default): a list of { default, nodes, count } units.
+//       The overlord spawns to match and stamps the behavior set. The BODY defaults
+//       to the unit's default behavior's bodyFor (the model owns it), but a unit may
+//       OVERRIDE it for custom power — `body` as an explicit module array, or as a
+//       scalable template { base, extra, max } — see unitBody(). The override is the
+//       commander's order (command input), not the controller re-deciding the body.
 //   (b) Command the group by a destination point — a FLAG (name starts with
 //       "warband") marks the objective room/point. The overlord points every member
 //       at it; MOVE the flag to drive the operation (flag E16S7 → clear the
@@ -87,15 +91,27 @@ export class WarbandOverlord extends Overlord {
     return null;
   }
 
-  // Build a member of `unit`. The BODY is READ off the unit's default behavior (the model owns it) —
-  // the controller never re-decides it. The behavior SET + group tag are stamped so BehaviorMachine
-  // drives it; the objective fields are stamped per tick in command().
+  // The body for a unit. Default: READ off its default behavior (the model owns it). Override (the
+  // commander's "+ body" order, for custom power): `unit.body` as either an explicit module array
+  // (used verbatim — must fit energyCapacityAvailable) or a template { base, extra, max } scaled to
+  // the budget. The controller never INVENTS a body — it uses the behavior's or the commander's.
+  unitBody(unit) {
+    const budget = this.colony.spawnEnergyBudget();
+    const b = unit.body;
+    if (Array.isArray(b)) return b; // explicit module array, e.g. [TOUGH,RANGED_ATTACK,...,MOVE]
+    if (b && b.base) {
+      return bodyFromTemplate(b.base, { extra: b.extra || [], max: b.max || 0, energy: budget });
+    }
+    return behaviorClass(unit.default).bodyFor(budget); // behavior's default body
+  }
+
+  // Build a member of `unit`. The behavior SET + group tag are stamped so BehaviorMachine drives it;
+  // the objective fields are stamped per tick in command().
   spawnRequest(unit) {
-    const behavior = behaviorClass(unit.default);
     return {
       priority: this.priority,
       role: this.role,
-      body: behavior.bodyFor(this.colony.spawnEnergyBudget()),
+      body: this.unitBody(unit),
       memory: {
         role: this.role,
         colony: this.colony.name,
