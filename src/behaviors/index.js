@@ -1,0 +1,43 @@
+import { Behavior } from "./Behavior.js";
+import { RaidRoom } from "./combat/RaidRoom.js";
+import { HoldPoint } from "./combat/HoldPoint.js";
+import { FocusFire } from "./combat/FocusFire.js";
+import { HealGroup } from "./combat/HealGroup.js";
+import { KiteScreen } from "./combat/KiteScreen.js";
+
+// ============================================================================
+//  Behavior registry (#39) — maps a behavior NAME (as stored in a creep's
+//  memory.behaviors set) to its Behavior CLASS. The catalog a warband draws
+//  from; the BehaviorMachine resolves names through here each tick. Mirrors the
+//  role registry (src/roles/index.js): a name→class map + one resolver.
+//
+//  ARCHETYPES (the combat catalog — classic RPG/strategy roles, composable):
+//   • raidRoom   — offence: travel to a target room, hunt a locked owner en route,
+//                  deny the room (melee or ranged by body).
+//   • holdPoint  — defence: garrison an assigned point/room, engage intruders.
+//   • focusFire  — the answer to a HEALING squad: ALL members burst ONE shared
+//                  target (lowest-hits) to out-pace sustained heal. Carries
+//                  entry/exit edges, so it doubles as an override node over a
+//                  positional default (hold → focus on contact → back to hold).
+//   • healGroup  — the dedicated HEALER: no offence, sustains the most-hurt ally
+//                  (the piece a lone guard structurally can't be).
+//   • kiteScreen — the ranged ATTACKER: shoot at reach, kite back on contact,
+//                  screening the squad's softer members.
+//
+//  A buffer/booster archetype is a future slot (needs labs/boosts — Stage 4).
+// ============================================================================
+export const BEHAVIORS = {
+  raidRoom: RaidRoom,
+  holdPoint: HoldPoint,
+  focusFire: FocusFire,
+  healGroup: HealGroup,
+  kiteScreen: KiteScreen,
+};
+
+// Resolve a behavior name to its class, or null (an unknown/typo'd name is a no-op
+// rather than a throw — the machine just runs nothing that tick).
+export function behaviorClass(name) {
+  return BEHAVIORS[name] || null;
+}
+
+export { Behavior };
