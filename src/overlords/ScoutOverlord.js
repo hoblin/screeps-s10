@@ -238,13 +238,17 @@ export class ScoutOverlord extends Overlord {
     return route;
   }
 
-  // Every room any live scout still has queued — the claim set the next plan avoids.
+  // Every room any live scout still has queued — the claim set the next plan avoids. A
+  // mission scout's blocker is claimed for the WHOLE mission (not just while it's queued in
+  // the route): on arrival the scout sits at index === route.length, which would otherwise
+  // drop the claim for a tick and let another scout get routed into the harasser.
   claimedRooms() {
     const claimed = new Set();
     const routes = this.routes;
     for (const name in routes) {
       const plan = routes[name];
       for (let i = plan.index; i < plan.route.length; i++) claimed.add(plan.route[i]);
+      if (plan.escortMission) claimed.add(plan.escortMission);
     }
     return claimed;
   }
