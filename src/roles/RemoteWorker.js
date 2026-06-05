@@ -25,6 +25,9 @@ export class RemoteWorker extends Role {
   // colony's energy, but it still works, so above idle roles.
   static movementPriority = 4;
 
+  // Detour around hostile ranged kill-zones en route to the remote container (#145).
+  static avoidHostiles = true;
+
   // WORK to build/repair + CARRY to fuel it + MOVE for the cross-border trip.
   static bodyFor(energyBudget) {
     return bodyFromTemplate([WORK, CARRY, MOVE], { extra: [WORK, CARRY, MOVE], max: 3, energy: energyBudget });

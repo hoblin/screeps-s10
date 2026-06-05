@@ -25,7 +25,8 @@ import { Filler } from "./Filler.js";
 //    2. Set its static `movementPriority` (lower wins tile contention; each role documents
 //       its own rank). Current ladder: 1 miner · 2 hauler/harvester/filler ·
 //       3 guard/upgrader/worker/remoteHauler · 4 remoteWorker/(default) ·
-//       5 remoteMiner/reserver · 8 scout.
+//       5 remoteMiner/reserver · 8 scout. Also set `static avoidHostiles = true` if it's a
+//       non-combat creep that traverses contested space (#145 — routes around kill-zones).
 //    3. Wire an Overlord to spawn/run it in Colony.js (+ its spawn `priority` — ladder in
 //       Overlord.js).
 // ============================================================================

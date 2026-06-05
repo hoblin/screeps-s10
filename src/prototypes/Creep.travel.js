@@ -1,5 +1,6 @@
 import { TrafficManager } from "../lib/TrafficManager.js";
 import { roleClass } from "../roles/index.js";
+import { Movement } from "../lib/Movement.js";
 
 // ============================================================================
 //  Creep.travelTo — register a movement INTENT, don't move immediately.
@@ -98,13 +99,20 @@ Creep.prototype.travelTo = function (target, opts = {}) {
   // corridors have little creep contention, so skipping the resolver there is an
   // acceptable v1 trade (full integration is #57). Only remote creeps ever have a
   // foreign-room target, so home movement is completely untouched. (#92)
+  // #145: danger avoidance — inject the kill-zone cost overlay as the path's costCallback.
+  // Per-role policy via the static `avoidHostiles` flag (combat roles leave it false — they
+  // must APPROACH, not avoid); a per-call `opts.avoidHostiles` overrides.
+  const avoid = opts.avoidHostiles ?? roleClass(this.memory.role).avoidHostiles;
+  const pathTuning = { ...opts.pathOpts };
+  if (avoid) pathTuning.costCallback = (roomName, matrix) => Movement.dangerCallback(roomName, matrix);
+
   if (targetPos.roomName !== this.room.name) {
     // Forward caller pathOpts (plainCost/swampCost/costCallback) so tuning is
     // consistent across the border, but strip maxRooms (moveTo MUST stay multi-
     // room) and ignoreCreeps (moveTo manages its own). A longer reusePath than the
     // in-room REUSE_TICKS: transit paths span many rooms, so re-pathing every 20
     // ticks would burn CPU in empty corridors for no benefit.
-    const tuning = { ...(opts.pathOpts || {}) };
+    const tuning = { ...pathTuning };
     delete tuning.maxRooms;
     delete tuning.ignoreCreeps;
     this.moveTo(targetPos, {
@@ -119,7 +127,7 @@ Creep.prototype.travelTo = function (target, opts = {}) {
 
   // maxRooms is spread LAST so caller pathOpts can tune costs but never break the
   // per-room invariant the resolver depends on.
-  const pathOpts = { range: opts.range ?? 0, ...opts.pathOpts, maxRooms: 1 };
+  const pathOpts = { range: opts.range ?? 0, ...pathTuning, maxRooms: 1 };
   // range is part of the cache identity: the same target tile with a different
   // stop distance is a different path.
   const destKey = `${pack(targetPos.x, targetPos.y)}:${targetPos.roomName}:${pathOpts.range}`;

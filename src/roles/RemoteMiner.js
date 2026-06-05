@@ -23,6 +23,9 @@ export class RemoteMiner extends Role {
   // Low priority: it lives parked on a foreign source, far from home traffic.
   static movementPriority = 5;
 
+  // Detour around hostile ranged kill-zones en route to the remote source (#145).
+  static avoidHostiles = true;
+
   // WORK to harvest + MOVE to make the trip; no CARRY (drop-mining). Scale WORK
   // with the budget up to a source's full drain (5 WORK = 10/tick).
   static bodyFor(energyBudget) {

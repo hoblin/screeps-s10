@@ -20,6 +20,12 @@ export class Role {
   // is never walled in by a consumer. (Full ladder + new-role checklist: roles/index.js.)
   static movementPriority = 4;
 
+  // #145 — danger-aware pathing policy. Default false: home/combat creeps path straight
+  // (a guard must APPROACH the threat, not detour around it). Non-combat creeps that
+  // traverse contested space (scouts, remote economy) set this true so travelTo weights
+  // hostile ranged kill-zones costly and routes around them (see lib/Movement.js).
+  static avoidHostiles = false;
+
   // Movement priority while merely GATHERING/PARKING (empty) — the LOWEST rank of
   // all (below the idle baseline), so an empty creep fetching energy or waiting
   // by a container never pushes one that's actively carrying energy to its job.
