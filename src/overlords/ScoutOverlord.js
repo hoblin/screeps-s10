@@ -22,6 +22,10 @@ const ENERGY_PER_SCORE_SCOUT = 10000; // storage surplus above the reserve per e
 // faster ramp than before; scouts are dirt cheap ([MOVE], ~50e) so spawn-time, not energy, is the cost.
 const SCORE_SCOUT_MAX = 10; // ceiling on the surplus fleet — high enough to actually compete, while
 // the storage signal still throttles it down the moment the economy needs the spawn.
+const SPAWN_IDLE_SCALE = 20; // scouts per unit of spawn-idle EWMA (#170): a SECOND spare-capacity
+// signal — when the spawn isn't continuously spawning, fill the spare cycles with score scouts.
+// ~0.5 idle → the cap; ~0 (busy spawn) → 0. Combined with the storage term via MAX, so whichever
+// spare-capacity signal is more permissive sets the count. Ship-and-observe.
 const SCAN_RADIUS = 6; // BFS room-radius from home to consider (a scout's reach)
 const ROUTE_CAP = 8; // max rooms per assigned leg (loose TTL cap; early death frees the tail)
 const STALE_MAX = 20000; // staleness cap; a never-seen room uses this as its age
@@ -64,14 +68,16 @@ const VALUE = { score: 6, highway: 4, unknown: 3, player: 2, neutral: 1 };
 //  colonies grab more Score before it decays. A fast [MOVE] scout is already the ideal score
 //  creep, so there's no separate collector role.
 //
-//  Not RCL8-gated (the score race is open now). The count SELF-BALANCES against the economy by
-//  STORAGE LEVEL (#159) — storage is the integral of the energy inflow-vs-consumption balance, so
-//  a small always-on baseline (vision + minimal score) plus a storage-surplus delta funds extra
-//  score scouts only when energy is genuinely banking. Storage draining collapses the delta back
-//  to the baseline, freeing the single spawn for the economy (the win waits for the economy to
-//  recover); surplus building grows the score fleet — coverage × speed. The count is the lever
-//  (the spawn model balances by count, not priority-interleave), mirroring the UpgradeOverlord
-//  storage-delta (#137). Home defence / recovery / pre-2b / no-map still drop desiredCount to 0.
+//  Not RCL8-gated (the score race is open now). The count SELF-BALANCES against the economy: a
+//  small always-on baseline (vision + minimal score) plus a spare-capacity bonus that funds extra
+//  score scouts only when there's slack. The bonus is the MAX of two signals (#159/#166 + #170):
+//    • STORAGE LEVEL — the integral of the inflow-vs-consumption balance; surplus → more scouts,
+//      draining → collapses to the baseline, freeing the spawn for the economy.
+//    • SPAWN IDLENESS — when the spawn stops continuously spawning, fill the spare cycles with
+//      scouts (gated until storage holds a buffer, so early-game bootstrap isn't starved).
+//  Either way the win scales with coverage × speed. The count is the lever (the spawn model
+//  balances by count, not priority-interleave), mirroring the UpgradeOverlord storage-delta (#137).
+//  Home defence / recovery / pre-2b / no-map still drop desiredCount to 0.
 // ============================================================================
 export class ScoutOverlord extends Overlord {
   constructor(colony) {
@@ -114,19 +120,38 @@ export class ScoutOverlord extends Overlord {
     return SCOUT_BASELINE + this.surplusScouts();
   }
 
-  // Extra score scouts proportional to the banked storage surplus above a reserve, capped (#159).
-  // Storage level is the integral of the energy inflow-vs-consumption balance, so the count tracks
-  // it: surplus building → more scouts; storage draining → the delta collapses to the baseline,
-  // freeing the spawn for the economy. Pre-storage (the 2b→3 window) → 0, so the count is the
-  // baseline alone until storage exists. Read live, not smoothed: the per-scout energy step
-  // (ENERGY_PER_SCORE_SCOUT) dwarfs per-tick storage jitter, so the count can't chatter — the
-  // reserve doubles as a dead-band (same anti-chatter idiom as the #137 upgrader delta). No
-  // separate `recovering` guard: desiredCount already returns 0 there before this runs.
+  // Extra score scouts from spare capacity — the MAX of two independent signals, capped at
+  // SCORE_SCOUT_MAX. Not a sum: both mean "we can afford more scouts", and a banked storage
+  // usually co-occurs with an idle spawn, so adding them would double-count. Whichever signal is
+  // more permissive sets the bonus.
+  //  • storage surplus (#159/#166) — banked energy above a reserve; the economy's inflow-vs-
+  //    consumption integral. Draining storage collapses it back to the baseline (economy first).
+  //  • spawn idleness (#170) — when the spawn stops continuously spawning, spare cycles → score.
   surplusScouts() {
     const storage = this.colony.room.storage;
+    return Math.min(Math.max(this.storageSurplusScouts(storage), this.spawnIdleScouts(storage)), SCORE_SCOUT_MAX);
+  }
+
+  // Storage-surplus term: one extra scout per ENERGY_PER_SCORE_SCOUT banked above the reserve.
+  // Pre-storage (the 2b→3 window) → 0 (the baseline alone). Read live, not smoothed: the per-scout
+  // step dwarfs per-tick storage jitter, so it can't chatter — the reserve doubles as a dead-band
+  // (the #137 upgrader-delta idiom). No `recovering` guard: desiredCount returns 0 there first.
+  storageSurplusScouts(storage) {
     if (!storage) return 0;
     const surplus = storage.store[RESOURCE_ENERGY] - SCORE_FLEET_RESERVE;
-    return Math.min(Math.max(Math.floor(surplus / ENERGY_PER_SCORE_SCOUT), 0), SCORE_SCOUT_MAX);
+    return Math.max(Math.floor(surplus / ENERGY_PER_SCORE_SCOUT), 0);
+  }
+
+  // Spawn-idleness term (#170): a sustained-idle spawn has spare cycles → mint score scouts.
+  // colony.health.spawnIdle is the EWMA idle ratio (high = idle; ~0 on a busy spawn, so this is 0
+  // while the economy needs the spawn — correct). EARLY-GAME GATE: off until storage is built AND
+  // holds energy — before a buffer exists, an idle spawn means BOOTSTRAPPING, not surplus, and
+  // chasing scouts would starve it. Scouts are too cheap to drag spawnIdle down, so the
+  // SCORE_SCOUT_MAX cap (applied by surplusScouts) is the sole ceiling — it ramps and holds, no
+  // oscillation; when the economy reclaims the spawn, spawnIdle falls and this drops away.
+  spawnIdleScouts(storage) {
+    if (!storage || storage.store[RESOURCE_ENERGY] === 0) return 0;
+    return Math.max(Math.floor((this.colony.health.spawnIdle || 0) * SPAWN_IDLE_SCALE), 0);
   }
 
   // Spawn an escort FIRST if a mission scout needs a bodyguard, else a scout (counting only
