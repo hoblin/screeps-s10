@@ -94,15 +94,29 @@ export class WarbandOverlord extends Overlord {
     return this.assignedCreeps.filter((c) => c.memory.behaviors?.default === unit.default);
   }
 
-  // Spawn for the first unit below its count. Counts the SPECIFIC unit, never assignedCreeps.length; only while a
-  // flag stands (no order → no muster; survivors then idle home and aren't replaced as they expire).
+  // Spawn for the first unit below its count. Counts the SPECIFIC unit, never assignedCreeps.length.
+  // MUSTER ONCE, then STOP: a group spawns to its count exactly ONCE per order; once mustered we latch
+  // and NEVER auto-replace losses (a finite force — no runaway respawn feeding a grinder). Removing the
+  // flag/objective re-arms the latch for the next order (see run()). To reinforce, re-issue the order.
   generateSpawnRequest() {
-    if (!this.objective()) return null;
+    if (!this.objective() || this.mustered) return null;
     for (const unit of this.units()) {
       if (!behaviorClass(unit.default)) continue; // typo'd/unknown behavior in a live spec → skip, don't throw
       if (this.membersOf(unit).length < unit.count) return this.spawnRequest(unit);
     }
     return null;
+  }
+
+  // Muster-once latch (durable in colony memory — overlord instances are per-tick). Set the instant the
+  // group reaches full strength; gates spawning OFF thereafter so casualties are not auto-replaced.
+  // Reset when the order is withdrawn (no objective), so the next flag placement musters a fresh group.
+  get mustered() {
+    return !!Memory.colonyData?.[this.colony.name]?.warbandMustered;
+  }
+  set mustered(v) {
+    Memory.colonyData ||= {};
+    Memory.colonyData[this.colony.name] ||= {};
+    Memory.colonyData[this.colony.name].warbandMustered = v;
   }
 
   // The body for a unit. Default: READ off its default behavior (the model owns it). Override (the
@@ -150,9 +164,13 @@ export class WarbandOverlord extends Overlord {
     );
   }
 
-  // Reconcile the objective onto every member each tick, then drive them.
+  // Reconcile the objective onto every member each tick, then drive them. Manage the muster-once latch:
+  // no order → re-arm (a fresh order musters a fresh group); fully mustered under an order → latch, so
+  // generateSpawnRequest stops replacing losses.
   run() {
     const objective = this.objective();
+    if (!objective) this.mustered = false;
+    else if (!this.mustered && this.rallied()) this.mustered = true;
     const rallied = this.rallied();
     for (const creep of this.assignedCreeps) this.command(creep, objective, rallied);
     super.run();
