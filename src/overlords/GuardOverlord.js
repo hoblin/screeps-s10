@@ -147,25 +147,27 @@ export class GuardOverlord extends Overlord {
   // Sunk-asset retaliation (#140): an idle GARRISONING guard — one whose room has cooled, so it's
   // standing around (#128) — goes and denies the attacker's economy for free (zero marginal spawn).
   // The attacker is the owner of the last ARMED hostile this guard fought (stamped by Guard.engage).
-  // Defence > offence: it only dispatches once its OWN room is cleaned, and ANY home/remote threat
-  // recalls it back to defend (clean our footprint first). Live roomIntel only — scouts keep owner/
-  // reserver/towers fresh map-wide (#142), so the pre-scout baked players-map is unnecessary.
+  // Defence > offence: it only dispatches once its OWN room is cleaned, and a HOME threat recalls it
+  // (the core can't wait on a spawn). A REMOTE re-heat does NOT recall — a fresh guard spawns for the
+  // hot remote, cleans it, then joins the offensive, so a persistent harasser mints a self-amplifying
+  // STREAM of guards toward his remotes (free, no extra logic; self-limits when he pulls back). Live
+  // roomIntel only — scouts keep owner/reserver/towers fresh map-wide (#142), so no baked map needed.
   manageRetaliation(creep) {
     const mission = creep.memory.retaliationMission;
+    // Recall to defend the CORE the instant home is threatened — the survival floor can't gamble on
+    // spawn latency, so pull this guard back rather than wait for a fresh one.
+    if (mission && this.homeTarget()) {
+      delete creep.memory.retaliationMission;
+      creep.memory.guardRoom = this.colony.name;
+      return;
+    }
+    // A REMOTE re-heating does NOT recall — the guard stays on the offensive, and the overlord
+    // spawns a FRESH guard for the hot remote (it's an uncovered target). That fresh guard cleans
+    // then joins the offensive, so a persistent harasser mints a self-amplifying STREAM of guards
+    // toward his remotes — free, no extra logic, and self-limiting once he pulls back to defend.
     if (mission) {
-      // Defence > offence: cleaning our OWN footprint always comes first. If ANY home/remote target
-      // needs a guard and no other guard covers it, drop the revenge and go defend it — home-first
-      // (targets() is ordered that way). Retaliation is strictly idle-time work.
-      const covered = this.coveredRooms();
-      const need = this.targets().find((r) => !covered.has(r));
-      if (need) {
-        delete creep.memory.retaliationMission;
-        creep.memory.guardRoom = need;
-        return;
-      }
-      // Footprint is calm: keep the mission only while the target is still a deniable room of that
-      // attacker (he may have left / built a tower since — re-confirmed as our vision refreshes the
-      // intel). Else recall home.
+      // Keep the mission only while the target is still a deniable room of that attacker (he may
+      // have left / built a tower since — re-confirmed as our vision refreshes the intel).
       if (!this.deniable(mission, creep.memory.foughtOwner, creep)) {
         delete creep.memory.retaliationMission;
         creep.memory.guardRoom = this.colony.name;
