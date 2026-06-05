@@ -5,7 +5,7 @@ import { stageAtLeast } from "../lib/Stages.js";
 import expansionMap from "../data/expansionMap.json";
 
 // Tunables (ship and observe — we always tune live).
-const HAULERS_PER_SCOUT = 3; // one scout per N haulers (ceil) — scouting scales with the economy
+const HAULERS_PER_SCOUT = 3; // one scout per N haulers (floor) — scouting scales with the economy
 const SCAN_RADIUS = 6; // BFS room-radius from home to consider (a scout's reach)
 const ROUTE_CAP = 8; // max rooms per assigned leg (loose TTL cap; early death frees the tail)
 const STALE_MAX = 20000; // staleness cap; a never-seen room uses this as its age
@@ -32,9 +32,9 @@ const VALUE = { collector: 6, highway: 4, unknown: 3, player: 2, neutral: 1 };
 //  the GuardOverlord released-guard pattern; no tick-expiry.
 //
 //  Not RCL8-gated (the score race is open now). The needed count scales with the hauler
-//  army (ceil(allHaulers / 3)) and the overlord sits just ABOVE haulers in spawn priority,
+//  army (floor(allHaulers / 3)) and the overlord sits just ABOVE haulers in spawn priority,
 //  so scouts and haulers grow in lockstep from a fresh start — demand ticks up only as the
-//  fleet crosses each multiple, never a burst — and the proportional count is the throttle.
+//  fleet crosses each multiple (3→1, 6→2, …), never a burst — and the count is the throttle.
 //  (Adding scouts to an already-large fleet is a one-time catch-up the storage buffer
 //  absorbs.) Home defence still preempts: desiredCount drops to 0 while home is attacked.
 // ============================================================================
@@ -50,9 +50,10 @@ export class ScoutOverlord extends Overlord {
     return "scout";
   }
 
-  // Scout count scales with the hauler army: ceil(allHaulers / HAULERS_PER_SCOUT). Since
-  // expansion (and so the hauler count) only grows once the home economy is fulfilled,
-  // scouts appear when expansion starts and grow with the fleet — no fixed number to tune.
+  // Scout count scales with the hauler army: floor(allHaulers / HAULERS_PER_SCOUT) — 0 until
+  // 3 haulers, then 3→1, 6→2, …. Since expansion (and so the hauler count) only grows once
+  // the home economy is fulfilled, scouts appear when expansion starts and grow with the
+  // fleet — no fixed number to tune.
   // Gated to 0 when: no expansionMap entry (it carries the SK/enemy-core avoid list — no
   // safe routing without it), before Stage 2b, in workforce recovery, or while HOME is
   // under attack (we sit above guards in priority, so stand down to let defence spawn).
@@ -64,7 +65,7 @@ export class ScoutOverlord extends Overlord {
     const haulers =
       this.colony.creepsWithRole("hauler").length +
       this.colony.creepsWithRole("remoteHauler").length;
-    return Math.ceil(haulers / HAULERS_PER_SCOUT);
+    return Math.floor(haulers / HAULERS_PER_SCOUT);
   }
 
   bodyFor(energyBudget) {
