@@ -107,7 +107,7 @@ export class Guard extends Role {
     const range = creep.pos.getRangeTo(target);
     if (hostiles.length > 1 && range <= 1) creep.rangedMassAttack();
     else if (range <= KITE_RANGE) creep.rangedAttack(target);
-    if (range < KITE_RANGE) this.kiteAway(creep, target, colony);
+    if (range < KITE_RANGE) this.kiteAway(creep, target);
     else if (range > KITE_RANGE) creep.travelTo(target, { range: KITE_RANGE });
   }
 
@@ -115,23 +115,17 @@ export class Guard extends Role {
   // moved blindly opposite the target and froze when that single tile was a wall or a
   // room exit (the #119 safety) — which is exactly how guard_8142 died, pinned at the
   // west edge. Instead, score every OPEN neighbour by distance-from-target and take the
-  // farthest. Ties break toward home (lure): drag a chaser back toward our tower, or at
-  // home stay inside tower coverage. Because distance is the PRIMARY key, a tile toward
-  // an enemy sitting between us and home loses on distance — so we never lure into the
-  // enemy and need no explicit "is the invader between us and home" test. Fully boxed in
-  // (no open tile) → hold and keep firing rather than freeze.
-  static kiteAway(creep, target, colony) {
+  // farthest, so at an edge we step sideways to keep distance rather than freeze. Fully
+  // boxed in (no open tile) → hold and keep firing.
+  static kiteAway(creep, target) {
     const tiles = this.openNeighbours(creep);
     if (!tiles.length) return;
-    const lure = this.lureScorer(creep, colony);
     let best = null;
-    let bestScore = -Infinity;
+    let bestRange = -Infinity;
     for (const tile of tiles) {
-      // Distance dominates (×100); the lure bias (0..49) only separates equal-distance
-      // tiles, so it never trades away kite distance for a step toward home.
-      const score = tile.getRangeTo(target) * 100 + lure(tile);
-      if (score > bestScore) {
-        bestScore = score;
+      const range = tile.getRangeTo(target);
+      if (range > bestRange) {
+        bestRange = range;
         best = tile;
       }
     }
@@ -160,41 +154,5 @@ export class Guard extends Role {
       }
     }
     return tiles;
-  }
-
-  // The lure bias (#130): a tile→score function (higher = more "toward home"), used only
-  // to break ties between equally-safe retreat tiles. At home, bias toward the nearest
-  // tower so the guard kites inside tower coverage. In a 1-hop remote, bias toward the
-  // home-room exit so a chasing enemy is dragged back toward home (and its tower). From a
-  // 2-hop+ room, or when home has no tower yet, there is nothing to lure toward → no bias.
-  static lureScorer(creep, colony) {
-    const homeRoom = Game.rooms[colony.name];
-    const towers = homeRoom
-      ? homeRoom.find(FIND_MY_STRUCTURES, { filter: (s) => s.structureType === STRUCTURE_TOWER })
-      : [];
-    if (!towers.length) return () => 0;
-    if (creep.room.name === colony.name) {
-      const tower = creep.pos.findClosestByRange(towers);
-      return (tile) => -tile.getRangeTo(tower); // nearer the tower scores higher
-    }
-    if (Game.map.getRoomLinearDistance(colony.name, creep.room.name) !== 1) return () => 0;
-    return this.edgeBias(Game.map.findExit(creep.room.name, colony.name));
-  }
-
-  // Map a FIND_EXIT_* side (the home-ward direction) to a tile→score that grows toward
-  // that edge, so a kiting guard drifts home. Unknown/no-path exit → flat zero (no lure).
-  static edgeBias(exit) {
-    switch (exit) {
-      case FIND_EXIT_LEFT:
-        return (tile) => 49 - tile.x;
-      case FIND_EXIT_RIGHT:
-        return (tile) => tile.x;
-      case FIND_EXIT_TOP:
-        return (tile) => 49 - tile.y;
-      case FIND_EXIT_BOTTOM:
-        return (tile) => tile.y;
-      default:
-        return () => 0;
-    }
   }
 }
