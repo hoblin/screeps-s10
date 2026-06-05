@@ -10,6 +10,7 @@ const SCAN_RADIUS = 6; // BFS room-radius from home to consider (a scout's reach
 const ROUTE_CAP = 8; // max rooms per assigned leg (loose TTL cap; early death frees the tail)
 const STALE_MAX = 20000; // staleness cap; a never-seen room uses this as its age
 const CLAIMED_PENALTY = 0.1; // another scout's queued room: deprioritise, don't exclude
+const SCOUT_THREAT_PENALTY = 0.05; // recently killed a scout / live armed threat: deprioritise hard
 const EMPTY_REPLAN_COOLDOWN = 50; // ticks before retrying a plan that came back empty
 
 // Room value by type (× staleness = priority). Score structures are the prize, so their
@@ -85,12 +86,20 @@ export class ScoutOverlord extends Overlord {
   run() {
     const routes = this.routes;
     const alive = new Set(this.assignedCreeps.map((c) => c.name));
-    // Claim-by-liveness: a route whose scout is gone releases its rooms (just delete it).
-    for (const name in routes) if (!alive.has(name)) delete routes[name];
-    // Give every live scout a fresh leg if it has none or finished its last one. An empty
-    // plan (no candidates this tick) backs off for a cooldown so we don't re-run the BFS
-    // every tick for a scout that has nowhere to go.
+    // Claim-by-liveness: a route whose scout is gone releases its rooms. A dead scout also
+    // gets its casualty attributed to the room it fell in (#147) — `creep.memory` is already
+    // wiped by the time we run, but the plan's `lastRoom` survives here.
+    for (const name in routes) {
+      if (alive.has(name)) continue;
+      if (routes[name].lastRoom) Threat.bumpScoutThreat(routes[name].lastRoom);
+      delete routes[name];
+    }
+    // Give every live scout a fresh leg if it has none or finished its last one. A fleeing
+    // scout (it abandoned its route on attack) is left alone until it's safe, then re-planned
+    // onto a route that avoids the room it fled. An empty plan (no candidates) backs off for
+    // a cooldown so we don't re-run the BFS every tick for a scout with nowhere to go.
     for (const creep of this.assignedCreeps) {
+      if ((creep.memory.fleeUntil || 0) > Game.time) continue; // fleeing — don't touch its route
       const plan = routes[creep.name];
       if (plan && plan.index < plan.route.length) continue; // still walking its route
       if (plan && plan.route.length === 0 && Game.time - plan.tick < EMPTY_REPLAN_COOLDOWN) continue;
@@ -152,7 +161,12 @@ export class ScoutOverlord extends Overlord {
       const intel = Threat.intelFor(room);
       if (intel && intel.towers > 0) continue; // hostile towers → death, no intel gained
       const staleness = Math.min(Game.time - Threat.lastSeen(room), STALE_MAX);
-      out.push({ room, score: staleness * this.roomValue(room, intel) });
+      let score = staleness * this.roomValue(room, intel);
+      // #147: deprioritise (not exclude) rooms that recently killed a scout or hold a live
+      // armed threat — scouts drain SAFE space first; with the freshness decay these re-open
+      // to a cheap re-probe later. Persistent valuable blockers are the escort half's job.
+      if (Threat.scoutThreatOf(room) > 0 || Threat.isHot(room)) score *= SCOUT_THREAT_PENALTY;
+      out.push({ room, score });
     }
     return out;
   }
