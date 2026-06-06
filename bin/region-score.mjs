@@ -74,8 +74,10 @@ const db = () => (_db ??= openDb());
 // weighted a bit below home (reserver cost + raid risk + longer road).
 const BASE_HOME = 100;  // a worked home source
 const BASE_REMOTE = 75; // a reserved remote source — ~75% of a home source, still a full 10 e/t node
-const K = 0.008; // GENTLE distance decay (round-trip tiles): a far source keeps most of its value, so
-                 // the COUNT of accessible sources drives the score, not which two sit closest.
+const K = 0.02; // distance decay (round-trip tiles, terrain-weighted via crossBorderDist so SWAMP costs
+                // 5×). Middle ground: count still drives the score, but a far / swampy remote is properly
+                // discounted (a swamp-maze neighbour is NOT worth a clean adjacent one). 0.04 was a cliff
+                // (distance killed value), 0.008 was too soft (swamp/distance ignored).
 const ONE_SOURCE_PENALTY = 0.4; // a 1-source room is a weak main (half the income) — heavily deprioritised.
 const MINERAL_BONUS = { U: 18, X: 18, K: 14, L: 14, Z: 12, O: 8, H: 8 };
 
