@@ -3,6 +3,9 @@ import { shoot } from "./atoms/acts.js";
 import { nearestHostile } from "./atoms/selectors.js";
 import { steer, enemyField, separation, attract, PRIORITY_HOLD } from "./atoms/field.js";
 
+const HOLD_ZONE = 6; // only hostiles within this of the held point influence the squad — a lure darting
+// beyond it is ignored, so a distant enemy's wide attract can't pull the pin off its ground (lure-proof).
+
 // ============================================================================
 //  HoldPosition (#190 flagship) — PIN the squad to a point and deny the area, on the
 //  magnet field. Positioning is the SUM of three magnets: a WEAK pull to the held point
@@ -25,7 +28,8 @@ export class HoldPosition extends Behavior {
       return true;
     }
 
-    const hostiles = creep.room.find(FIND_HOSTILE_CREEPS);
+    // Only point-local hostiles count — distant ones can't lure the pin off its ground.
+    const hostiles = creep.room.find(FIND_HOSTILE_CREEPS).filter((h) => h.pos.getRangeTo(point) <= HOLD_ZONE);
     const melee = creep.getActiveBodyparts(ATTACK) > 0;
     const target = hostiles.length ? nearestHostile(creep, hostiles) : null;
 

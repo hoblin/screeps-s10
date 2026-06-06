@@ -50,13 +50,16 @@ const OPENNESS_WEIGHT = 2; // per unit of DISTANCE-WEIGHTED enclosure. A 1-tile-
 //   • WORK/CARRY/TOUGH — no pull (economy/soak, mopped last).
 // So a 6×RANGED+2×HEAL core repels hard at range 3 (kite it, #185) yet still draws focus; a room of
 // haulers is killed fastest-first; all emergent from one summation, no target-priority code.
-const RANGED_REPEL = 3; // per RANGED_ATTACK part — repulsion inside kite range (its kill-zone)
-const MELEE_REPEL = 3; // per ATTACK part — keep a ranged unit out of melee reach
-const ARMED_ATTRACT = 3; // per RANGED/ATTACK part — wide pull: engage armed units first
+// Offence repel MUST exceed a unit's own attract, or attraction wins inside the repel range and the
+// kiter dives onto the enemy instead of holding reach: the equilibrium sits at `range` only when the
+// inside-range slope (attract − repel) is negative. So repel-per-part > attract-per-part(+base).
+const RANGED_REPEL = 8; // per RANGED_ATTACK part — repulsion inside kite range (its kill-zone)
+const MELEE_REPEL = 8; // per ATTACK part — keep a ranged unit out of melee reach
+const ARMED_ATTRACT = 3; // per RANGED/ATTACK part — wide pull: engage armed units first (priority, not dive)
 const HEAL_ATTRACT = 3; // per HEAL part — wide pull: focus-kill the enemy healer
 const MOVE_ATTRACT = 1; // per MOVE part — faint pull: kill the fast (more MOVE) before the slow
 const KEEP_ATTRACT = 2; // baseline pull toward threats for a KITER (always close to shooting range 3);
-// held units omit it (their anchor sets position). With repel > attract, a kiter's equilibrium is range 3.
+// held units omit it (their anchor sets position).
 const SEP_RANGE = 3; // squadmates repel each other within this — ≥3 so one rangedMassAttack (range 3)
 // can't catch two of us (the #185 anti-cluster rule).
 const SEP_STRENGTH = 6; // separation push per tile inside SEP_RANGE
@@ -215,7 +218,9 @@ function enemyMagnet(enemy, w) {
     enemy.getActiveBodyparts(HEAL) * w.heal +
     enemy.getActiveBodyparts(MOVE) * w.move +
     w.base;
-  return { x: enemy.pos.x, y: enemy.pos.y, repel, attract, range: KITE_RANGE };
+  // range only gates the repel; a unit with no offence (a lone healer / harmless creep) is pure
+  // attract → range 0 so it's dived all the way in (the min sits at d=0), not held at reach.
+  return { x: enemy.pos.x, y: enemy.pos.y, repel, attract, range: repel > 0 ? KITE_RANGE : 0 };
 }
 
 // The composite enemy field: every hostile as a body-derived magnet under the given priority profile.
