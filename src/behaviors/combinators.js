@@ -1,10 +1,12 @@
 // ============================================================================
 //  Behavior combinators (#188) — compose atom Behaviors into trees.
 //
-//  The whole composition layer rests on ONE contract: every Behavior's
+//  The composition layer rests on ONE contract: a COMPOSABLE behavior's
 //  `run(creep, colony, ctx?)` returns a BOOLEAN — "did I act / produce an intent
-//  this tick?". From that boolean the combinators fall out with no per-composite
-//  conditionals:
+//  this tick?". This holds for the atoms here (Kite/Regroup) and any composite built
+//  on these combinators; the rest of the legacy catalog (FocusFire/RaidRoom/… ) still
+//  returns void and migrates onto the contract in #189. From that boolean the
+//  combinators fall out with no per-composite conditionals:
 //
 //   • fallback (selector) — try children in order; the FIRST that returns true
 //     wins and the rest don't run. The canonical "do A, else B": e.g.
