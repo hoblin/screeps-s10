@@ -1,6 +1,7 @@
 import { HiveCluster } from "./HiveCluster.js";
 import { ExtensionPlanner } from "../lib/ExtensionPlanner.js";
 import { RoadPlanner } from "../lib/RoadPlanner.js";
+import { SpawnPlanner } from "../lib/SpawnPlanner.js";
 import { stageAtLeast } from "../lib/Stages.js";
 import { log } from "../lib/Logger.js";
 import { roleIcon } from "../lib/Icons.js";
@@ -40,6 +41,10 @@ export class Hatchery extends HiveCluster {
   // central tile is already claimed when the extension spiral (which skips occupied
   // tiles) lays down around it (#16/#17).
   run(requests) {
+    // A freshly-claimed colony has no spawn yet: place its first spawn site so the
+    // bootstrap pioneers have something to build (#220). No-op once a spawn exists,
+    // so this only fires during the brief spawnless bootstrap window.
+    if (this.spawns.length === 0) SpawnPlanner.ensureFirstSpawn(this.room);
     this.planExtensions();
     // Roads after extensions: sampling excludes the structure-checkerboard tiles,
     // so roads land on the walkways the extension spiral leaves open (#116).
