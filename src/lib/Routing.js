@@ -32,6 +32,15 @@ export function towerFreeRoute(from, to, { allowUnscouted = false, avoidHot = fa
   return Array.isArray(route) ? route : null; // ERR_NO_PATH → null
 }
 
+// Is a single room CLOSED for safe transit right now — towered, or a hot room this `clearer` can't win
+// (same policy as the route cost, judged for a non-destination room)? The per-hop freshness check a
+// COMMITTED corridor uses: it walks a cached route stably (no per-tick findRoute, #213) but bails to a
+// re-route the moment its next hop turns dangerous, so committing never walks blind into a fresh tower /
+// unwinnable threat (#197 safety preserved).
+export function routeRoomBlocked(roomName, { allowUnscouted = false, clearer = null } = {}) {
+  return safeRouteCost(roomName, null, allowUnscouted, true, clearer) === Infinity;
+}
+
 // The shared per-room cost for a safe corridor (one source for the route-callback policy). 1 = passable,
 // Infinity = closed (findRoute routes around it). The destination is always passable — the caller vets it.
 function safeRouteCost(roomName, dest, allowUnscouted, avoidHot, clearer) {
