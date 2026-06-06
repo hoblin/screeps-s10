@@ -70,7 +70,9 @@ export class RemoteMiningOverlord extends Overlord {
   isDying(creep) {
     if (creep.ticksToLive === undefined) return false;
     const a = creep.memory.remoteSource;
-    if (!a || a.dist == null) return false;
+    // Guard finiteness, not just null: a legacy/corrupt Infinity dist would make the lead Infinity →
+    // ttl < Infinity always true → endless relief spam; NaN would misclassify. Non-finite → not dying.
+    if (!a || !Number.isFinite(a.dist)) return false;
     const lead = Miner.replacementLead(RemoteMiner.bodyFor(this.colony.spawnEnergyBudget()), a.dist);
     return creep.ticksToLive < lead;
   }
