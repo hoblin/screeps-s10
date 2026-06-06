@@ -1,4 +1,4 @@
-import { Behavior } from "../Behavior.js";
+import { CombatBehaviour } from "./CombatBehaviour.js";
 import { shoot, closeTo, holdAnchor, meleeStrike } from "./atoms/acts.js";
 import { nearestHostile, anchorPoint } from "./atoms/selectors.js";
 import { KITE_RANGE } from "../../lib/Movement.js";
@@ -16,7 +16,7 @@ const LEASH = 5; // anti-lure: never chase a target more than this far from the 
 //
 //  Anchor = memory.point (the flag), else the controller. Body-agnostic.
 // ============================================================================
-export class KillClosest extends Behavior {
+export class KillClosest extends CombatBehaviour {
   static run(creep, _colony) {
     const melee = creep.getActiveBodyparts(ATTACK) > 0;
     const anchor = anchorPoint(creep);

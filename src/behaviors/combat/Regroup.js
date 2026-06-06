@@ -1,4 +1,4 @@
-import { Behavior } from "../Behavior.js";
+import { CombatBehaviour } from "./CombatBehaviour.js";
 import { holdAnchor } from "./atoms/acts.js";
 
 // ============================================================================
@@ -10,7 +10,7 @@ import { holdAnchor } from "./atoms/acts.js";
 //  A TERMINAL default — it always handles the tick (move toward the squad or hold),
 //  so it returns true and sits last in a fallback as the no-combat sink.
 // ============================================================================
-export class Regroup extends Behavior {
+export class Regroup extends CombatBehaviour {
   static run(creep, _colony) {
     const anchor = this.groupAnchor(creep);
     if (anchor && holdAnchor(creep, anchor, 2)) this.note(creep, "kite:regroup");

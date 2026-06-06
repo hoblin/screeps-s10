@@ -1,4 +1,4 @@
-import { Behavior } from "../Behavior.js";
+import { CombatBehaviour } from "./CombatBehaviour.js";
 import { shoot, meleeStrike, travelToRoom } from "./atoms/acts.js";
 import { nearestHostile } from "./atoms/selectors.js";
 import { steer, enemyField, separation, attract, PRIORITY_HOLD, APPROACH_RANGE } from "./atoms/field.js";
@@ -18,7 +18,7 @@ const HOLD_ZONE = 6; // only hostiles within this of the held point influence th
 //  Pin = memory.point (the flag). Body-agnostic: ranged shoots + field-dances; melee
 //  strikes an adjacent intruder and the field holds it on the tile.
 // ============================================================================
-export class HoldPosition extends Behavior {
+export class HoldPosition extends CombatBehaviour {
   static run(creep, _colony) {
     const point = this.holdPos(creep);
     if (!point) return false; // unpinned → nothing to hold

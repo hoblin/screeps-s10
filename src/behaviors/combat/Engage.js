@@ -1,4 +1,4 @@
-import { Behavior } from "../Behavior.js";
+import { CombatBehaviour } from "./CombatBehaviour.js";
 import { selfHeal, skirmish } from "./atoms/acts.js";
 import { armedOf } from "./atoms/selectors.js";
 
@@ -18,7 +18,7 @@ import { armedOf } from "./atoms/selectors.js";
 //   • ctx.ownerFilter — restrict combat to ONE player's creeps (#140 en-route hunt)
 //   • ctx.target      — fight this exact creep (else armed-nearest)
 // ============================================================================
-export class Engage extends Behavior {
+export class Engage extends CombatBehaviour {
   static run(creep, _colony, ctx) {
     selfHeal(creep);
     let hostiles = ctx?.threats ?? creep.room.find(FIND_HOSTILE_CREEPS);

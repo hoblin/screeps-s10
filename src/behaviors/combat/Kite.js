@@ -1,4 +1,4 @@
-import { Behavior } from "../Behavior.js";
+import { CombatBehaviour } from "./CombatBehaviour.js";
 import { selfHeal, shoot, kiteStep } from "./atoms/acts.js";
 import { armedOf } from "./atoms/selectors.js";
 
@@ -14,7 +14,7 @@ import { armedOf } from "./atoms/selectors.js";
 //  `ctx` (optional): ctx.threats (else self-scan), ctx.target (else armed-nearest). The
 //  override lets FocusFire/others reuse the kite mechanics on a chosen shared target.
 // ============================================================================
-export class Kite extends Behavior {
+export class Kite extends CombatBehaviour {
   static run(creep, _colony, ctx) {
     selfHeal(creep);
     const threats = ctx?.threats ?? creep.room.find(FIND_HOSTILE_CREEPS);
