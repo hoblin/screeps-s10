@@ -7,11 +7,11 @@ import { armedOf } from "./atoms/selectors.js";
 //  Self-heal, find the hostiles, target the closest ARMED one (mop the nearest
 //  harmless only when none are armed), and execute by body — melee strike, or ranged
 //  shoot + kite. Returns the atom contract bool: true if there were hostiles
-//  (engaged), false if the room is clear — the load-bearing signal callers dispatch
-//  on (Guard garrisons / Escort follows / RaidRoom holds the controller when false).
+//  (engaged), false if the room is clear — the load-bearing signal composing behaviors
+//  dispatch on (holdPoint garrisons / holdGround holds / raidRoom razes when false).
 //
-//  This is the nucleus lifted off the Guard role so nothing imports Guard for combat.
-//  Reused by Guard.run, Escort, HoldPoint, RaidRoom (and FocusFire's no-armed fallback).
+//  The shared combat nucleus, on no role: reused by holdPoint, holdGround, raidRoom,
+//  freeHunter (and FocusFire's no-armed fallback). It also stamps lastEngaged + foughtOwner.
 //
 //  `ctx` (optional, from a composing behavior):
 //   • ctx.threats     — the hostile list to consider (else self-scan the room)
@@ -25,15 +25,19 @@ export class Engage extends Behavior {
     if (ctx?.ownerFilter) hostiles = hostiles.filter((h) => h.owner && h.owner.username === ctx.ownerFilter);
     if (!hostiles.length) return false;
 
+    // In combat this tick — stamp the contact for the post-clear hold (the HoldGround node keys its
+    // entry/exit window off this, so a guard holds the contested ground after clearing — #160).
+    creep.memory.lastEngaged = Game.time;
+
     const armed = armedOf(hostiles);
     const engageable = armed.length ? armed : hostiles;
     const target = ctx?.target ?? creep.pos.findClosestByRange(engageable);
 
-    // Remember the armed attacker's owner for sunk-asset retaliation (#140) — harmless
-    // stragglers don't earn revenge, and we don't re-stamp while a mission is locked
-    // (it could invalidate the locked target and drop a valid mission). Read by Guard.run
-    // (the en-route hunt) and GuardOverlord (retaliation dispatch).
-    if (armed.length && target.owner && !creep.memory.retaliationMission) {
+    // Remember the armed attacker's owner for sunk-asset retaliation (#140) — harmless stragglers
+    // don't earn revenge, and we don't re-stamp while a retaliation is locked (targetOwner set: the
+    // raidRoom edge), which could invalidate the locked target. Read by GuardOverlord (retaliation
+    // dispatch) and the raidRoom en-route owner-hunt.
+    if (armed.length && target.owner && !creep.memory.targetOwner) {
       creep.memory.foughtOwner = target.owner.username;
     }
 
