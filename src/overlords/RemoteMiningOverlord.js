@@ -1,5 +1,6 @@
 import { Overlord } from "./Overlord.js";
 import { RemoteMiner } from "../roles/RemoteMiner.js";
+import { Miner } from "../roles/Miner.js";
 import { Threat } from "../lib/Threat.js";
 
 // ============================================================================
@@ -17,9 +18,14 @@ import { Threat } from "../lib/Threat.js";
 //  Allocation: one miner per safe source (reachable + not currently hot), value
 //  best-first. Each miner's source is stamped in its memory (its model); the
 //  controller hands out assignments on spawn and reconciles them every tick.
-//  Health-gated on expansionReady (#89) — spawning a miner drops spawn-idle, so the
-//  latch releases and the set fills over several ticks, best source first, never
-//  beyond spare capacity. v1 drop-mines (no remote container).
+//
+//  SUSTAIN vs EXPAND gating (#210): keeping an ALREADY-COVERED source staffed — including the
+//  just-in-time replacement of a dying incumbent (#168 JIT, generalized per-source here) — is
+//  SUSTAINING committed production and is funded UNCONDITIONALLY (only the `recovering` crisis floor
+//  yields). OPENING a NEW (uncovered) source is expansion: a spawn-time investment, gated on
+//  expansionReady (#89), which self-throttles to spare spawn capacity. Without per-source JIT a remote
+//  source sat minerless for the whole spawn+travel gap every cycle (the ~dist×3 trip is long), so
+//  ~half the sources had no miner at any moment. v1 drop-mines (no remote container).
 // ============================================================================
 const key = (s) => `${s.room}:${s.x}:${s.y}`;
 
@@ -39,26 +45,74 @@ export class RemoteMiningOverlord extends Overlord {
     return this.colony.remoteSources().filter((s) => !Threat.isHotForEconomy(s.room));
   }
 
-  // One miner per safe source, once the home economy can invest (#89).
+  // SUSTAIN (always) + EXPAND (gated). Sustain = keep every already-covered safe source staffed, plus
+  // pre-spawn a JIT relief for each dying incumbent (#210/#168) — committed production, unconditional.
+  // Expand = open the remaining uncovered safe sources — only when expansionReady (#89). The recovering
+  // crisis floor zeroes everything (the recovery worker takes the spawn first). The dying-incumbent +1
+  // is balanced by its relief in assignedCreeps, so exactly one relief is ordered per dying source.
   desiredCount() {
-    if (!this.colony.health.expansionReady) return 0;
-    return this.safeSources().length;
+    if (this.colony.health.recovering) return 0;
+    const safe = this.safeSources();
+    const safeKeys = new Set(safe.map(key));
+    const onSafe = this.assignedCreeps.filter(
+      (c) => c.memory.remoteSource && safeKeys.has(key(c.memory.remoteSource))
+    );
+    const covered = new Set(onSafe.map((c) => key(c.memory.remoteSource))).size;
+    const dying = onSafe.filter((c) => this.isDying(c)).length;
+    const sustain = covered + dying; // staff active sources + pre-spawn JIT relief — unconditional
+    if (!this.colony.health.expansionReady) return sustain;
+    return sustain + (safe.length - covered); // + open the uncovered safe sources (expansion)
+  }
+
+  // A live incumbent within its (spawn + travel) replacement lead of dying — the JIT trigger. Uses the
+  // SOURCE's own haul distance (large for a remote), so the relief leaves early enough to arrive as the
+  // incumbent expires. Spawning/fresh creeps (ttl undefined / ≈ full) sit far above the lead.
+  isDying(creep) {
+    if (creep.ticksToLive === undefined) return false;
+    const a = creep.memory.remoteSource;
+    if (!a || a.dist == null) return false;
+    const lead = Miner.replacementLead(RemoteMiner.bodyFor(this.colony.spawnEnergyBudget()), a.dist);
+    return creep.ticksToLive < lead;
   }
 
   bodyFor(energyBudget) {
     return RemoteMiner.bodyFor(energyBudget);
   }
 
-  // Stamp the source a new miner should take: the best safe source no miner covers
-  // yet (the controller owns allocation; the creep just carries the assignment).
+  // Stamp the source a new miner takes. JIT FIRST: if a safe source's lone incumbent is dying with no
+  // relief inbound yet, bind the relief to THAT source — the uncovered-scan below would skip it (the
+  // dying incumbent still counts the source as covered). Else open the best uncovered safe source.
   generateSpawnRequest() {
     const req = super.generateSpawnRequest();
     if (!req) return null;
+    const relief = this.sourceNeedingRelief();
+    if (relief) {
+      req.memory.remoteSource = { ...relief };
+      return req;
+    }
     const covered = this.coveredSources();
     const s = this.safeSources().find((src) => !covered.has(key(src)));
     if (!s) return null; // every safe source already has a miner
     req.memory.remoteSource = { room: s.room, x: s.x, y: s.y, dist: s.dist };
     return req;
+  }
+
+  // The remoteSource of a safe source whose ONLY assigned miner is a dying incumbent (no relief inbound
+  // yet). Per-source grouping so two sources dying at once each get exactly one relief, and a source
+  // already being relieved (2 miners) is skipped — the base spawn gate then orders no duplicate.
+  sourceNeedingRelief() {
+    const safeKeys = new Set(this.safeSources().map(key));
+    const bySource = {};
+    for (const c of this.assignedCreeps) {
+      const a = c.memory.remoteSource;
+      if (!a || !safeKeys.has(key(a))) continue;
+      (bySource[key(a)] ||= []).push(c);
+    }
+    for (const k in bySource) {
+      const crew = bySource[k];
+      if (crew.length === 1 && this.isDying(crew[0])) return crew[0].memory.remoteSource;
+    }
+    return null;
   }
 
   // Source keys currently assigned to a live miner.
