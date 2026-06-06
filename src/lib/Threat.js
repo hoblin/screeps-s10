@@ -23,7 +23,7 @@
 // becomes a re-probe candidate. ~a chunk of a creep lifetime: long enough that we
 // don't re-feed creeps into a genuinely-held room every few ticks, short enough that
 // a transient scout's contest clears within a reasonable window. Tunable.
-const INTEL_FRESH_TICKS = 1000;
+export const INTEL_FRESH_TICKS = 1000;
 
 export const Threat = {
   // Lethal combat capability of a hostile creep — parts that can damage OUR creeps.

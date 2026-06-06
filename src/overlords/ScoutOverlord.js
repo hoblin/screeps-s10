@@ -3,6 +3,7 @@ import { Scout } from "../roles/Scout.js";
 import { Escort } from "../roles/Escort.js";
 import { combatBody } from "../lib/CombatBody.js";
 import { Threat } from "../lib/Threat.js";
+import { towerFreeRoute } from "../lib/Routing.js";
 import { stageAtLeast } from "../lib/Stages.js";
 import expansionMap from "../data/expansionMap.json";
 
@@ -394,11 +395,12 @@ export class ScoutOverlord extends Overlord {
     return best;
   }
 
-  // Greedy route from a start room: repeatedly hop to the best value-per-distance room,
-  // up to ROUTE_CAP. Rooms another live scout already queued are kept in the pool but
-  // heavily DEPRIORITISED (× CLAIMED_PENALTY), not excluded — so the fleet fans out, yet
-  // a scout can still take a uniquely-valuable room (a chokepoint) another claimed rather
-  // than be starved; their target sets just diverge. Value-per-distance avoids zig-zags.
+  // Greedy route from a start room: repeatedly pick the best value-per-distance target, then expand
+  // that leg into a TOWER-FREE corridor (#194) so the scout walks only vetted rooms and never transits
+  // a known-towered one — up to ROUTE_CAP rooms total. Rooms another live scout already queued are kept
+  // in the pool but heavily DEPRIORITISED (× CLAIMED_PENALTY), not excluded — so the fleet fans out, yet
+  // a scout can still take a uniquely-valuable room (a chokepoint) another claimed rather than be
+  // starved; their target sets just diverge. Value-per-distance avoids zig-zags.
   planRoute(fromRoom) {
     const claimed = this.claimedRooms();
     const pool = this.candidateRooms();
@@ -416,9 +418,19 @@ export class ScoutOverlord extends Overlord {
           bestIdx = i;
         }
       }
-      cursor = pool[bestIdx].room;
-      route.push(cursor);
+      const target = pool[bestIdx].room;
       pool.splice(bestIdx, 1);
+      // Expand the leg into a TOWER-FREE corridor (#194): push every room of the route to the target,
+      // so the scout walks only vetted rooms hop-by-hop and never transits a known-towered one. Unscouted
+      // rooms stay passable (probing them is the scout's job; a first-probe death is self-correcting).
+      // No tower-free path to this target → skip it and try the next.
+      const hops = towerFreeRoute(cursor, target, { allowUnscouted: true });
+      if (!hops) continue;
+      for (const hop of hops) {
+        if (route.length >= ROUTE_CAP) break;
+        route.push(hop.room);
+      }
+      cursor = target;
     }
     return route;
   }

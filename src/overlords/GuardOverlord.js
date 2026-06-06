@@ -1,9 +1,10 @@
 import { Overlord } from "./Overlord.js";
 import { Guard } from "../roles/Guard.js";
 import { Threat } from "../lib/Threat.js";
+import { towerFreeRoute } from "../lib/Routing.js";
 
 // Retaliation tunables (#140 — sunk-asset offence; ship and observe).
-const RETALIATE_FRESH = 1000; // a target/route room's intel must be this fresh (ticks) to trust it
+const RETALIATE_FRESH = 1000; // a target room's intel must be this fresh (ticks) for deniable() to trust it
 const RETALIATE_TILES_PER_ROOM = 50; // rough tiles/room → travel ticks for the TTL gate
 const RETALIATE_MIN_DENY = 100; // remaining life the guard needs AFTER arrival to do real damage
 const RETALIATE_SCAN_INTERVAL = 25; // ticks between target searches for an idle guard (findRoute is
@@ -203,7 +204,7 @@ export class GuardOverlord extends Overlord {
     let bestLen = Infinity;
     for (const room in intel) {
       if (!this.deniable(room, owner, creep)) continue;
-      const route = this.towerFreeRoute(creep.room.name, room);
+      const route = towerFreeRoute(creep.room.name, room);
       if (!route || route.length >= bestLen) continue;
       const travel = route.length * RETALIATE_TILES_PER_ROOM;
       if ((creep.ticksToLive || CREEP_LIFE_TIME) < travel + RETALIATE_MIN_DENY) continue; // can't arrive + act
@@ -222,22 +223,6 @@ export class GuardOverlord extends Overlord {
     if (intel.towers > 0) return false;
     if (intel.owner !== owner && intel.reserver !== owner) return false;
     return Threat.winnable(creep.body.map((p) => p.type), room);
-  }
-
-  // A multi-room route from→to avoiding rooms with hostile towers AND rooms we haven't freshly
-  // scouted (never path a guard BLIND into a possible tower — only down a vetted tower-free
-  // corridor). Returns the route array, or null if none. The destination is vetted by deniable().
-  towerFreeRoute(from, to) {
-    if (from === to) return [];
-    const route = Game.map.findRoute(from, to, {
-      routeCallback: (roomName) => {
-        if (roomName === to) return 1;
-        const intel = Memory.roomIntel?.[roomName];
-        if (!intel || Game.time - intel.tick > RETALIATE_FRESH) return Infinity; // unscouted → blind
-        return intel.towers > 0 ? Infinity : 1; // known tower → avoid
-      },
-    });
-    return Array.isArray(route) ? route : null; // ERR_NO_PATH → null
   }
 
   runCreep(creep) {
