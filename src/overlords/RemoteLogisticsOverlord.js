@@ -35,6 +35,7 @@ import { behaviorClass } from "../behaviors/index.js";
 // ============================================================================
 const HAULER_SPEED = 1; // tiles/tick on roads/plains for a 1:1 CARRY:MOVE body
 const FREIGHT_MARGIN = 1.3; // same headroom as the home freight model (#84)
+const DIAG_LEN = 50; // TEMP: capped ring buffer of dispatch snapshots in memory (idle-diagnosis hotfix) — ~50 tiny rows, negligible vs the 2 MB cap
 
 export class RemoteLogisticsOverlord extends Overlord {
   constructor(colony) {
@@ -121,7 +122,23 @@ export class RemoteLogisticsOverlord extends Overlord {
       const t = c.memory.haulTarget;
       if (t && !candidates.has(this.sourceKey(t))) c.memory.haulTarget = null;
     }
-    if (!sources.length) return;
+
+    // TEMP idle-diagnosis (#204 follow-up): snapshot the dispatch state so the empty-hauler stalls can be
+    // read from memory (bin/sapi mem colonyData.<room>.rhaulLog). The smoking gun is `idle > 0` while
+    // `cand` (candidates) is low/0 and `mining` < `srcTot` — i.e. sources sit minerless and collapse the
+    // candidate set. Recorded both on the no-candidate early-out and after assignment.
+    const diag = {
+      srcTot: this.colony.remoteSources().length, // total remote sources (geometric set)
+      miners: this.colony.creepsWithRole("remoteMiner").filter((c) => !c.spawning).length, // live remote miners
+      mining: mined.size, // sources with an ARRIVED, producing miner
+      cand: sources.length, // dispatch candidates this tick
+      hauls: haulers.length, // live haulers
+      idle: haulers.filter((c) => !c.memory.haulTarget && c.store[RESOURCE_ENERGY] === 0).length, // empty + untargeted (the symptom)
+    };
+    if (!sources.length) {
+      this.recordDiag({ ...diag, sent: 0 });
+      return;
+    }
 
     // Capacity already inbound to each source — a committed hauler keeps its assignment for the whole
     // load trip (#86 anti-oscillation), so it counts as a claim against its target's draw. Only count
@@ -143,6 +160,7 @@ export class RemoteLogisticsOverlord extends Overlord {
     // Greedy fullest-first with a per-assignment claim update spreads the fleet (the Nth hauler sees a
     // container already being drained → picks the next); source value tie-breaks between equal draws.
     const free = haulers.filter((c) => !c.memory.haulTarget && c.store[RESOURCE_ENERGY] === 0);
+    let sent = 0;
     for (const c of free) {
       let best = null;
       let bestDraw = -Infinity;
@@ -159,7 +177,21 @@ export class RemoteLogisticsOverlord extends Overlord {
       if (!best) break;
       c.memory.haulTarget = { room: best.room, x: best.x, y: best.y };
       claimed[this.sourceKey(best)] = (claimed[this.sourceKey(best)] || 0) + c.store.getFreeCapacity(RESOURCE_ENERGY);
+      sent++;
     }
+    this.recordDiag({ ...diag, sent });
+  }
+
+  // TEMP dispatch diagnostics (idle-haulers hotfix): append a compact per-tick snapshot to a capped ring
+  // buffer in colony memory, mirroring the creep.memory.log pattern (Kernel.recordCreepTraces). Read with
+  // `bin/sapi mem colonyData.<room>.rhaulLog`. One row per tick the overlord runs; bounded to DIAG_LEN.
+  recordDiag(entry) {
+    Memory.colonyData ||= {};
+    const cd = (Memory.colonyData[this.colony.name] ||= {});
+    const log = cd.rhaulLog || [];
+    log.push({ t: Game.time, ...entry });
+    if (log.length > DIAG_LEN) log.splice(0, log.length - DIAG_LEN);
+    cd.rhaulLog = log;
   }
 
   // Energy waiting at a source we can see: the miner's dropped pile (within range 2) plus the source
