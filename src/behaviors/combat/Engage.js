@@ -1,5 +1,5 @@
 import { Behavior } from "../Behavior.js";
-import { selfHeal, shoot, kiteStep, meleeHit } from "./atoms/acts.js";
+import { selfHeal, skirmish } from "./atoms/acts.js";
 import { armedOf } from "./atoms/selectors.js";
 
 // ============================================================================
@@ -37,16 +37,9 @@ export class Engage extends Behavior {
       creep.memory.foughtOwner = target.owner.username;
     }
 
-    // Dispatch by body — the body IS the source of truth for combat mode: an ATTACK part →
-    // melee, else ranged (a ranged body has no ATTACK, a melee body has no RANGED_ATTACK).
-    if (creep.getActiveBodyparts(ATTACK) > 0) {
-      this.note(creep, "engage:melee");
-      meleeHit(creep, target);
-    } else {
-      this.note(creep, "engage:ranged");
-      shoot(creep, target, hostiles.length > 1);
-      kiteStep(creep, engageable);
-    }
+    // Dispatch by body via the shared skirmish act — the body IS the source of truth for combat
+    // mode: an ATTACK part → melee strike, else ranged shoot + kite (mass-blast in a crowd).
+    this.note(creep, `engage:${skirmish(creep, target, engageable, { crowd: hostiles.length > 1 })}`);
     return true;
   }
 }

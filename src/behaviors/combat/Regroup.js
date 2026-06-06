@@ -1,4 +1,5 @@
 import { Behavior } from "../Behavior.js";
+import { holdAnchor } from "./atoms/acts.js";
 
 // ============================================================================
 //  Regroup (#188) — the squad-cohesion ATOM: with nothing to fight, stay near the
@@ -12,12 +13,8 @@ import { Behavior } from "../Behavior.js";
 export class Regroup extends Behavior {
   static run(creep, _colony) {
     const anchor = this.groupAnchor(creep);
-    if (anchor && !creep.pos.inRangeTo(anchor, 2)) {
-      this.note(creep, "kite:regroup");
-      creep.travelTo(anchor, { range: 2 });
-    } else {
-      this.note(creep, "kite:hold");
-    }
+    if (anchor && holdAnchor(creep, anchor, 2)) this.note(creep, "kite:regroup");
+    else this.note(creep, "kite:hold");
     return true;
   }
 }

@@ -1,6 +1,6 @@
 import { Behavior } from "../Behavior.js";
 import { Engage } from "./Engage.js";
-import { shoot, kiteStep, meleeHit } from "./atoms/acts.js";
+import { skirmish } from "./atoms/acts.js";
 import { armedOf, lowestHitsArmed } from "./atoms/selectors.js";
 
 // ============================================================================
@@ -29,14 +29,9 @@ export class FocusFire extends Behavior {
     const target = lowestHitsArmed(creep.room.find(FIND_HOSTILE_CREEPS));
     if (!target) return Engage.run(creep, colony); // nothing armed → nucleus mops / heals / holds
 
-    if (creep.getActiveBodyparts(ATTACK) > 0) {
-      this.note(creep, "focus:melee");
-      meleeHit(creep, target, { priority: 1 }); // take the tile so the squad's burst lands same-tick
-    } else {
-      this.note(creep, "focus:ranged");
-      shoot(creep, target); // single aimed shot — never mass (concentrate on ONE)
-      kiteStep(creep, [target]); // field-kite, keeping range from the focus target
-    }
+    // Skirmish the single focus pick: melee takes the tile (priority:1) so the burst lands same-tick;
+    // ranged fires ONE aimed shot (no crowd mass — concentrate on ONE) and kites from the focus alone.
+    this.note(creep, `focus:${skirmish(creep, target, [target], { meleeOpts: { priority: 1 } })}`);
     return true;
   }
 

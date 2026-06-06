@@ -43,13 +43,24 @@ export function kiteStep(creep, threats) {
   steer(creep, [...enemyField(threats), ...separation(creep)], { goal: target, goalRange: KITE_RANGE });
 }
 
+// Melee strike WITHOUT moving — hit the target if it's already adjacent, else a no-op. The melee
+// analog of `shoot` (fire-in-reach, never chase): a hold/denial body strikes an intruder that walks
+// into reach but never abandons its ground to chase one. Returns true if the hit landed, so the
+// caller can branch (tag its note, skip its own approach).
+export function meleeStrike(creep, target) {
+  if (creep.pos.isNearTo(target)) {
+    creep.attack(target);
+    return true;
+  }
+  return false;
+}
+
 // Melee: strike if adjacent, else step to range 1. `opts` forwards to travelTo — a
 // focus-firing creep passes { priority: 1 } to take the target tile from idlers so the
-// squad's burst lands the same tick. (Calling attack() out of range is a harmless no-op,
-// so the isNearTo guard is equivalent to the old attack()===ERR_NOT_IN_RANGE idiom.)
+// squad's burst lands the same tick.
 export function meleeHit(creep, target, opts = {}) {
-  if (creep.pos.isNearTo(target)) creep.attack(target);
-  else creep.travelTo(target, { range: 1, ...opts });
+  if (meleeStrike(creep, target)) return;
+  creep.travelTo(target, { range: 1, ...opts });
 }
 
 // Close to within `range` of a target (no attack — the caller fires separately).
@@ -60,7 +71,7 @@ export function closeTo(creep, target, range, opts = {}) {
 // Damage a target by body, closing to reach — NO kite. For a target to kill outright rather than
 // fear: a structure (can't move/flee) or a creep you out-range. Melee steps in and hits; ranged
 // closes to KITE_RANGE then fires. Self-heals each tick (a HEAL body soaks incidental damage).
-// The non-kiting counterpart to Engage's fight-and-dodge — reused by raidRoom's raze.
+// The non-kiting counterpart to `skirmish` — reused by raidRoom's raze.
 export function strike(creep, target) {
   selfHeal(creep);
   if (creep.getActiveBodyparts(ATTACK) > 0) {
@@ -69,6 +80,22 @@ export function strike(creep, target) {
   }
   if (creep.pos.getRangeTo(target) > KITE_RANGE) closeTo(creep, target, KITE_RANGE);
   shoot(creep, target);
+}
+
+// Fight a resolved target by body while KITING — the move-and-shoot sibling of `strike`'s
+// stand-and-kill, for an enemy that can hit back. Melee closes and strikes; ranged shoots then
+// kites away from `threats` (settling at range from EVERY threat, never caught in stacked fire).
+// Returns "melee"/"ranged" so the composing behavior tags its own note. `opts.crowd` mass-blasts at
+// point-blank; `opts.meleeOpts` forwards to the melee approach (e.g. { priority: 1 } to take the
+// target tile so a squad's burst lands the same tick). The shared body-dispatch for Engage/FocusFire.
+export function skirmish(creep, target, threats, { crowd = false, meleeOpts } = {}) {
+  if (creep.getActiveBodyparts(ATTACK) > 0) {
+    meleeHit(creep, target, meleeOpts);
+    return "melee";
+  }
+  shoot(creep, target, crowd);
+  kiteStep(creep, threats);
+  return "ranged";
 }
 
 // Settle at an anchor: travel to within `range` if beyond it, else hold. Returns true if
