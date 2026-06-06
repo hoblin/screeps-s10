@@ -35,12 +35,16 @@ export function towerFreeRoute(from, to, { allowUnscouted = false, avoidHot = fa
 // The shared per-room cost for a safe corridor (one source for the route-callback policy). 1 = passable,
 // Infinity = closed (findRoute routes around it). The destination is always passable — the caller vets it.
 function safeRouteCost(roomName, dest, allowUnscouted, avoidHot, clearer) {
-  if (roomName === dest) return 1; // destination is vetted by the caller
   const intel = Memory.roomIntel?.[roomName];
   // A missing/invalid tick reads as stale (tick 0), not NaN→fresh — defensive against a legacy/corrupt
   // intel entry that would otherwise be wrongly trusted.
-  if (!intel || Game.time - (intel.tick || 0) > INTEL_FRESH_TICKS) return allowUnscouted ? 1 : Infinity;
-  if (intel.towers > 0) return Infinity; // tower → a RANGED kiter can't break it (#178); always route around
+  const stale = !intel || Game.time - (intel.tick || 0) > INTEL_FRESH_TICKS;
+  // A known tower closes a room to a RANGED unit (#178). Under avoidHot (a combat unit's own transit)
+  // this holds even for the DESTINATION — no mode may route us under a tower. Plain length-use
+  // (avoidHot=false, e.g. retaliation TTL estimation) still exempts the caller-vetted destination.
+  if (!stale && intel.towers > 0 && (avoidHot || roomName !== dest)) return Infinity;
+  if (roomName === dest) return 1; // destination otherwise vetted by the caller (a hot dest is the point)
+  if (stale) return allowUnscouted ? 1 : Infinity;
   // Live armed threat: clear it in passing IF the clearer out-guns it (winnable), else route around. Avoiding
   // a beatable fight wastes the chance to deny along the way; walking into an unwinnable one is the #197 death.
   if (avoidHot && intel.threat > 0) return clearer && Threat.winnableBy(clearer, roomName) ? 1 : Infinity;

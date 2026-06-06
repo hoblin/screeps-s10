@@ -12,9 +12,10 @@ const RETALIATE_SCAN_INTERVAL = 25; // ticks between target searches for an idle
 
 // The guard's behaviour set — a thin state machine over a defend default (the role carries no conduct):
 //   holdPoint (default) garrison the assigned room · holdGround hold the spot after a fight (#160) ·
-//   raidRoom deny a locked attacker's remote (#140) · freeHunter roam+kill when released (#187/#197,
-//   instead of recycling). The overlord steers it by stamping memory.target / memory.targetOwner.
-const GUARD_BEHAVIORS = { default: "holdPoint", nodes: ["raidRoom", "holdGround", "freeHunter"] };
+//   raidRoom deny a locked attacker's remote (#140). The overlord steers it by stamping memory.target /
+//   memory.targetOwner. NO freeHunter: a guard does not roam — it raids/garrisons ONE remote and STAYS
+//   there denying mining resumption until it dies (sunk-asset, #197); freeHunter is the solo clearer's job.
+const GUARD_BEHAVIORS = { default: "holdPoint", nodes: ["raidRoom", "holdGround"] };
 
 // ============================================================================
 //  GuardOverlord — owns the combat-clearing domain (#118, Levels 2-3 of the
@@ -127,31 +128,18 @@ export class GuardOverlord extends Overlord {
         role: this.role,
         colony: this.colony.name,
         overlord: this.identifier,
-        target: room, // the behaviours (holdPoint/raidRoom/freeHunter) read memory.target, not guardRoom
+        target: room, // the behaviours (holdPoint default, raidRoom on retaliation) read memory.target
         behaviors: GUARD_BEHAVIORS,
       },
     };
   }
 
-  // Release a guard ONLY when its room has left our footprint (no longer home, not in the
-  // remoteSources map) — then we DROP its target so it becomes a freeHunter (roams the remaining
-  // remotes killing hostiles), NEVER recycling it (#197 — a combat unit is never sent home to idle
-  // or die in transit; denying the area beats reclaiming one body's energy). A guard whose room
-  // merely cooled is NOT released: it garrisons there (#128), counting as coverage so we don't
-  // dispatch a duplicate.
+  // A guard is NEVER released to idle/recycle (#197): once dispatched it commits to its remote and
+  // holds it until death, denying mining resumption there (the sunk asset stays fully employed). The
+  // only re-tasking is sunk-asset retaliation (#140) — manageRetaliation may redirect a guard whose
+  // own room has cooled to go deny the attacker's remote instead (still a stay-and-deny, just his room).
   run() {
-    const footprint = new Set([
-      this.colony.name,
-      ...this.colony.remoteSources().map((s) => s.room),
-    ]);
-    for (const creep of this.assignedCreeps) {
-      this.manageRetaliation(creep); // sunk-asset offence (#140) — may redirect an idle guard
-      // Drop the target of a guard whose room left our footprint → it becomes a freeHunter. A
-      // retaliation (targetOwner set) targets an off-footprint remote by design, so it's exempt.
-      if (creep.memory.target && !footprint.has(creep.memory.target) && !creep.memory.targetOwner) {
-        creep.memory.target = null;
-      }
-    }
+    for (const creep of this.assignedCreeps) this.manageRetaliation(creep);
     super.run();
   }
 
@@ -189,7 +177,7 @@ export class GuardOverlord extends Overlord {
     // No mission: only an IDLE guard whose OWN room is already CLEANED (on its post, cooled to
     // not-hot) with a remembered armed attacker may go on the offensive. Find that attacker's
     // nearest deniable remote it can reach in time.
-    if (creep.room.name !== creep.memory.target) return; // still in transit to its post (or a freeHunter, target null)
+    if (creep.room.name !== creep.memory.target) return; // still in transit to its post
     if (Threat.isHot(creep.memory.target)) return; // own room still hot — clean it first
     const owner = creep.memory.foughtOwner;
     if (!owner) return;
