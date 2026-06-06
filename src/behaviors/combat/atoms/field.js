@@ -117,8 +117,11 @@ function terrainPotential(room) {
   return pot;
 }
 
-// Tiles a creep can't stand on this tick: obstacle structures + enemy ramparts + hostile creeps.
-// Friendlies are intentionally absent — the resolver shoves them by priority (#130).
+// Tiles a creep can't stand on this tick: obstacle structures + enemy ramparts + hostile creeps, plus
+// ANCHORED friendlies (miner on post / spawning / fatigued) — the resolver can't shove those, and a
+// root mover gets only its one chosen tile, so steering onto an anchored ally would FREEZE the unit
+// (field steps have no stuck-counter). Shovable friendlies stay walkable — the resolver pushes them by
+// priority (#130). `isAnchored` is reused from the resolver so "can't be shoved" stays single-sourced.
 function blockedTiles(room) {
   const cached = _blockCache.get(room.name);
   if (cached && cached.tick === Game.time) return cached.blocked;
@@ -128,6 +131,8 @@ function blockedTiles(room) {
     if (enemyRampart || OBSTACLE_OBJECT_TYPES.includes(s.structureType)) blocked.add(idx(s.pos.x, s.pos.y));
   }
   for (const h of room.find(FIND_HOSTILE_CREEPS)) blocked.add(idx(h.pos.x, h.pos.y));
+  const tm = TrafficManager.for(room);
+  for (const c of room.find(FIND_MY_CREEPS)) if (tm.isAnchored(c)) blocked.add(idx(c.pos.x, c.pos.y));
   _blockCache.set(room.name, { tick: Game.time, blocked });
   return blocked;
 }
