@@ -28,16 +28,18 @@ import { KITE_RANGE } from "../../../lib/Movement.js";
 //  obstacle structures + hostile creeps are a cheap per-tick overlay.
 // ============================================================================
 
-// Tunables (ship and observe — we live-tune on the warband). Potentials are summed and
-// the min tile wins, so these are RELATIVE weights, not absolute costs.
-const SWAMP_POT = 2; // standing in swamp is mildly bad (don't camp a marsh)
+// Tunables (ship and observe — we live-tune on the warband). Potentials are summed and the min tile
+// wins, so these are RELATIVE weights. Forces are TWO-DIGIT for fine-grained tuning (1/2/3 is too coarse
+// to nudge one a little above another). The field drives only the close-range micro-dance now; the
+// APPROACH is A* (#196), so the enclosure penalty stays a GENTLE nudge, not a barrier.
+const SWAMP_POT = 20; // standing in swamp is mildly bad (don't camp a marsh)
 const OPENNESS_RADIUS = 2; // how far the enclosure scan looks — wide enough to "see" a narrow pocket
-const OPENNESS_WEIGHT = 2; // per unit of DISTANCE-WEIGHTED enclosure. A 1-tile-greedy field can be lured
-// into a cave/dead-end where the only exit is back through the attacker; this raises the potential of
-// ENCLOSED ground (corridors, pockets, corners) so a kiter never enters one — it fights in the open and
-// stays out of the trap. Also the principled #130 self-corner fix (a corner is enclosed = high cost).
-// Enclosure is summed over nearby wall/edge tiles WEIGHTED BY CLOSENESS ((R+1−d)): a wall right next to
-// the tile dominates, a wall two tiles out only hints — matching the rest of the field's distance decay.
+const OPENNESS_WEIGHT = 2; // per unit of DISTANCE-WEIGHTED enclosure — deliberately LEFT SMALL while the
+// forces went two-digit, so enclosure is now ~15× weaker relative to combat: it discourages backing into
+// a corner (#130) but must NOT refuse a legit 1-tile choke with enemies beyond (live: a guard turned back
+// at a choke). The heavy lifting (routing around walls / through chokes) is A*'s job (#196), not the field.
+// Enclosure is summed over nearby wall/edge tiles WEIGHTED BY CLOSENESS ((R+1−d)): an adjacent wall
+// dominates, a wall two tiles out only hints — matching the rest of the field's distance decay.
 //
 // An enemy's magnet is the SUM of its body parts' potentials, and each combat-relevant part carries
 // TWO kernels: a SHORT repel (its danger zone — don't get hit) and a WIDE attract (its kill-priority —
@@ -53,19 +55,24 @@ const OPENNESS_WEIGHT = 2; // per unit of DISTANCE-WEIGHTED enclosure. A 1-tile-
 // Offence repel MUST exceed a unit's own attract, or attraction wins inside the repel range and the
 // kiter dives onto the enemy instead of holding reach: the equilibrium sits at `range` only when the
 // inside-range slope (attract − repel) is negative. So repel-per-part > attract-per-part(+base).
-const RANGED_REPEL = 8; // per RANGED_ATTACK part — repulsion inside kite range (its kill-zone)
-const MELEE_REPEL = 8; // per ATTACK part — keep a ranged unit out of melee reach
-const ARMED_ATTRACT = 3; // per RANGED/ATTACK part — wide pull: engage armed units first (priority, not dive)
-const HEAL_ATTRACT = 3; // per HEAL part — wide pull: focus-kill the enemy healer
-const MOVE_ATTRACT = 1; // per MOVE part — faint pull: kill the fast (more MOVE) before the slow
-const KEEP_ATTRACT = 2; // baseline pull toward threats for a KITER (always close to shooting range 3);
-// held units omit it (their anchor sets position).
+const RANGED_REPEL = 80; // per RANGED_ATTACK part — repulsion inside kite range (its kill-zone)
+const MELEE_REPEL = 80; // per ATTACK part — keep a ranged unit out of melee reach
+const ARMED_ATTRACT = 30; // per RANGED/ATTACK part — wide pull: engage armed units first (priority, not dive)
+const HEAL_ATTRACT = 30; // per HEAL part — wide pull: focus-kill the enemy healer
+const MOVE_ATTRACT = 10; // per MOVE part — faint pull: kill the fast (more MOVE) before the slow
+const KEEP_ATTRACT = 20; // baseline pull toward threats for a KITER (always close to shooting range 3);
+// held units omit it (their anchor sets position). repel-per-part (80) > attract-per-part+base → the
+// kiter's equilibrium sits AT kite range, it does not dive.
 const SEP_RANGE = 3; // squadmates repel each other within this — ≥3 so one rangedMassAttack (range 3)
 // can't catch two of us (the #185 anti-cluster rule).
-const SEP_STRENGTH = 6; // separation push per tile inside SEP_RANGE
-const ANCHOR_PULL = 3; // hold-point attraction per tile — WEAK so dodge/separation can pull a held
+const SEP_STRENGTH = 60; // separation push per tile inside SEP_RANGE
+const ANCHOR_PULL = 30; // hold-point attraction per tile — WEAK so dodge/separation can pull a held
 // creep off the exact tile to survive, while still drawing it back to the ground it was told to hold.
-const STEER_PRIORITY = 3; // movement priority for the resolver (combat rank, == Combatant/Guard)
+const STEER_PRIORITY = 3; // movement priority for the resolver (combat rank, == Combatant/Guard); NOT a force
+// APPROACH a target/anchor farther than this by A* (travelTo — paths around walls/geometry, prefers roads,
+// has a stuck-counter); the local field drives only the close micro-dance within it. Restores the old
+// guard's PathFinder approach (#196) that the greedy field had dropped (wall-stuck regression).
+export const APPROACH_RANGE = KITE_RANGE + 3;
 
 const idx = (x, y) => y * 50 + x; // row-major tile index (standard Screeps terrain layout)
 

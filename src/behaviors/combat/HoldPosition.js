@@ -1,7 +1,7 @@
 import { Behavior } from "../Behavior.js";
 import { shoot } from "./atoms/acts.js";
 import { nearestHostile } from "./atoms/selectors.js";
-import { steer, enemyField, separation, attract, PRIORITY_HOLD } from "./atoms/field.js";
+import { steer, enemyField, separation, attract, PRIORITY_HOLD, APPROACH_RANGE } from "./atoms/field.js";
 
 const HOLD_ZONE = 6; // only hostiles within this of the held point influence the squad — a lure darting
 // beyond it is ignored, so a distant enemy's wide attract can't pull the pin off its ground (lure-proof).
@@ -33,23 +33,30 @@ export class HoldPosition extends Behavior {
     const melee = creep.getActiveBodyparts(ATTACK) > 0;
     const target = hostiles.length ? nearestHostile(creep, hostiles) : null;
 
-    // Attack without chasing: ranged fires if anything's in reach (held ground, lure-proof — the
-    // field, not a pursuit, sets position); melee strikes only an adjacent intruder.
+    // Attack without chasing (compound — fires whatever the feet do this tick): ranged shoots anything
+    // in reach; melee strikes only an adjacent intruder. Lure-proof — the position (below), not a
+    // pursuit, sets the feet.
     if (target && !melee) {
       this.note(creep, "hold:ranged");
       shoot(creep, target, hostiles.length > 1);
     } else if (target && creep.pos.isNearTo(target)) {
       this.note(creep, "hold:melee");
       creep.attack(target);
-    } else {
-      this.note(creep, "hold:hold");
     }
 
-    // Position by the field: weak pull to the point ⊕ dodge/priority off the enemies ⊕ squad spread.
-    // Melee body-blockers omit the enemy field (they hold the tile, not kite).
-    const magnets = [attract(point), ...separation(creep)];
-    if (!melee) magnets.push(...enemyField(hostiles, PRIORITY_HOLD));
-    steer(creep, magnets);
+    // Position: navigate to the held ground by A* while still FAR from it (#196 — paths around walls,
+    // prefers roads); the magnet field takes over once on station (weak pull to the point ⊕ dodge/
+    // priority off the enemies ⊕ squad spread). Melee body-blockers omit the enemy field (they hold
+    // the tile, not kite).
+    if (creep.pos.getRangeTo(point) > APPROACH_RANGE) {
+      if (!target) this.note(creep, "hold:to-post");
+      creep.travelTo(point, { range: 1 });
+    } else {
+      if (!target) this.note(creep, "hold:hold");
+      const magnets = [attract(point), ...separation(creep)];
+      if (!melee) magnets.push(...enemyField(hostiles, PRIORITY_HOLD));
+      steer(creep, magnets);
+    }
     return true;
   }
 
