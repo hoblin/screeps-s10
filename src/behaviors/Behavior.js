@@ -40,17 +40,6 @@ export class Behavior {
     Role.note(creep, action);
   }
 
-  // Guard.engage branches on creep.memory.guardType ("melee" vs "ranged"); a
-  // commanded combatant needn't carry one, so derive it from the BODY (any ATTACK
-  // part → melee, else ranged) and stamp it where engage reads it. Body-authoritative
-  // and recomputed each call (the body is immutable) rather than cached — so a creep
-  // retasked across archetypes never reads a stale mode a prior behavior wrote.
-  static ensureCombatMode(creep) {
-    const mode = creep.getActiveBodyparts(ATTACK) > 0 ? "melee" : "ranged";
-    creep.memory.guardType = mode;
-    return mode;
-  }
-
   // Fellow warband members — my live creeps sharing this creep's `memory.warband`
   // group tag (excluding itself). The lightweight grouping the squad behaviors
   // (FocusFire / HealGroup / KiteScreen) coordinate through; absent tag → no group.

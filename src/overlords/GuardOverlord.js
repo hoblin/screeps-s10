@@ -121,7 +121,6 @@ export class GuardOverlord extends Overlord {
         colony: this.colony.name,
         overlord: this.identifier,
         guardRoom: room,
-        guardType: Guard.counterType(profile),
       },
     };
   }
@@ -148,7 +147,7 @@ export class GuardOverlord extends Overlord {
 
   // Sunk-asset retaliation (#140): an idle GARRISONING guard — one whose room has cooled, so it's
   // standing around (#128) — goes and denies the attacker's economy for free (zero marginal spawn).
-  // The attacker is the owner of the last ARMED hostile this guard fought (stamped by Guard.engage).
+  // The attacker is the owner of the last ARMED hostile this guard fought (stamped by the Engage atom).
   // Defence > offence: it only dispatches once its OWN room is cleaned, and a HOME threat recalls it
   // (the core can't wait on a spawn). A REMOTE re-heat does NOT recall — a fresh guard spawns for the
   // hot remote, cleans it, then joins the offensive, so a persistent harasser mints a self-amplifying

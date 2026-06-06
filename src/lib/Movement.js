@@ -17,11 +17,9 @@
 //  so we read them live — once per room per tick, cached (the TrafficManager pattern) so
 //  many creeps pathing the same room share one scan.
 //
-//  kiteAway (#188) is the ranged-kite flee-step, lifted here as the shared movement
-//  primitive so the Behavior layer's Kite atom needs no import from the Guard role.
-//  NOTE: Guard.js still carries a sibling copy (Guard.kiteAway/kiteCostMatrix/blocksMovement);
-//  #189 deletes Guard's and points it + FocusFire here, completing the consolidation. The
-//  #190 magnet field then supersedes this flee-search for combat units (terrain-repulsion
+//  kiteAway (#188) is the ranged-kite flee-step, the shared movement primitive every combat
+//  conduct atom (Kite/Engage) and the Guard role use — so the flee logic lives in one place.
+//  The #190 magnet field will supersede this flee-search for combat units (terrain-repulsion
 //  keeps a kiter out of the corner without a PathFinder flee).
 // ============================================================================
 

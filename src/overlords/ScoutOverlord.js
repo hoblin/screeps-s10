@@ -189,7 +189,6 @@ export class ScoutOverlord extends Overlord {
         colony: this.colony.name,
         overlord: this.identifier,
         escortScout: scoutName,
-        guardType: Guard.counterType(profile),
       },
     };
   }

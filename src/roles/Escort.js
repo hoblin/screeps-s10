@@ -1,28 +1,27 @@
-import { Guard } from "./Guard.js";
+import { Role } from "./Role.js";
+import { Engage } from "../behaviors/combat/Engage.js";
 
 // ============================================================================
-//  Escort — a guard that bodyguards a scout to clear a persistent harasser
-//  blocking a valuable room (#147 escort half).
+//  Escort — a guard that bodyguards a scout to clear a persistent harasser blocking a
+//  valuable room (#147). A dumb FOLLOW-role: each tick it travels to its assigned scout;
+//  when a hostile is in the room it switches to combat (the shared Engage atom, #189 —
+//  no longer reaching into the Guard role). If the scout is gone (died / recycled), it
+//  recycles too.
 //
-//  A dumb FOLLOW-role: it has no pathfinding/route of its own — each tick it just
-//  travels to its assigned scout's live position. When a hostile is in the room it
-//  switches to combat (reusing Guard.engage — the shared ranged-kite/clear nucleus).
-//  ScoutOverlord (which owns both the "scout" and "escort" roles) spawns it, sized to
-//  the blocker's threat, and links it via `memory.escortScout`.
-//
-//  Sync is free: the scout flees home (#148) when hit, which retreats it toward the
-//  escort (the escort sits home-ward of it, following), so they meet, the escort kills
-//  the harasser, and the scout re-enters. No border-wait handshake needed. If the scout
-//  is gone (died / mission cleared and it was recycled), the escort recycles too.
+//  NOTE: the follow/bait coupling is being replaced — #187 rebuilds the escort as a pure
+//  behavior composition (travelToRoom→engage→hold, no scout-follow). This is the minimal
+//  rewire to drop the Guard dependency in the meantime.
 // ============================================================================
-export class Escort extends Guard {
+export class Escort extends Role {
+  static movementPriority = 3; // matches the old Guard-derived priority (above idle/work, below haul/mine)
+
   static run(creep, colony) {
     const scout = Game.creeps[creep.memory.escortScout];
     if (!scout) return this.recycleAtHome(creep, colony); // no scout to guard → go home
 
-    // Combat takes priority over following: if there are hostiles wherever we are, fight
-    // them (this is how the blocker actually gets cleared); otherwise tail the scout.
-    if (this.engage(creep)) return;
+    // Combat takes priority over following: fight any hostiles where we are (this clears the
+    // blocker); otherwise tail the scout.
+    if (Engage.run(creep, colony)) return;
     this.note(creep, "escort:follow");
     creep.travelTo(scout, { range: 1 });
   }
