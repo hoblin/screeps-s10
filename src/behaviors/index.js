@@ -8,6 +8,7 @@ import { KillClosest } from "./combat/KillClosest.js";
 import { HoldPosition } from "./combat/HoldPosition.js";
 import { Kite } from "./combat/Kite.js";
 import { Regroup } from "./combat/Regroup.js";
+import { Engage } from "./combat/Engage.js";
 
 // ============================================================================
 //  Behavior registry (#39) — maps a behavior NAME (as stored in a creep's
@@ -39,7 +40,8 @@ import { Regroup } from "./combat/Regroup.js";
 //  ATOMS (#188 — the reusable bricks composites are built from; also assignable on
 //  their own, since the only thing separating an atom from a composite is whether it
 //  calls other behaviors):
-//   • kite    — ranged-combat nucleus: shoot at reach, step back on contact, close if far.
+//   • engage  — the umbrella combat nucleus: fight whatever is here (armed-first), by body.
+//   • kite    — ranged-combat conduct: shoot at reach, step back on contact, close if far.
 //   • regroup — squad cohesion: converge on the warband anchor when there's nothing to fight.
 // ============================================================================
 export const BEHAVIORS = {
@@ -50,6 +52,7 @@ export const BEHAVIORS = {
   kiteScreen: KiteScreen,
   killClosest: KillClosest,
   holdPosition: HoldPosition,
+  engage: Engage,
   kite: Kite,
   regroup: Regroup,
 };

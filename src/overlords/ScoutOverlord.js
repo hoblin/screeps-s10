@@ -1,7 +1,7 @@
 import { Overlord } from "./Overlord.js";
 import { Scout } from "../roles/Scout.js";
 import { Escort } from "../roles/Escort.js";
-import { Guard } from "../roles/Guard.js";
+import { combatBody } from "../lib/CombatBody.js";
 import { Threat } from "../lib/Threat.js";
 import { stageAtLeast } from "../lib/Stages.js";
 import expansionMap from "../data/expansionMap.json";
@@ -183,13 +183,12 @@ export class ScoutOverlord extends Overlord {
     return {
       priority: ESCORT_PRIORITY,
       role: "escort",
-      body: Guard.bodyFor(this.colony.spawnEnergyBudget(), profile),
+      body: combatBody(this.colony.spawnEnergyBudget(), profile),
       memory: {
         role: "escort",
         colony: this.colony.name,
         overlord: this.identifier,
         escortScout: scoutName,
-        guardType: Guard.counterType(profile),
       },
     };
   }
@@ -388,7 +387,7 @@ export class ScoutOverlord extends Overlord {
       if (casualties < ESCORT_THRESHOLD || casualties <= bestThreat) continue;
       const profile = Threat.profileFor(room);
       if (!profile || profile.attack + profile.ranged === 0) continue; // need a creep to kill
-      if (!Threat.winnable(Guard.bodyFor(budget, profile), room)) continue;
+      if (!Threat.winnable(combatBody(budget, profile), room)) continue;
       best = room;
       bestThreat = casualties;
     }
