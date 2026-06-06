@@ -23,9 +23,9 @@ import { behaviorClass } from "../behaviors/index.js";
 //  the recovering crisis floor zeroes it.
 //
 //  DISPATCH — the command pattern (#204). The overlord OWNS which source each hauler
-//  services (a fat role that self-picked made every hauler converge on the single
-//  fullest container — a swarm — while the others overflowed). Each tick it stamps a
-//  BALANCED target onto every free hauler; the thin RemoteHauler role + remoteHaul
+//  services. (Previously a fat role self-picked: every hauler computed the same fullest
+//  container and converged on it — a swarm — while the others overflowed.) Each tick it
+//  now stamps a BALANCED target onto every free hauler; the thin RemoteHauler role + remoteHaul
 //  behavior only EXECUTE it. Balancing is rate-matched tonne-km logistics: a source's
 //  draw = energy on the ground/in-container NOW + the miner's accrual over the haul
 //  (r·d) − capacity already inbound (committed haulers count as a claim). Greedy +
@@ -121,7 +121,7 @@ export class RemoteLogisticsOverlord extends Overlord {
     for (const c of haulers) {
       const t = c.memory.haulTarget;
       if (t && !c.memory.working) {
-        const k = `${t.room}:${t.x}:${t.y}`;
+        const k = this.sourceKey(t);
         claimed[k] = (claimed[k] || 0) + c.store.getFreeCapacity(RESOURCE_ENERGY);
       }
     }
