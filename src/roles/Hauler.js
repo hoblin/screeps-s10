@@ -38,20 +38,29 @@ export class Hauler extends Role {
   }
 
   static run(creep, colony) {
+    // The home hauler's own collect/deliver are the cycle's phase conduct (`this`
+    // resolves to Hauler, or a subclass when called as Subclass.run).
+    this.runCycle(creep, colony, this);
+  }
+
+  // The gather↔deliver FSM skeleton, shared by the home hauler and the remote-haul
+  // behavior (#204). It flips `working` at the two load edges, clears the per-trip
+  // `haulTarget` latch on the full-load edge, and dispatches to the supplied
+  // `conduct`'s collect/deliver. The conduct is a class with static collect/deliver
+  // (Hauler for the home fleet, RemoteHaul for the remote behavior) — passed in so
+  // the remote behavior reuses this cycle WITHOUT inheriting the home source-container
+  // pickup. The two load edges (updateWorkingState already flips `working` here):
+  //  • FULL LOAD  (collecting → delivering): pickup commitment fulfilled → drop target.
+  //  • FULL UNLOAD (delivering → collecting): next collect tick picks a fresh target.
+  // Re-evaluating the target mid-trip is what made haulers oscillate (#86).
+  static runCycle(creep, colony, conduct) {
     const wasDelivering = creep.memory.working || false;
     const delivering = Role.updateWorkingState(creep);
-    // A cheap state machine on the two load edges (updateWorkingState already flips
-    // `working` at exactly these moments):
-    //  • FULL LOAD  (collecting → delivering): the pickup commitment is fulfilled →
-    //    drop the target.
-    //  • FULL UNLOAD (delivering → collecting): the next collect tick has no target
-    //    and chooses a fresh one.
-    // Re-evaluating the target mid-trip is what made haulers oscillate (#86).
     if (delivering && !wasDelivering) creep.memory.haulTarget = null;
     if (delivering) {
-      this.deliver(creep, colony);
+      conduct.deliver(creep, colony);
     } else {
-      this.collect(creep, colony);
+      conduct.collect(creep, colony);
     }
   }
 
