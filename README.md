@@ -113,7 +113,7 @@ into a local SQLite mirror, then runs all analysis with zero API calls.
 - `scan-season.mjs` — source-count scan of the room grid.
 - `geo-season.mjs` — home-room layout geometry for candidates.
 - `collect.mjs` — resilient background crawler (gap-fills, 429 backoff); the
-  **sole owner of API access**. Mirrors terrain/sources/controller/mineral plus
+  **sole API caller in this offline pipeline** (analytics is DB-only — SOLID). Mirrors terrain/sources/controller/mineral plus
   the v2 scout fields (keeper lairs, extractor, invader cores, controller
   owner/level/reservation, mineral density, portals, highway deposits/power
   banks) into `tmp/season.db`. Run in tmux: `SCREEPS_TOKEN=*** node bin/collect.mjs --range 31`.
@@ -148,6 +148,10 @@ into a local SQLite mirror, then runs all analysis with zero API calls.
 
 Map is a **±30 square** (`W30..E30 × N30..S30`, ~3721 game rooms). Season 10
 spawn was chosen this way: **E15S7**.
+
+> **`bin/sapi`** is a separate **live-ops** API wrapper (not part of this offline pipeline): read live
+> room/creep/Memory state, render a room (`bin/sapi map`), or run console JS (`bin/sapi eval`) against
+> the running bot. Reads via `--jq`, season by default (`--main` for shard2). See the `screeps` skill.
 
 ## Roadmap
 - [x] Hauler role + container mining (LogisticsOverlord, static mining)
