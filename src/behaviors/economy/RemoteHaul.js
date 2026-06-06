@@ -67,13 +67,23 @@ export class RemoteHaul extends Behavior {
           // the RemoteMiner parks there and a remote hauler outranks it in traffic (would shove it off
           // its post). Surface the overflow save in the trace when there is one.
           if (!creep.pos.isNearTo(cpos)) {
-            this.note(creep, "rhaul:withdraw");
+            this.note(creep, overflow ? "rhaul:pickup" : "rhaul:withdraw");
             creep.travelTo(cpos, { range: 1 });
             return;
           }
+          // The decaying overflow on the tile takes PRIORITY (it rots ~1/tick; the container's store does
+          // not). Pick up the WHOLE pile first, then withdraw only the REMAINING free capacity from the
+          // container. Capping the withdraw amount reserves room for the ground regardless of the order
+          // the engine applies the two intents — so the ground is never lost to a "container fills first"
+          // race (the bug a naive simultaneous pickup+withdraw caused).
+          const free = creep.store.getFreeCapacity(RESOURCE_ENERGY);
+          const ground = overflow ? Math.min(overflow.amount, free) : 0;
           this.note(creep, overflow ? "rhaul:pickup" : "rhaul:withdraw");
           if (overflow) creep.pickup(overflow);
-          if (banked) creep.withdraw(container, RESOURCE_ENERGY);
+          const room = free - ground;
+          if (banked && room > 0) {
+            creep.withdraw(container, RESOURCE_ENERGY, Math.min(container.store[RESOURCE_ENERGY], room));
+          }
           return;
         }
       }
