@@ -1,5 +1,5 @@
 import { Behavior } from "../Behavior.js";
-import { shoot, closeTo, holdAnchor } from "./atoms/acts.js";
+import { shoot, closeTo, holdAnchor, meleeStrike } from "./atoms/acts.js";
 import { nearestHostile, anchorPoint } from "./atoms/selectors.js";
 import { KITE_RANGE } from "../../lib/Movement.js";
 
@@ -26,10 +26,7 @@ export class KillClosest extends Behavior {
       const leashed = !anchor || target.pos.getRangeTo(anchor) <= LEASH; // inside the kill-zone?
       if (melee) {
         this.note(creep, "kc:melee");
-        if (creep.pos.isNearTo(target)) {
-          creep.attack(target);
-          return true;
-        }
+        if (meleeStrike(creep, target)) return true; // adjacent → strike and hold
         if (leashed) {
           closeTo(creep, target, 1);
           return true;

@@ -1,5 +1,5 @@
 import { Behavior } from "../Behavior.js";
-import { shoot } from "./atoms/acts.js";
+import { shoot, meleeStrike } from "./atoms/acts.js";
 import { nearestHostile } from "./atoms/selectors.js";
 import { steer, enemyField, separation, attract, PRIORITY_HOLD, APPROACH_RANGE } from "./atoms/field.js";
 
@@ -39,9 +39,8 @@ export class HoldPosition extends Behavior {
     if (target && !melee) {
       this.note(creep, "hold:ranged");
       shoot(creep, target, hostiles.length > 1);
-    } else if (target && creep.pos.isNearTo(target)) {
-      this.note(creep, "hold:melee");
-      creep.attack(target);
+    } else if (target && meleeStrike(creep, target)) {
+      this.note(creep, "hold:melee"); // strike an adjacent intruder; the field (below) keeps the ground
     }
 
     // Position: navigate to the held ground by A* while still FAR from it (#196 — paths around walls,

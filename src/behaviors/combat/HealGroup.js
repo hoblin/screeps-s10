@@ -1,5 +1,6 @@
 import { Behavior } from "../Behavior.js";
-import { Threat } from "../../lib/Threat.js";
+import { holdAnchor } from "./atoms/acts.js";
+import { armedOf } from "./atoms/selectors.js";
 import { bodyFromTemplate } from "../../lib/BodyGenerator.js";
 
 const HEAL_MAX = 6; // [HEAL,MOVE] repeats cap — at ecap 1800 the budget caps it here anyway
@@ -39,9 +40,8 @@ export class HealGroup extends Behavior {
     // races ahead to an objective and abandons the skirmishers, and never clumps with fellow medics
     // a room behind. Stays at range 1 so it can full-heal the instant they take a hit.
     const lead = this.followLead(creep);
-    if (lead && !creep.pos.inRangeTo(lead, 1)) {
+    if (lead && holdAnchor(creep, lead, 1)) {
       this.note(creep, lead.room.name === creep.room.name ? "heal:regroup" : "heal:to-room");
-      creep.travelTo(lead, { range: 1 });
     } else {
       this.note(creep, "heal:idle");
     }
@@ -53,7 +53,7 @@ export class HealGroup extends Behavior {
   static followLead(creep) {
     const mates = this.warbandMates(creep);
     if (!mates.length) return null;
-    const armed = mates.filter((c) => Threat.combatPower(c) > 0);
+    const armed = armedOf(mates);
     const pool = armed.length ? armed : mates;
     const here = pool.filter((c) => c.room.name === creep.room.name);
     return here.length ? creep.pos.findClosestByRange(here) : pool[0];

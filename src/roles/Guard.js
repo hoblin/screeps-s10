@@ -1,5 +1,6 @@
 import { Role } from "./Role.js";
 import { Engage } from "../behaviors/combat/Engage.js";
+import { holdAnchor } from "../behaviors/combat/atoms/acts.js";
 import { combatBody } from "../lib/CombatBody.js";
 
 const GUARD_PARK_DELAY = 5; // ticks to hold the spot after the last hostile contact before walking
@@ -90,9 +91,8 @@ export class Guard extends Role {
       return;
     }
     const ctrl = creep.room.controller;
-    if (ctrl && !creep.pos.inRangeTo(ctrl, 1)) {
+    if (ctrl && holdAnchor(creep, ctrl, 1)) {
       this.note(creep, "guard:to-post");
-      creep.travelTo(ctrl, { range: 1 });
     } else {
       // Garrison: defend the controller, deny reservers, keep intel fresh. On a retaliation
       // mission (#140) the "controller" is the ATTACKER's — parking there denies HIS remote.
