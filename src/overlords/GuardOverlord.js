@@ -222,7 +222,7 @@ export class GuardOverlord extends Overlord {
     if (!intel || Game.time - intel.tick > RETALIATE_FRESH) return false;
     if (intel.towers > 0) return false;
     if (intel.owner !== owner && intel.reserver !== owner) return false;
-    return Threat.winnable(creep.body.map((p) => p.type), room);
+    return Threat.winnableBy(creep, room);
   }
 
   runCreep(creep) {

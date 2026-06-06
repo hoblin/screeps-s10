@@ -19,29 +19,30 @@ import { INTEL_FRESH_TICKS, Threat } from "./Threat.js";
 //   • `avoidHot` — also weigh rooms with a live armed threat (Invader/SK/player force, `intel.threat>0`):
 //     a hot room we'd die in must be routed around (the #197 "walked blind through an Invader room"
 //     failure), BUT a WINNABLE hot room is left PASSABLE — a combat unit clears it in passing rather
-//     than detouring, denying along the way (Женя). Pass `body` (the unit's part-type array) so the
-//     winnability is assessed against THIS unit; with no body, avoidHot conservatively closes all hot.
-//     Towers stay closed unconditionally (a RANGED kiter can't break one — #178 — winnable or not).
+//     than detouring, denying along the way (Женя). Pass `clearer` (the transiting creep) so winnability
+//     is judged against THAT unit via the shared `Threat.winnableBy`; with no clearer, avoidHot
+//     conservatively closes all hot. Towers stay closed unconditionally (a RANGED kiter can't break
+//     one — #178 — winnable or not).
 // Trust is fresh-only (staleness = decay): a stale entry reverts to "unknown", handled by allowUnscouted.
-export function towerFreeRoute(from, to, { allowUnscouted = false, avoidHot = false, body = null } = {}) {
+export function towerFreeRoute(from, to, { allowUnscouted = false, avoidHot = false, clearer = null } = {}) {
   if (from === to) return [];
   const route = Game.map.findRoute(from, to, {
-    routeCallback: (roomName) => safeRouteCost(roomName, to, allowUnscouted, avoidHot, body),
+    routeCallback: (roomName) => safeRouteCost(roomName, to, allowUnscouted, avoidHot, clearer),
   });
   return Array.isArray(route) ? route : null; // ERR_NO_PATH → null
 }
 
 // The shared per-room cost for a safe corridor (one source for the route-callback policy). 1 = passable,
 // Infinity = closed (findRoute routes around it). The destination is always passable — the caller vets it.
-function safeRouteCost(roomName, dest, allowUnscouted, avoidHot, body) {
+function safeRouteCost(roomName, dest, allowUnscouted, avoidHot, clearer) {
   if (roomName === dest) return 1; // destination is vetted by the caller
   const intel = Memory.roomIntel?.[roomName];
   // A missing/invalid tick reads as stale (tick 0), not NaN→fresh — defensive against a legacy/corrupt
   // intel entry that would otherwise be wrongly trusted.
   if (!intel || Game.time - (intel.tick || 0) > INTEL_FRESH_TICKS) return allowUnscouted ? 1 : Infinity;
   if (intel.towers > 0) return Infinity; // tower → a RANGED kiter can't break it (#178); always route around
-  // Live armed threat: clear it in passing IF this body out-guns it (winnable), else route around. Avoiding
+  // Live armed threat: clear it in passing IF the clearer out-guns it (winnable), else route around. Avoiding
   // a beatable fight wastes the chance to deny along the way; walking into an unwinnable one is the #197 death.
-  if (avoidHot && intel.threat > 0) return body && Threat.winnable(body, roomName) ? 1 : Infinity;
+  if (avoidHot && intel.threat > 0) return clearer && Threat.winnableBy(clearer, roomName) ? 1 : Infinity;
   return 1;
 }

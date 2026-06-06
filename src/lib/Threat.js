@@ -211,6 +211,15 @@ export const Threat = {
     return this.guardCombatPower(body) >= this.threatOf(roomName) * this.WIN_MARGIN;
   },
 
+  // Winnability of a LIVE creep against `roomName` — `winnable` over its current body. The one place
+  // the body→part-type idiom lives, so deniability / danger-aware routing don't each re-spell it.
+  winnableBy(creep, roomName) {
+    return this.winnable(
+      creep.body.map((p) => p.type),
+      roomName
+    );
+  },
+
   // Lethal power of a proposed guard BODY (a plain part array) — symmetric to
   // combatPower(creep), so the overlord can ask "does the guard I can afford out-gun
   // the room's threat?" before committing one.

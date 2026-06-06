@@ -78,8 +78,8 @@ export function closeTo(creep, target, range, opts = {}) {
 // target). Replaces the hand-rolled `travelTo(new RoomPosition(25,25,room),{range:20})` blind transit (#197).
 export function travelToRoom(creep, room, { range = 20, allowUnscouted = false } = {}) {
   if (creep.room.name === room) return false; // already in the room — transit done
-  const body = creep.body.map((p) => p.type); // winnability of a hot leg is judged against THIS body
-  const route = towerFreeRoute(creep.room.name, room, { allowUnscouted, avoidHot: true, body });
+  // `clearer: creep` lets a winnable hot leg stay on-route (we clear it in passing); judged via winnableBy.
+  const route = towerFreeRoute(creep.room.name, room, { allowUnscouted, avoidHot: true, clearer: creep });
   if (!route) return false; // no safe corridor — trapped; caller's fallback handles it
   const next = route.length ? route[0].room : room; // first hop (or the dest if adjacent)
   creep.travelTo(new RoomPosition(25, 25, next), { range });
