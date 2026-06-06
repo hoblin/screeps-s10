@@ -59,18 +59,30 @@ const RAZE_VALUE = {
 //      the stalemate, so the spawn outranks harmless creeps);
 //   3. ordinary/economy enemy creeps — mop the leftovers;
 //   4. other hostile structures by RAZE_VALUE (walls/ramparts excluded).
+// Structures sitting UNDER a hostile rampart are skipped at every structure tier — a RANGED body hits
+// the rampart (which it can't break, #178), not the structure, so targeting them just wastes ticks.
 // `hostiles` is the pre-scanned FIND_HOSTILE_CREEPS list; structures are read live (the creep is on-target).
 export function priorityTarget(creep, hostiles) {
   const armed = armedOf(hostiles);
   if (armed.length) return creep.pos.findClosestByRange(armed);
 
-  const spawns = creep.room.find(FIND_HOSTILE_STRUCTURES, { filter: (s) => s.structureType === STRUCTURE_SPAWN });
+  // A structure is attackable only if no hostile rampart shares its tile (else attacks hit the rampart).
+  const rampartTiles = new Set(
+    creep.room
+      .find(FIND_HOSTILE_STRUCTURES, { filter: (s) => s.structureType === STRUCTURE_RAMPART })
+      .map((r) => r.pos.x * 50 + r.pos.y)
+  );
+  const exposed = (s) => !rampartTiles.has(s.pos.x * 50 + s.pos.y);
+
+  const spawns = creep.room.find(FIND_HOSTILE_STRUCTURES, {
+    filter: (s) => s.structureType === STRUCTURE_SPAWN && exposed(s),
+  });
   if (spawns.length) return creep.pos.findClosestByRange(spawns);
 
   if (hostiles.length) return creep.pos.findClosestByRange(hostiles);
 
   const structures = creep.room.find(FIND_HOSTILE_STRUCTURES, {
-    filter: (s) => (RAZE_VALUE[s.structureType] ?? 0) > 0,
+    filter: (s) => (RAZE_VALUE[s.structureType] ?? 0) > 0 && exposed(s),
   });
   if (!structures.length) return null;
   let bestTier = 0;

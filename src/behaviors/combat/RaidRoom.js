@@ -1,6 +1,6 @@
 import { Behavior } from "../Behavior.js";
 import { Engage } from "./Engage.js";
-import { shoot, meleeHit, closeTo, holdAnchor } from "./atoms/acts.js";
+import { selfHeal, shoot, meleeHit, closeTo, holdAnchor } from "./atoms/acts.js";
 import { priorityTarget } from "./atoms/selectors.js";
 import { KITE_RANGE } from "../../lib/Movement.js";
 
@@ -32,11 +32,14 @@ export class RaidRoom extends Behavior {
     }
 
     // On target: the single priority pick (armed creep → spawn → economy creep → structure-by-value).
-    const pick = priorityTarget(creep, creep.room.find(FIND_HOSTILE_CREEPS));
-    if (pick instanceof Creep) return !!Engage.run(creep, colony); // any creep → full field combat
+    const hostiles = creep.room.find(FIND_HOSTILE_CREEPS);
+    const pick = priorityTarget(creep, hostiles);
+    if (pick instanceof Creep) return !!Engage.run(creep, colony, { threats: hostiles }); // creep → field combat
     if (pick) {
-      // A structure (spawn / tower / storage / …) → close to reach and attack it (raze; it can't fire
-      // back, so no kite). Melee body strikes adjacent; ranged closes to KITE_RANGE and shoots.
+      // A structure (spawn / extensions / storage / …) → close to reach and attack it. We don't kite
+      // here: a spawn/economy structure can't shoot back, and a TOWER (which can) is a dismantler's job
+      // (#178), not this RANGED raider's. Self-heal each tick (a HEAL-part body soaks incidental damage).
+      selfHeal(creep);
       this.note(creep, "raid:raze");
       if (creep.getActiveBodyparts(ATTACK) > 0) meleeHit(creep, pick);
       else {
