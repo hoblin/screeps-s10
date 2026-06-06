@@ -51,25 +51,29 @@ export class RemoteHaul extends Behavior {
       return;
     }
 
-    // Source container built (#114): drain it — but FIRST grab anything on its own tile.
+    // Source container built (#114): drain it. Take BOTH the decaying overflow on its own tile AND the
+    // banked store the SAME tick — pickup and withdraw are separate intents that both apply, so a capped
+    // container is emptied while the energy rotting on top of it is saved (#204). The goal is to haul it
+    // ALL home: don't return after the pickup and leave the container's energy sitting.
     const cinfo = Memory.colonyData?.[colony.name]?.remoteContainers?.[`${targetRoom}:${x}:${y}`];
     if (cinfo && cinfo.hits != null) {
       const cpos = new RoomPosition(cinfo.x, cinfo.y, targetRoom);
       const container = cpos.lookFor(LOOK_STRUCTURES).find((s) => s.structureType === STRUCTURE_CONTAINER);
       if (container) {
-        // Overflow-first (#204): once the container caps out, the miner's continued drops pile on its
-        // OWN tile as loose energy and DECAY (~1/tick) — the container itself does not. Pick that
-        // decaying overflow up before withdrawing the stable container, so it isn't lost. (#114
-        // container-first banking still holds — this only reprioritizes the loose pile it never considered.)
         const overflow = cpos.lookFor(LOOK_RESOURCES).find((r) => r.resourceType === RESOURCE_ENERGY);
-        if (overflow) {
-          this.note(creep, "rhaul:pickup");
-          if (creep.pickup(overflow) === ERR_NOT_IN_RANGE) creep.travelTo(cpos);
-          return;
-        }
-        if (container.store[RESOURCE_ENERGY] > 0) {
-          this.note(creep, "rhaul:withdraw");
-          if (creep.withdraw(container, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) creep.travelTo(container);
+        const banked = container.store[RESOURCE_ENERGY] > 0;
+        if (overflow || banked) {
+          // range 1: pickup/withdraw both work adjacent, and we must NOT path onto the container tile —
+          // the RemoteMiner parks there and a remote hauler outranks it in traffic (would shove it off
+          // its post). Surface the overflow save in the trace when there is one.
+          if (!creep.pos.isNearTo(cpos)) {
+            this.note(creep, "rhaul:withdraw");
+            creep.travelTo(cpos, { range: 1 });
+            return;
+          }
+          this.note(creep, overflow ? "rhaul:pickup" : "rhaul:withdraw");
+          if (overflow) creep.pickup(overflow);
+          if (banked) creep.withdraw(container, RESOURCE_ENERGY);
           return;
         }
       }

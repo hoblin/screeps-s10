@@ -89,28 +89,39 @@ export class RemoteLogisticsOverlord extends Overlord {
     const haulers = this.assignedCreeps.filter((c) => !c.spawning);
     if (!haulers.length) return;
 
-    // 1. Drop any assignment whose room turned economy-unsafe — the overlord owns the flee decision
-    //    (#150), not the behavior. A carrying hauler then delivers its partial load (the behavior's
-    //    #86 deflection); an empty one is reassigned below.
-    for (const c of haulers) {
-      const t = c.memory.haulTarget;
-      if (t && Threat.isHotForEconomy(t.room)) c.memory.haulTarget = null;
-    }
-
-    const sources = this.colony.remoteSources().filter((s) => !Threat.isHotForEconomy(s.room));
-    if (!sources.length) return;
-
     const rate = Miner.harvestRateAt(this.colony.room.energyCapacityAvailable);
     const mined = this.minedSources();
 
-    // Per-source supply, constant within the tick: energy waiting now + the miner's accrual over the
-    // haul (r·d, only where a miner is producing). Computed once so the free-hauler loop below subtracts
-    // the moving `claimed` term instead of rescanning the room per hauler.
+    // Dispatch candidates + their per-tick supply, in one pass. A source qualifies if it's economy-safe
+    // (#150) AND has energy worth a trip: either it's PRODUCING (a live miner arrived → its bank accrues
+    // at r·d) OR it still holds energy NOW (pendingAt > 0 — a source whose miner just died still has a
+    // banked container/overflow worth one last haul). An unmined, EMPTY source is skipped: dispatching
+    // there strands a hauler where no energy will ever appear, and with claim-aware draw a draw-0 empty
+    // source can even outrank an over-claimed producing one (#205). Supply = energy now + accrual (only
+    // while producing). Computed once so the free-hauler loop subtracts the moving `claimed` term
+    // instead of rescanning the room per hauler.
     const supply = {};
-    for (const s of sources) {
+    const sources = [];
+    for (const s of this.colony.remoteSources()) {
+      if (Threat.isHotForEconomy(s.room)) continue;
       const k = this.sourceKey(s);
-      supply[k] = this.pendingAt(s) + (mined.has(k) ? rate * s.dist : 0);
+      const producing = mined.has(k);
+      const pending = this.pendingAt(s);
+      if (!producing && pending <= 0) continue;
+      supply[k] = pending + (producing ? rate * s.dist : 0);
+      sources.push(s);
     }
+    const candidates = new Set(sources.map((s) => this.sourceKey(s)));
+
+    // Free any hauler whose target is no longer a candidate — its room turned economy-unsafe (#150) or
+    // its source stopped producing AND ran dry. The overlord owns the reassign decision (a carrying
+    // hauler then delivers its partial load, #86; an empty one is reassigned below). A hauler gathering
+    // at a still-producing (or still-stocked) source keeps its target — no thrash.
+    for (const c of haulers) {
+      const t = c.memory.haulTarget;
+      if (t && !candidates.has(this.sourceKey(t))) c.memory.haulTarget = null;
+    }
+    if (!sources.length) return;
 
     // Capacity already inbound to each source — a committed hauler keeps its assignment for the whole
     // load trip (#86 anti-oscillation), so it counts as a claim against its target's draw. Only count
@@ -130,8 +141,7 @@ export class RemoteLogisticsOverlord extends Overlord {
     // a fresh pickup, #86) to the source it will find the most energy at on arrival:
     //   draw(s) = supply(s) − capacity inbound
     // Greedy fullest-first with a per-assignment claim update spreads the fleet (the Nth hauler sees a
-    // container already being drained → picks the next); source value tie-breaks and is the no-vision
-    // floor (head to the best source before it's seen).
+    // container already being drained → picks the next); source value tie-breaks between equal draws.
     const free = haulers.filter((c) => !c.memory.haulTarget && c.store[RESOURCE_ENERGY] === 0);
     for (const c of free) {
       let best = null;
