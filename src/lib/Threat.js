@@ -36,10 +36,13 @@ export const Threat = {
     );
   },
 
-  // A room's current threat: the summed lethal power of the hostiles present, plus a
-  // flat danger for a hostile invader core (it spawns attackers even before any are
-  // visible). 0 == safe to work in. Source-Keeper rooms are already excluded by the
-  // static map, so they never reach a remote overlord.
+  // A room's current threat (lethal DAMAGE-PER-TICK, comparable to guardCombatPower): the summed
+  // lethal power of the hostiles present, a flat danger for a hostile invader core (it spawns
+  // attackers even before any are visible), AND each hostile tower at its MAX output. Towers belong
+  // HERE, not as a `towers > 0` exclusion bolted onto every combat consumer — a tower is danger, so
+  // the threat module owns it: a towered room then reads unwinnable (winnable() rejects it) and no
+  // guard/hunter is ever sized for, dispatched to, or routed into one it can't out-trade (#178).
+  // 0 == safe to work in. Source-Keeper rooms are excluded by the static map (never reach an overlord).
   assess(room, hostiles = room.find(FIND_HOSTILE_CREEPS)) {
     let threat = 0;
     for (const hostile of hostiles) threat += this.combatPower(hostile);
@@ -47,6 +50,10 @@ export const Threat = {
       filter: (s) => s.structureType === STRUCTURE_INVADER_CORE,
     });
     if (cores.length) threat += 1;
+    const towers = room.find(FIND_HOSTILE_STRUCTURES, {
+      filter: (s) => s.structureType === STRUCTURE_TOWER,
+    });
+    threat += towers.length * TOWER_POWER_ATTACK; // max tower damage/tick — conservative, never under-rate
     return threat;
   },
 
@@ -154,6 +161,16 @@ export const Threat = {
     const intel = Memory.roomIntel?.[roomName];
     if (!intel || Game.time - intel.tick > INTEL_FRESH_TICKS) return null;
     return intel.profile || null;
+  },
+
+  // The room's profile IF it holds a MOBILE threat a guard can KILL (fresh intel with attack/ranged
+  // parts), else null. A guard targets creeps, so a room whose only threat is a tower or invader core
+  // (no creep combat parts) yields null — it can't be cleared by dispatching a guard. The single gate
+  // the dispatch/blocker consumers share before sizing a counter-body, so "structural threats aren't
+  // guard-killable" lives in ONE place (paired with assess() folding tower danger into the threat).
+  killableProfile(roomName) {
+    const p = this.profileFor(roomName);
+    return p && p.attack + p.ranged > 0 ? p : null;
   },
 
   // The fresh scalar threat of a room (or 0 if stale/unseen) — so the Guard layer can

@@ -367,9 +367,9 @@ export class ScoutOverlord extends Overlord {
     for (const room of this.roomsWithinRadius(this.colony.name, SCAN_RADIUS)) {
       const casualties = Threat.scoutThreatOf(room);
       if (casualties < BLOCKER_THRESHOLD || casualties <= bestThreat) continue;
-      const profile = Threat.profileFor(room);
-      if (!profile || profile.attack + profile.ranged === 0) continue; // need a creep to kill
-      if (!Threat.winnable(combatBody(budget, profile), room)) continue;
+      const profile = Threat.killableProfile(room); // a mobile threat to kill (not a lone core/tower)
+      if (!profile) continue;
+      if (!Threat.winnable(combatBody(budget, profile), room)) continue; // winnable now also rejects towers
       best = room;
       bestThreat = casualties;
     }

@@ -54,12 +54,10 @@ export class GuardOverlord extends Overlord {
     const rooms = [...new Set(this.colony.remoteSources().map((s) => s.room))];
     this._hotWinnable = rooms.filter((room) => {
       if (!Threat.isHot(room)) return false;
-      const profile = Threat.profileFor(room);
-      // Need a MOBILE enemy to kill: a guard targets creeps, so a threat that's only
-      // an invader core (no attack/ranged parts) can't be cleared by it — leave those
-      // Level-1 (clearing a core is a later capability).
-      if (!profile || profile.attack + profile.ranged === 0) return false;
-      return Threat.winnable(Guard.bodyFor(budget, profile), room);
+      // Need a MOBILE enemy a guard can kill (not a lone core/tower — clearing those is a later
+      // capability); winnable then also rejects a towered room (assess folds tower danger into threat).
+      const profile = Threat.killableProfile(room);
+      return !!profile && Threat.winnable(Guard.bodyFor(budget, profile), room);
     });
     return this._hotWinnable;
   }
@@ -71,8 +69,8 @@ export class GuardOverlord extends Overlord {
   homeTarget() {
     const home = this.colony.name;
     if (!Threat.isHot(home)) return null;
-    const profile = Threat.profileFor(home);
-    if (!profile || profile.attack + profile.ranged === 0) return null;
+    const profile = Threat.killableProfile(home); // a mobile threat to kill (not a lone core/tower)
+    if (!profile) return null;
     const body = Guard.bodyFor(this.colony.spawnEnergyBudget(), profile);
     return Threat.guardCombatPower(body) > 0 ? home : null;
   }
@@ -204,13 +202,13 @@ export class GuardOverlord extends Overlord {
     return best;
   }
 
-  // Is `room` a deniable target of `owner`: his (owned or reserved) room, tower-free, fresh intel,
-  // and winnable by this guard's current body.
+  // Is `room` a deniable target of `owner`: his (owned or reserved) room, fresh intel, and winnable by
+  // this guard's current body — winnability now folds in tower danger (assess counts towers), so a
+  // towered room reads unwinnable and is rejected here without a separate `towers > 0` check.
   deniable(room, owner, creep) {
     if (!owner) return false;
     const intel = Memory.roomIntel?.[room];
     if (!intel || Game.time - intel.tick > RETALIATE_FRESH) return false;
-    if (intel.towers > 0) return false;
     if (intel.owner !== owner && intel.reserver !== owner) return false;
     return Threat.winnableBy(creep, room);
   }
