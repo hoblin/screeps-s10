@@ -4,9 +4,6 @@ import { LinkedMiner } from "../roles/LinkedMiner.js";
 import { ContainerPlanner } from "../lib/ContainerPlanner.js";
 import { stageAtLeast } from "../lib/Stages.js";
 
-const REPLACE_MARGIN = 20; // ticks of slack so the JIT relief lands slightly BEFORE the incumbent
-// dies (traffic / re-path jitter), never after — a brief two-miner overlap is harmless (#168).
-
 // ============================================================================
 //  MiningOverlord — owns the static mining of ONE source (Overmind-style:
 //  one overlord instance per source). The Colony creates one of these for each
@@ -68,14 +65,12 @@ export class MiningOverlord extends Overlord {
     return this.assignedCreeps.some((c) => c.ticksToLive !== undefined && c.ticksToLive < lead);
   }
 
-  // Ticks between ordering a relief and it standing on the post: spawn time + travel time.
-  // spawnTicks = CREEP_SPAWN_TIME × body parts; travel = path distance × the body's ticks-per-tile
-  // (a WORK-heavy miner is sub-1-tile/tick). Plus a small margin so the relief lands slightly early.
+  // Ticks between ordering a relief and it standing on the post — the shared JIT primitive (#168/#210),
+  // fed this source's spawn→post distance and the miner body. (a WORK-heavy miner is sub-1-tile/tick.)
   replacementLead() {
     const dist = this.sourceDistance();
     if (dist == null) return 0;
-    const body = this.bodyFor(this.colony.spawnEnergyBudget());
-    return body.length * CREEP_SPAWN_TIME + dist * Miner.ticksPerTile(body) + REPLACE_MARGIN;
+    return Miner.replacementLead(this.bodyFor(this.colony.spawnEnergyBudget()), dist);
   }
 
   // Cached spawn→mining-tile path distance (static geometry — computed ONCE then reused; a

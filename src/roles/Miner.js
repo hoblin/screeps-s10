@@ -46,6 +46,15 @@ export class Miner extends Role {
     return Math.max(1, Math.ceil(heavy / move));
   }
 
+  // Ticks between ORDERING a relief and it standing on the post: spawn time + travel time + a small
+  // margin so the relief lands slightly BEFORE the incumbent dies, never after (#168). Pure in
+  // (body, dist) — the domain-owned JIT primitive shared by the home MiningOverlord and the remote
+  // RemoteMiningOverlord (#210); each supplies its own dist (home: spawn→post path; remote: the
+  // source's haul distance). spawnTicks = CREEP_SPAWN_TIME × parts; travel = dist × ticksPerTile(body).
+  static replacementLead(body, dist, margin = 20) {
+    return body.length * CREEP_SPAWN_TIME + dist * this.ticksPerTile(body) + margin;
+  }
+
   // Energy/tick this body extracts at a given spawn-energy budget: WORK×HARVEST_POWER
   // capped at the source regen (SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME = 10/tick).
   // The logistics fleet sizes itself to this PREDICTED production (#84) — reasoning

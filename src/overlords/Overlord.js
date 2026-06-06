@@ -31,10 +31,13 @@ export class Overlord {
    *                                        Omit for singleton overlords (one per
    *                                        role); the role name alone is enough.
    *
-   * SPAWN-PRIORITY LADDER (lowest number first; the Hatchery fulfils the highest-priority
-   * request it can afford; each overlord documents its own rank). Current ladder:
-   *   1 Mining/Defense · 2 Work/Scout/Filler · 3 Logistics · 4 Upgrade/Guard ·
-   *   5 Reserve/RemoteMining/RemoteWork/RemoteLogistics.
+   * SPAWN-PRIORITY LADDER (lowest number first; the Hatchery serves the single highest-priority
+   * request and WAITS if it can't afford it — so this ladder IS a strict gate, lower tiers spawn only
+   * when nothing higher wants spawning; each overlord documents its own rank). Current ladder:
+   *   1 Mining(home)/Defense/Filler · 2 Work/RemoteMining/Warband · 3 Logistics/Scout · 4 Upgrade/Guard ·
+   *   5 Reserve/RemoteWork/RemoteLogistics.
+   * RemoteMining sits at 2 (above Scout at 3) so remote income isn't starved by the score-scout fleet
+   * (#210); its expansionReady gate (home-economy health) keeps it from requesting before home is staffed.
    * New overlord: pick a tier, set it in super(colony, { priority }).
    */
   constructor(colony, { priority = 5, instanceId = null } = {}) {
