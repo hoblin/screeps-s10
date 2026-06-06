@@ -1,8 +1,7 @@
 import { Behavior } from "../Behavior.js";
 import { Engage } from "./Engage.js";
-import { selfHeal, shoot, meleeHit, closeTo, holdAnchor } from "./atoms/acts.js";
+import { strike, holdAnchor } from "./atoms/acts.js";
 import { priorityTarget } from "./atoms/selectors.js";
-import { KITE_RANGE } from "../../lib/Movement.js";
 
 // ============================================================================
 //  RaidRoom — the OFFENCE archetype: travel to memory.target room (hunting
@@ -38,14 +37,9 @@ export class RaidRoom extends Behavior {
     if (pick) {
       // A structure (spawn / extensions / storage / …) → close to reach and attack it. We don't kite
       // here: a spawn/economy structure can't shoot back, and a TOWER (which can) is a dismantler's job
-      // (#178), not this RANGED raider's. Self-heal each tick (a HEAL-part body soaks incidental damage).
-      selfHeal(creep);
+      // (#178), not this RANGED raider's. `strike` is the shared close-and-attack-by-body act (self-heals).
       this.note(creep, "raid:raze");
-      if (creep.getActiveBodyparts(ATTACK) > 0) meleeHit(creep, pick);
-      else {
-        if (creep.pos.getRangeTo(pick) > KITE_RANGE) closeTo(creep, pick, KITE_RANGE);
-        shoot(creep, pick);
-      }
+      strike(creep, pick);
       return true;
     }
 

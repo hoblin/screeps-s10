@@ -57,6 +57,20 @@ export function closeTo(creep, target, range, opts = {}) {
   creep.travelTo(target, { range, ...opts });
 }
 
+// Damage a target by body, closing to reach — NO kite. For a target to kill outright rather than
+// fear: a structure (can't move/flee) or a creep you out-range. Melee steps in and hits; ranged
+// closes to KITE_RANGE then fires. Self-heals each tick (a HEAL body soaks incidental damage).
+// The non-kiting counterpart to Engage's fight-and-dodge — reused by raidRoom's raze.
+export function strike(creep, target) {
+  selfHeal(creep);
+  if (creep.getActiveBodyparts(ATTACK) > 0) {
+    meleeHit(creep, target);
+    return;
+  }
+  if (creep.pos.getRangeTo(target) > KITE_RANGE) closeTo(creep, target, KITE_RANGE);
+  shoot(creep, target);
+}
+
 // Settle at an anchor: travel to within `range` if beyond it, else hold. Returns true if
 // it had to move, false if already settled — so the caller can pick its hold-vs-move note.
 export function holdAnchor(creep, anchor, range = 1) {
