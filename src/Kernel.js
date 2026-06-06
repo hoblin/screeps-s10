@@ -4,6 +4,7 @@ import { Dashboard } from "./lib/Dashboard.js";
 import { TrafficManager } from "./lib/TrafficManager.js";
 import { Threat } from "./lib/Threat.js";
 import { RoomLog } from "./lib/RoomLog.js";
+import { Debug } from "./lib/Debug.js";
 import { currentStageKey } from "./lib/Stages.js";
 
 // How many ticks of behaviour to keep per creep (#103). A capped ring buffer —
@@ -161,6 +162,18 @@ export class Kernel {
       });
       if (trace.length > CREEP_TRACE_LEN) trace.splice(0, trace.length - CREEP_TRACE_LEN);
       m.log = trace;
+      // Level-2 debug trace (#215): the same per-tick breadcrumb into the deep gated
+      // ring (50 rows vs the always-on log's 5), only for an entity flipped to trace
+      // level — the verbose "every step" view. This is the ONE always-run debug
+      // call-site (every creep, every tick), so guard the closure alloc behind the
+      // facility's master switch: off → undefined → skip entirely (truly zero-cost).
+      if (Memory.debug) {
+        Debug.for(m.role, name).trace(() => ({
+          room: creep.pos.roomName, x: creep.pos.x, y: creep.pos.y,
+          w: m.working ? 1 : 0, act: m._act,
+          tgt: m.haulTarget ? m.haulTarget.room : undefined,
+        }));
+      }
       m._act = undefined; // consumed — don't carry a stale tag into next tick
     }
   }

@@ -1,4 +1,5 @@
 import { behaviorClass } from "./index.js";
+import { Debug } from "../lib/Debug.js";
 
 // ============================================================================
 //  BehaviorMachine — the per-creep trigger state machine (#39).
@@ -31,7 +32,16 @@ export class BehaviorMachine {
   static run(creep, colony) {
     const set = creep.memory.behaviors;
     if (!set || !set.default) return; // no declared conduct → inert (nothing to do)
+    const prev = creep.memory.behavior || set.default;
     const active = this.select(creep, colony, set);
+    // Seed debug event (#215): a node TRANSITION — the one observable point, before
+    // the write persists `active`. No-op unless this creep/role is debug-enabled.
+    if (active !== prev) {
+      Debug.for(creep.memory.role, creep.name).event(() => ({
+        ev: "behavior", from: prev, to: active,
+        room: creep.pos.roomName, x: creep.pos.x, y: creep.pos.y,
+      }));
+    }
     creep.memory.behavior = active;
     const behavior = behaviorClass(active);
     if (behavior) behavior.run(creep, colony);

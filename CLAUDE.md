@@ -19,10 +19,30 @@ objects can sit on walls, so "objects on non-walls" proved nothing); reverted in
 The live bot uses game coords + native pathfinding and was never affected.
 
 `bin/sapi` is the live-ops API wrapper (the sanctioned exception to "crawler-only" — for
-transient live state: `obj`/`mem`/`eval`/`score`). **`bin/sapi map <ROOM>`** renders a room
+transient live state: `obj`/`mem`/`eval`/`score`/`log`). **`bin/sapi map <ROOM>`** renders a room
 as a token-lean ASCII grid + opt-in TOON layers (`--creeps`/`--structures`/`--score`/… ,
 `--tick N` for history, `--emoji` for a human) — run **`bin/sapi map --help`** for the glyph
 legend and all flags. Reach for it instead of hand-rolling a `room-objects` eval.
+
+**Debugging a live entity — use the gated `Debug` logger (#215), NEVER a throwaway logger PR.**
+`src/lib/Debug.js` is the standing facility to inspect a running creep/overlord: off on
+everything by default, near-zero-cost when off (absent `Memory.debug` → one property read),
+flippable per entity **live** (no deploy), read **delay-free** from Memory. Instrument code at
+**EVENT boundaries** (state transitions — never per-tick `if`s): `Debug.for(klass, id).event(() =>
+({…}))` logs a transition; `.trace(() => ({…}))` logs a per-tick step. The data builder is a
+**closure** → the payload is built only past the gate, so calling it anywhere is free at rest.
+**Two levels** mirror `Logger.js`: **1 = events** (transitions only), **2 = trace** (+ per-tick).
+Base-class event boundaries are already seeded (`BehaviorMachine` node change, `Hauler` gather↔deliver
+toggle, remote-haul target assign/revoke, `travelToRoom` arrival, `Kernel` per-tick trace); add a new
+call-site at the natural transition where a real bug needs it — `.event` for a state change, `.trace`
+for a per-tick stream, NOT a fat per-tick dump. Toggle + read live (offline tooling, not bundled):
+```bash
+bin/sapi log                       # list active targets (key→level) + ring sizes
+bin/sapi log on  <role|creepName> [level]   # enable a CLASS (role name) or one INSTANCE; default level 1
+bin/sapi log off <role|creepName>           # disable one target
+bin/sapi log all-off                        # delete Memory.debug (map + all rings) — clean slate
+bin/sapi log read <creepName>               # dump that entity's ring (TOON), delay-free
+```
 
 ## Architecture in one breath
 - `Kernel` drives the tick (CPU guard, discovers colonies). `Colony` is the per-room aggregate that wires `HiveCluster`s + `Overlord`s.
