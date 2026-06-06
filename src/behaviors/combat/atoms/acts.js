@@ -1,5 +1,5 @@
 import { KITE_RANGE } from "../../../lib/Movement.js";
-import { steer, enemyField, separation } from "./field.js";
+import { steer, enemyField, separation, APPROACH_RANGE } from "./field.js";
 
 // ============================================================================
 //  Combat acts (#189) — the EXECUTION primitives: each takes a creep + an already
@@ -26,13 +26,21 @@ export function shoot(creep, target, crowd = false) {
   else if (range <= KITE_RANGE) creep.rangedAttack(target);
 }
 
-// Reposition to hold the ideal ranged distance via the magnet field (#190): each threat is a
-// body-derived magnet (offence repels, healers attract) plus squad separation, and the creep steps
-// down the summed potential — settling at kite range from EVERY threat (so it's never caught in a
-// stacked rangedMassAttack), leaning onto enemy healers, and never backing into a corner. Supersedes
-// the old PathFinder flee. `threats` is the hostile set to keep range from.
+// Hold the ideal ranged distance. NAVIGATION vs the micro-dance (#196): while the nearest threat is
+// farther than APPROACH_RANGE, APPROACH it by A* (travelTo — paths around walls/geometry, prefers
+// roads, has a stuck-counter; restores the old guard's PathFinder approach the greedy field had
+// dropped). Once close, the magnet FIELD takes over: each threat a body-derived magnet (offence
+// repels, healers attract) plus squad separation — the creep settles at kite range from EVERY threat
+// (never caught in a stacked rangedMassAttack), leans onto enemy healers, never backs into a corner.
 export function kiteStep(creep, threats) {
-  steer(creep, [...enemyField(threats), ...separation(creep)]);
+  const target = creep.pos.findClosestByRange(threats);
+  if (target && creep.pos.getRangeTo(target) > APPROACH_RANGE) {
+    creep.travelTo(target, { range: KITE_RANGE });
+    return;
+  }
+  // Close in: field micro, with an A* fallback if the field freezes short of kite range (a wall/corner
+  // between us and the target — the field can't detour around it, A* can).
+  steer(creep, [...enemyField(threats), ...separation(creep)], { goal: target, goalRange: KITE_RANGE });
 }
 
 // Melee: strike if adjacent, else step to range 1. `opts` forwards to travelTo — a
