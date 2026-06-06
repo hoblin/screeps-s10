@@ -430,7 +430,10 @@ export class ScoutOverlord extends Overlord {
         if (route.length >= ROUTE_CAP) break;
         route.push(hop.room);
       }
-      cursor = target;
+      // If the cap truncated this corridor mid-way, stop — don't start the next leg from `target` (a
+      // room the route never reached), which would insert a non-contiguous, tower-blind jump.
+      if (route.length >= ROUTE_CAP) break;
+      cursor = target; // full corridor pushed → the route reaches the target; plan the next leg from it
     }
     return route;
   }

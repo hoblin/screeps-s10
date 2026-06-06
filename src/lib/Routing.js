@@ -24,7 +24,9 @@ export function towerFreeRoute(from, to, { allowUnscouted = false } = {}) {
     routeCallback: (roomName) => {
       if (roomName === to) return 1; // destination is vetted by the caller
       const intel = Memory.roomIntel?.[roomName];
-      if (!intel || Game.time - intel.tick > INTEL_FRESH_TICKS) return allowUnscouted ? 1 : Infinity;
+      // A missing/invalid tick reads as stale (tick 0), not NaN→fresh — defensive against a
+      // legacy/corrupt intel entry that would otherwise be wrongly trusted.
+      if (!intel || Game.time - (intel.tick || 0) > INTEL_FRESH_TICKS) return allowUnscouted ? 1 : Infinity;
       return intel.towers > 0 ? Infinity : 1; // known tower → avoid
     },
   });
