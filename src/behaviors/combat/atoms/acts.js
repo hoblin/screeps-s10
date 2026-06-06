@@ -1,4 +1,5 @@
-import { Movement, KITE_RANGE } from "../../../lib/Movement.js";
+import { KITE_RANGE } from "../../../lib/Movement.js";
+import { steer, enemyField, separation } from "./field.js";
 
 // ============================================================================
 //  Combat acts (#189) — the EXECUTION primitives: each takes a creep + an already
@@ -25,14 +26,13 @@ export function shoot(creep, target, crowd = false) {
   else if (range <= KITE_RANGE) creep.rangedAttack(target);
 }
 
-// Reposition to hold the ideal ranged distance: flee a tile if the enemy is inside
-// KITE_RANGE (Movement.kiteAway — PathFinder away from EVERY threat, never into a
-// corner/exit, via the resolver so it shoves idlers), close if it has drifted out, hold
-// at exactly KITE_RANGE. `threats` is the set to flee from (one target, or all hostiles).
-export function kiteStep(creep, target, threats) {
-  const range = creep.pos.getRangeTo(target);
-  if (range < KITE_RANGE) Movement.kiteAway(creep, threats);
-  else if (range > KITE_RANGE) creep.travelTo(target, { range: KITE_RANGE });
+// Reposition to hold the ideal ranged distance via the magnet field (#190): each threat is a
+// body-derived magnet (offence repels, healers attract) plus squad separation, and the creep steps
+// down the summed potential — settling at kite range from EVERY threat (so it's never caught in a
+// stacked rangedMassAttack), leaning onto enemy healers, and never backing into a corner. Supersedes
+// the old PathFinder flee. `threats` is the hostile set to keep range from.
+export function kiteStep(creep, threats) {
+  steer(creep, [...enemyField(threats), ...separation(creep)]);
 }
 
 // Melee: strike if adjacent, else step to range 1. `opts` forwards to travelTo — a

@@ -35,7 +35,7 @@ export class FocusFire extends Behavior {
     } else {
       this.note(creep, "focus:ranged");
       shoot(creep, target); // single aimed shot — never mass (concentrate on ONE)
-      kiteStep(creep, target, [target]); // kite away from the focus target only
+      kiteStep(creep, [target]); // field-kite, keeping range from the focus target
     }
     return true;
   }
