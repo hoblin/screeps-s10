@@ -18,7 +18,7 @@ import { log } from "./Logger.js";
 
 // Hard cap: events kept per room (ring buffer, oldest dropped). Tiny against the
 // 2 MB Memory cap — events are rare, entries are terse — and bounds the per-tick
-// JSON cost. Mirrors the creep trace's CREEP_TRACE_LEN discipline.
+// JSON cost. Mirrors the ring-buffer discipline of the Debug instrument (#215).
 const ROOM_LOG_LEN = 30;
 
 export const RoomLog = {

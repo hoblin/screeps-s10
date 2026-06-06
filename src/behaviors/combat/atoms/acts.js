@@ -1,5 +1,6 @@
 import { KITE_RANGE } from "../../../lib/Movement.js";
 import { towerFreeRoute, routeRoomBlocked } from "../../../lib/Routing.js";
+import { Debug } from "../../../lib/Debug.js";
 import { steer, enemyField, separation, APPROACH_RANGE } from "./field.js";
 
 // ============================================================================
@@ -96,11 +97,17 @@ export function travelToRoom(creep, room, { range = 20, allowUnscouted = false }
     const route = towerFreeRoute(creep.room.name, room, { allowUnscouted, avoidHot: true, clearer: creep });
     if (!route) {
       delete m._transit;
+      // Debug seed (#215): a trapped unit — no safe corridor to the objective. Lazy + off by default;
+      // switch the unit (or its whole role) on with bin/sapi log to see it.
+      Debug.for(creep.memory.role, creep.name).log(() => ({ act: "transit:trapped", dest: room }));
       return false; // no safe corridor — trapped; caller's fallback handles it
     }
     // Cache the corridor INCLUDING the current room, so the current-room index walks it forward.
     m._transit = { dest: room, rooms: [creep.room.name, ...route.map((r) => r.room)] };
     nextHop = m._transit.rooms[1] || room; // first hop after the current room (or the dest if adjacent)
+    // Debug seed (#215): a corridor (re)compute — the #213 yo-yo lived here, so logging when/why a unit
+    // re-routes is exactly the trace we kept needing. Lazy: the route array is built only when watching.
+    Debug.for(creep.memory.role, creep.name).log(() => ({ act: "transit:reroute", dest: room, rooms: m._transit.rooms }));
   }
   creep.travelTo(new RoomPosition(25, 25, nextHop), { range });
   return true;

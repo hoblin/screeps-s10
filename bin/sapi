@@ -19,6 +19,9 @@
 #    bin/sapi get game/room-status "room=E15S7"   # raw GET /api/<path>?<query>&shard=
 #    bin/sapi eval '<js>'                # run JS in the live game console (returns messages.results)
 #    bin/sapi map E15S7 [--creeps ...]   # render a room: ASCII grid + TOON layers (see `map --help`)
+#    bin/sapi log [list]                  # debug instrument (#215): show the switch + per-id ring counts
+#    bin/sapi log on|off <key>            #   activate/deactivate a class/role/instance id (live, no deploy)
+#    bin/sapi log read <id>               #   dump one id's ring buffer (delay-free); log all-off = clear all
 #    bin/sapi flag warband E16S7 [x y]   # place/move the warband objective FLAG (#174); also: flag list|remove <n>|clear
 #    bin/sapi warband go E16S7 [x y]      # set the warband objective by MEMORY coords (no flag/vision); warband stop to recall
 #    bin/sapi warband set '<json>'       # set the warband composition spec (Memory.warband); also: warband show|clear
@@ -76,6 +79,15 @@ out() {
 api_get()  { curl -s "$SERVER/api/$1" -H "X-Token: $SCREEPS_TOKEN"; }
 api_post() { curl -s "$SERVER/api/$1" -H "X-Token: $SCREEPS_TOKEN" -H "Content-Type: application/json" -d "$2"; }
 
+# GET Memory.<path> and gz-decode it to plain JSON on stdout (delay-free Memory read).
+# Shared by the `mem` and `log` commands so the gz handling lives in one place.
+mem_get() { api_get "user/memory?path=$1&shard=$SHARD" | python3 -c "
+import json,sys,base64,zlib
+d=json.load(sys.stdin); data=d.get('data')
+if isinstance(data,str) and data.startswith('gz:'):
+    data=json.loads(zlib.decompress(base64.b64decode(data[3:]),16+zlib.MAX_WBITS))
+print(json.dumps(data))"; }
+
 # Build a JSON array literal from the remaining positional args (room names).
 json_rooms() { printf '%s\n' "$@" | python3 -c 'import json,sys; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))'; }
 
@@ -127,12 +139,7 @@ for o in (d.get('objects') or []):
     api_post "game/map-stats" "{\"rooms\":$(json_rooms "$@"),\"statName\":\"owner0\",\"shard\":\"$SHARD\"}" | out ;;
 
   mem|memory)
-    api_get "user/memory?path=$1&shard=$SHARD" | python3 -c "
-import json,sys,base64,zlib
-d=json.load(sys.stdin); data=d.get('data')
-if isinstance(data,str) and data.startswith('gz:'):
-    data=json.loads(zlib.decompress(base64.b64decode(data[3:]),16+zlib.MAX_WBITS))
-print(json.dumps(data))" | out ;;
+    mem_get "$1" | out ;;
 
   get)
     # raw GET: bin/sapi get <path> ["extra=query&more=1"]  (shard appended automatically)
@@ -176,6 +183,30 @@ print(json.dumps(data))" | out ;;
         console_eval "Memory.warband&&delete Memory.warband.objective;'objective cleared (stand down — flag, if any, still applies)'" ;;
       clear)
         console_eval "delete Memory.warband;'cleared warband spec (code defaults apply)'" ;;
+    esac ;;
+
+  log)
+    # Debug instrument (#215): toggle the gate Memory.debug.on and read the per-id rings. The switch is a
+    # flat array of active keys — a CLASS/role enables every instance, an INSTANCE id enables just one;
+    # EMPTY = the whole facility is off. Mutations go through the live console (one write path); reads come
+    # straight from Memory (delay-free). `--main` targets shard2.
+    sub="${1:-list}"
+    case "$sub" in
+      list|ls)
+        # The active switch + per-id ring row counts (not the rows — `read <id>` dumps those).
+        mem_get debug | jq '{on:(.on//[]),rings:((.log//{})|map_values(length))}' | out ;;
+      read)
+        # Dump one id's ring buffer (delay-free): bin/sapi log read <id>
+        mem_get "debug.log.$2" | out ;;
+      on)
+        # Activate a class/role/instance: bin/sapi log on <key>
+        console_eval "var d=Memory.debug=Memory.debug||{};d.on=d.on||[];d.log=d.log||{};if(d.on.indexOf('$2')<0)d.on.push('$2');'on: '+JSON.stringify(d.on)" ;;
+      off)
+        # Deactivate one key: bin/sapi log off <key>
+        console_eval "var d=Memory.debug=Memory.debug||{};d.on=(d.on||[]).filter(function(k){return k!=='$2'});'on: '+JSON.stringify(d.on)" ;;
+      all-off|alloff|reset)
+        # Panic stop: empty the switch AND clear every ring (mirrors Debug.allOff).
+        console_eval "Memory.debug={on:[],log:{}};'all-off: debug switch + rings cleared'" ;;
     esac ;;
 
   map|render)

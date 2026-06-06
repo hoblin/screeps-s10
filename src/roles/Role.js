@@ -35,13 +35,13 @@ export class Role {
   // (Observed live: empty workers parking pushed active builders out of reach.)
   static gatherMovementPriority = 5;
 
-  // Debug breadcrumb (#103): stamp a short intent tag for THIS tick at a role's
-  // decision branch ("haul:withdraw", "deliver:spawn", "rhaul:to-room"…). The
-  // Kernel's per-tick pass folds it — with the creep's FINAL position + working
-  // state — into a capped rolling log in `creep.memory.log`, so a creep's recent
-  // behaviour is one `get_memory` read away instead of a multi-tick API trace.
-  // Last write per tick wins; the pass consumes it, so a tick with no note() just
-  // records position + state. Cheap and side-effect-free beyond the one memory key.
+  // Debug breadcrumb (#103/#215): stamp a short intent tag for THIS tick at a role's
+  // decision branch ("haul:withdraw", "deliver:spawn", "rhaul:to-room"…). The Kernel's
+  // per-tick pass folds it — with the creep's FINAL position + working state — into the
+  // GATED Debug ring (Memory.debug), so when this creep/role is switched on its recent
+  // behaviour is one read away. Last write per tick wins; the pass consumes it. Cheap
+  // and side-effect-free beyond the one memory key (and the trace itself is off until
+  // someone activates this creep via Debug).
   static note(creep, action) {
     creep.memory._act = action;
     // Push view (#123): show what the creep is doing as an in-game speech bubble,

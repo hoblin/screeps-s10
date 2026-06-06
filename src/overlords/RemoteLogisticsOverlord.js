@@ -3,6 +3,7 @@ import { RemoteHauler } from "../roles/RemoteHauler.js";
 import { Hauler } from "../roles/Hauler.js";
 import { Miner } from "../roles/Miner.js";
 import { Threat } from "../lib/Threat.js";
+import { Debug } from "../lib/Debug.js";
 import { behaviorClass } from "../behaviors/index.js";
 
 // ============================================================================
@@ -35,7 +36,6 @@ import { behaviorClass } from "../behaviors/index.js";
 // ============================================================================
 const HAULER_SPEED = 1; // tiles/tick on roads/plains for a 1:1 CARRY:MOVE body
 const FREIGHT_MARGIN = 1.3; // same headroom as the home freight model (#84)
-const DIAG_LEN = 50; // TEMP: ring buffer of dispatch snapshots in memory (idle-diagnosis hotfix) — last 50 ticks; each row carries the FULL hauler roster
 
 export class RemoteLogisticsOverlord extends Overlord {
   constructor(colony) {
@@ -123,34 +123,36 @@ export class RemoteLogisticsOverlord extends Overlord {
       if (t && !candidates.has(this.sourceKey(t))) c.memory.haulTarget = null;
     }
 
-    // TEMP idle-diagnosis (#204 follow-up): dump the FULL state of EVERY hauler each tick (no per-creep
-    // cap — nothing hidden), bounded to the last DIAG_LEN ticks of history. The aggregate idle counter hid
-    // the standing creeps; the roster shows each one's real state so we see WHY it stands. `_p` is the
-    // prior packed position → `mv` flags whether it moved last tick. Read: bin/sapi mem colonyData.<room>.rhaulLog.
-    const roster = haulers.map((c) => {
-      const p = `${c.pos.roomName}:${c.pos.x},${c.pos.y}`;
-      const mv = c.memory._p !== p ? 1 : 0; // 1 = moved since last tick, 0 = STANDING
-      c.memory._p = p;
-      return {
-        n: c.name.slice(-4),
-        r: c.pos.roomName,
-        xy: `${c.pos.x},${c.pos.y}`,
-        mv,
-        w: c.memory.working ? 1 : 0, // 1 = delivering (carrying), 0 = gathering
-        e: c.store.getUsedCapacity(RESOURCE_ENERGY), // energy carried
-        t: c.memory.haulTarget ? c.memory.haulTarget.room : "-", // assigned source room, or none
-      };
-    });
-    const diag = {
+    // Dispatch diagnostics (#215): the FULL per-hauler roster + aggregate counts, GATED behind Debug and
+    // built LAZILY — the snapshot closure runs only while this overlord is switched on (bin/sapi log on
+    // RemoteLogisticsOverlord), so it costs nothing at rest. The aggregate idle counter once hid the
+    // standing creeps; the roster shows each one's real state so we see WHY it stands. `_p` is the prior
+    // packed position → `mv` flags whether the hauler moved last tick. Read: bin/sapi log read <room>.
+    const dbg = Debug.for("RemoteLogisticsOverlord", this.colony.name);
+    const snapshot = (sent) => ({
       srcTot: this.colony.remoteSources().length, // total remote sources (geometric set)
       miners: this.colony.creepsWithRole("remoteMiner").filter((c) => !c.spawning).length, // live remote miners
       mining: mined.size, // sources with an ARRIVED, producing miner
       cand: sources.length, // dispatch candidates this tick
       hauls: haulers.length, // live haulers
-      roster, // FULL per-hauler state, uncapped
-    };
+      sent, // free haulers dispatched this tick
+      roster: haulers.map((c) => {
+        const p = `${c.pos.roomName}:${c.pos.x},${c.pos.y}`;
+        const mv = c.memory._p !== p ? 1 : 0; // 1 = moved since last tick, 0 = STANDING
+        c.memory._p = p;
+        return {
+          n: c.name.slice(-4),
+          r: c.pos.roomName,
+          xy: `${c.pos.x},${c.pos.y}`,
+          mv,
+          w: c.memory.working ? 1 : 0, // 1 = delivering (carrying), 0 = gathering
+          e: c.store.getUsedCapacity(RESOURCE_ENERGY), // energy carried
+          t: c.memory.haulTarget ? c.memory.haulTarget.room : "-", // assigned source room, or none
+        };
+      }),
+    });
     if (!sources.length) {
-      this.recordDiag({ ...diag, sent: 0 });
+      dbg.log(() => snapshot(0));
       return;
     }
 
@@ -193,19 +195,7 @@ export class RemoteLogisticsOverlord extends Overlord {
       claimed[this.sourceKey(best)] = (claimed[this.sourceKey(best)] || 0) + c.store.getFreeCapacity(RESOURCE_ENERGY);
       sent++;
     }
-    this.recordDiag({ ...diag, sent });
-  }
-
-  // TEMP dispatch diagnostics (idle-haulers hotfix): append a compact per-tick snapshot to a capped ring
-  // buffer in colony memory, mirroring the creep.memory.log pattern (Kernel.recordCreepTraces). Read with
-  // `bin/sapi mem colonyData.<room>.rhaulLog`. One row per tick the overlord runs; bounded to DIAG_LEN.
-  recordDiag(entry) {
-    Memory.colonyData ||= {};
-    const cd = (Memory.colonyData[this.colony.name] ||= {});
-    const log = cd.rhaulLog || [];
-    log.push({ t: Game.time, ...entry });
-    if (log.length > DIAG_LEN) log.splice(0, log.length - DIAG_LEN);
-    cd.rhaulLog = log;
+    dbg.log(() => snapshot(sent));
   }
 
   // Energy waiting at a source we can see: the miner's dropped pile (within range 2) plus the source

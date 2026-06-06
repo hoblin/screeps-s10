@@ -4,12 +4,8 @@ import { Dashboard } from "./lib/Dashboard.js";
 import { TrafficManager } from "./lib/TrafficManager.js";
 import { Threat } from "./lib/Threat.js";
 import { RoomLog } from "./lib/RoomLog.js";
+import { Debug } from "./lib/Debug.js";
 import { currentStageKey } from "./lib/Stages.js";
-
-// How many ticks of behaviour to keep per creep (#103). A capped ring buffer —
-// tiny against the 2 MB Memory cap (a few dozen creeps × a handful of small
-// entries) — that turns "why is this creep doing that?" into one get_memory read.
-const CREEP_TRACE_LEN = 5;
 
 // Threat-intel overlay housekeeping (#105). Pruning is cheap but pointless every
 // tick, so run it on an interval; only forget rooms unseen for far longer than
@@ -66,7 +62,7 @@ export class Kernel {
     }
 
     // Behaviour trace: now that movement is resolved (positions are final), fold
-    // each creep's intent tag + final position into its rolling log (#103).
+    // each creep's intent tag + final position into the gated Debug ring (#103/#215).
     this.recordCreepTraces();
 
     // Story log: RCL / stage milestones (health is computed by now). (#107)
@@ -137,30 +133,29 @@ export class Kernel {
     }
   }
 
-  // Append one behaviour breadcrumb per living creep to its capped rolling log
-  // (#103). Runs after TrafficManager.resolveAll so positions are the committed
-  // final tiles, not pre-move intents. Each entry pairs the creep's final
-  // position + working state with the intent tag a role stamped via Role.note
-  // this tick (cleared after, so a tick with no note() just records where it
-  // ended up). Iterates Game.creeps so remote creeps in unowned rooms — the ones
-  // hardest to debug — are covered too. Dead creeps' memory (and their logs) is
-  // reaped by cleanupMemory next tick.
+  // Per-creep behaviour trace (#103), now a GATED Debug instrument (#215) rather than
+  // an always-on write. Runs after TrafficManager.resolveAll so the position is the
+  // committed final tile, not a pre-move intent. Each row pairs that position + working
+  // state with the note tag a role stamped this tick (Role.note → _act). Keyed by ROLE
+  // (enable a whole role) AND creep NAME (enable one creep) — both feed Debug.for.
+  // Iterates Game.creeps so remote creeps in unowned rooms — the hardest to debug — are
+  // covered too. OFF by default: the whole loop short-circuits on one .length read, so
+  // _act is consumed only while watching (harmless if left set when off — Role.note
+  // overwrites it each role-run and only this trace reads it).
   recordCreepTraces() {
+    const on = Memory.debug && Memory.debug.on;
+    if (!on || !on.length) return; // facility off — steady state: one length read for the whole loop
     for (const name in Game.creeps) {
       const creep = Game.creeps[name];
       if (creep.spawning) continue; // not on the field yet — nothing to trace
       const m = creep.memory;
-      const trace = m.log || []; // not `log` — that's the module-level logger import
-      trace.push({
-        tick: Game.time,
+      Debug.for(m.role, name).log(() => ({
         room: creep.pos.roomName,
         x: creep.pos.x,
         y: creep.pos.y,
         working: !!m.working,
         act: m._act,
-      });
-      if (trace.length > CREEP_TRACE_LEN) trace.splice(0, trace.length - CREEP_TRACE_LEN);
-      m.log = trace;
+      }));
       m._act = undefined; // consumed — don't carry a stale tag into next tick
     }
   }
