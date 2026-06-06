@@ -25,7 +25,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { deflateSync } from "node:zlib";
 import { openDb } from "./db.mjs";
-import { scoreRoom } from "./region-score.mjs";
+import { scoreRoom, connectedDist } from "./region-score.mjs";
 
 function arg(name, def) {
   const i = process.argv.indexOf(`--${name}`);
@@ -37,6 +37,9 @@ const FROM = arg("from", null);
 const PNG_OUT = String(arg("out", "tmp/season-heatmap.png"));
 const WANT_PNG = arg("no-png", false) !== true;
 const WANT_ANSI = arg("no-ansi", false) !== true;
+const NEAR = arg("near", null); // reference room (e.g. our main) — annotate the top-N with connected hops to it,
+                                // so the near-vs-far trade-off (supportability vs new-territory coverage) is visible
+const TOPN = parseInt(String(arg("top", "10")), 10);
 
 // Playable grid: signed coords. west = negative sx, north = positive sy.
 const SX_MIN = -31, SX_MAX = 30; // W30 .. E30
@@ -320,16 +323,19 @@ function renderPng() {
 if (WANT_ANSI) renderAnsi();
 if (WANT_PNG) renderPng();
 
-const top = [...score.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
-console.log(`\nTop ${top.length} rooms by score:`);
-console.log("  room      score   mineral  SK-neighbours        enemy(rcl)");
+const homeDist = NEAR ? connectedDist(NEAR, 60) : null; // connected hop distance from our base to every reachable room
+const top = [...score.entries()].sort((a, b) => b[1] - a[1]).slice(0, TOPN);
+console.log(`\nTop ${top.length} rooms by score (src = home+remote source NODES — the lever${NEAR ? `; ${NEAR}→ = connected hops from our base` : ""}):`);
 for (const [nm, v] of top) {
   const d = detail.get(nm) || {};
-  const sk = d.skNeighbours?.length ? d.skNeighbours.join(",") : "-";
-  const enemy = d.enemyNeighbours
-    ? `${d.enemyNeighbours}${d.nearestEnemyRcl != null ? `(L${d.nearestEnemyRcl})` : ""}`
-    : "-";
+  const tr = d.threats?.[0];
+  const home = d.homeSources?.length || 0;
+  const rem = (d.remoteSources || []).filter((s) => s.reachable).length;
+  const exits = (d.neighbours || []).map((n) => `${n.dir}=${n.type}${n.srcs ? `·${n.srcs}` : ""}`).join("  ") || "(none)";
+  const threatStr = tr ? `  threat ${tr.player}·L${tr.mainRcl}@${tr.dist}` : "";
+  const distStr = NEAR ? `  ${NEAR}→${homeDist.get(nm) ?? ">60"}h` : "";
   console.log(
-    `  ${nm.padEnd(8)}  ${v.toFixed(1).padEnd(6)}  ${String(d.mineral || "-").padEnd(7)}  ${sk.padEnd(19)}  ${enemy}`,
+    `  ${nm.padEnd(7)} ${v.toFixed(1).padStart(6)}  src ${home}+${rem}  risk ${d.risk ?? "-"}  min ${d.mineral || "-"}${distStr}${threatStr}`,
   );
+  console.log(`          exits: ${exits}`);
 }
