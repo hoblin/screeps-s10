@@ -67,3 +67,6 @@ The deliverable is always CODE that auto-builds/recovers on a fresh room at tick
 - Boy Scout Rule: leave code cleaner than you found it. Favour small, focused, well-named functions; document non-obvious game mechanics in comments.
 - Match surrounding style exactly (ES-module imports, static role methods, overlord class methods). No unrelated refactors in a feature PR.
 - Respect Screeps caps (5 containers/room, 100 construction sites global) — log non-OK API results, never throw on them.
+
+## Brainstorm notes are APPEND-ONLY (thoughts/)
+Brainstorm / design notes in `thoughts/` are a **chain of thought, not a final-state doc**. When the design evolves, write a NEW note that links back (`[[prev-note]]`) — do NOT edit the old one. Preserving the options we tried and **rejected (with reasons)** is the point: it's what stops `thoughts-analyzer` (and future-me) from re-proposing a path we already explored and abandoned. The notes ARE the path to the final state, not the destination.

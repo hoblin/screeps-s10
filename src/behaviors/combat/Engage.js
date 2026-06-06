@@ -45,7 +45,7 @@ export class Engage extends Behavior {
     } else {
       this.note(creep, "engage:ranged");
       shoot(creep, target, hostiles.length > 1);
-      kiteStep(creep, target, engageable);
+      kiteStep(creep, engageable);
     }
     return true;
   }

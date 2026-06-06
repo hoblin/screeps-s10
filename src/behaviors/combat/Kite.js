@@ -26,7 +26,7 @@ export class Kite extends Behavior {
 
     this.note(creep, "kite:fire");
     shoot(creep, target, threats.length > 1);
-    kiteStep(creep, target, engageable);
+    kiteStep(creep, engageable);
     return true;
   }
 }

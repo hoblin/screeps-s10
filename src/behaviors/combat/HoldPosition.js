@@ -1,56 +1,56 @@
 import { Behavior } from "../Behavior.js";
-import { shoot, meleeHit, closeTo, holdAnchor } from "./atoms/acts.js";
+import { shoot } from "./atoms/acts.js";
 import { nearestHostile } from "./atoms/selectors.js";
-import { KITE_RANGE } from "../../lib/Movement.js";
+import { steer, enemyField, separation, attract, PRIORITY_HOLD } from "./atoms/field.js";
 
-const STRAY = 3; // a held creep may stray this far past its spread radius to strike, then returns
+const HOLD_ZONE = 6; // only hostiles within this of the held point influence the squad — a lure darting
+// beyond it is ignored, so a distant enemy's wide attract can't pull the pin off its ground (lure-proof).
 
 // ============================================================================
-//  HoldPosition — PIN the squad to a fixed point and deny the area around it. Members fan
-//  out in a RADIUS that grows with group size (so they don't fight over one tile), engage
-//  the NEAREST hostile that enters the zone (lure-proof — never chase the bait out), may
-//  STRAY a short way to strike, then RETURN. Unlike raidRoom/holdPoint it holds the GROUND
-//  it's told to, not the controller (#184). Ranged holds its ground (no kite-back).
+//  HoldPosition (#190 flagship) — PIN the squad to a point and deny the area, on the
+//  magnet field. Positioning is the SUM of three magnets: a WEAK pull to the held point
+//  (attract), the enemy field under the HOLD priority (offence repels at kite range,
+//  healers/armed lean it onto the priority kill), and SEPARATION from squadmates (≥3 so
+//  one rangedMassAttack can't catch two). It shoots the nearest hostile while the field
+//  keeps it spread and out of stacked fire — holding the GROUND (#184) without standing
+//  in the AOE that wiped the old ceil(sqrt(N)) pin (#185).
 //
-//  Pin = memory.point (the flag). Body-agnostic.
+//  Pin = memory.point (the flag). Body-agnostic: ranged shoots + field-dances; melee
+//  strikes an adjacent intruder and the field holds it on the tile.
 // ============================================================================
 export class HoldPosition extends Behavior {
   static run(creep, _colony) {
     const point = this.holdPos(creep);
     if (!point) return false; // unpinned → nothing to hold
     if (creep.room.name !== point.roomName) {
-      this.note(creep, "hold:to-room");
+      this.note(creep, "hold:to-room"); // transit to the theatre on A*; the field takes over in-room
       creep.travelTo(point, { range: 1 });
       return true;
     }
 
-    const radius = this.spreadRadius(creep);
-    const hostiles = creep.room.find(FIND_HOSTILE_CREEPS);
+    // Only point-local hostiles count — distant ones can't lure the pin off its ground.
+    const hostiles = creep.room.find(FIND_HOSTILE_CREEPS).filter((h) => h.pos.getRangeTo(point) <= HOLD_ZONE);
+    const melee = creep.getActiveBodyparts(ATTACK) > 0;
     const target = hostiles.length ? nearestHostile(creep, hostiles) : null;
-    // Engage only a target INSIDE the defended zone (radius + a short stray) — a kiting
-    // harasser darting beyond it is left alone, so the pin can't be lured off its ground.
-    if (target && target.pos.getRangeTo(point) <= radius + STRAY) {
-      if (creep.getActiveBodyparts(ATTACK) > 0) {
-        this.note(creep, "hold:melee");
-        meleeHit(creep, target);
-      } else {
-        this.note(creep, "hold:ranged");
-        shoot(creep, target);
-        if (creep.pos.getRangeTo(target) > KITE_RANGE) closeTo(creep, target, KITE_RANGE);
-      }
-      return true;
-    }
-    // No in-zone target → settle anywhere within the spread radius, pulling back if a strike carried us out.
-    if (holdAnchor(creep, point, radius)) this.note(creep, "hold:to-post");
-    else this.note(creep, "hold:hold");
-    return true;
-  }
 
-  // The hold radius grows with how many squadmates share this room, so N members spread over
-  // the zone instead of fighting for one tile. ceil(sqrt(N)): 1→1, 2-4→2, 5-9→3 (incl. self).
-  static spreadRadius(creep) {
-    const here = this.warbandMates(creep).filter((c) => c.room.name === creep.room.name).length + 1;
-    return Math.max(1, Math.ceil(Math.sqrt(here)));
+    // Attack without chasing: ranged fires if anything's in reach (held ground, lure-proof — the
+    // field, not a pursuit, sets position); melee strikes only an adjacent intruder.
+    if (target && !melee) {
+      this.note(creep, "hold:ranged");
+      shoot(creep, target, hostiles.length > 1);
+    } else if (target && creep.pos.isNearTo(target)) {
+      this.note(creep, "hold:melee");
+      creep.attack(target);
+    } else {
+      this.note(creep, "hold:hold");
+    }
+
+    // Position by the field: weak pull to the point ⊕ dodge/priority off the enemies ⊕ squad spread.
+    // Melee body-blockers omit the enemy field (they hold the tile, not kite).
+    const magnets = [attract(point), ...separation(creep)];
+    if (!melee) magnets.push(...enemyField(hostiles, PRIORITY_HOLD));
+    steer(creep, magnets);
+    return true;
   }
 
   static holdPos(creep) {
