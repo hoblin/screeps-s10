@@ -201,7 +201,17 @@ export function steer(creep, magnets, opts = {}) {
       }
     }
   }
-  if (best) TrafficManager.for(room).register(creep, best, opts.priority ?? STEER_PRIORITY);
+  if (best) {
+    TrafficManager.for(room).register(creep, best, opts.priority ?? STEER_PRIORITY);
+    return;
+  }
+  // No improving move (and not registered). If a goal was given and we haven't reached it, the field
+  // is wall-stuck SHORT of it — a wall/corner the greedy 9-tile scan can't route around (A* would
+  // temporarily increase range to detour). Fall back to A* so a tight choke near the post never
+  // re-introduces the freeze (#198 review). When already within goalRange, "no move" is correct
+  // (settled at kite range / on the held ground) — no fallback.
+  const { goal, goalRange = 0 } = opts;
+  if (goal && creep.pos.getRangeTo(goal) > goalRange) creep.travelTo(goal, { range: goalRange });
 }
 
 // Magnet builders — the recipes behaviours compose. Each returns magnet objects {x,y,repel,attract,range}.

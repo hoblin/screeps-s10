@@ -55,7 +55,9 @@ export class HoldPosition extends Behavior {
       if (!target) this.note(creep, "hold:hold");
       const magnets = [attract(point), ...separation(creep)];
       if (!melee) magnets.push(...enemyField(hostiles, PRIORITY_HOLD));
-      steer(creep, magnets);
+      // Field micro on station, with an A* fallback if it freezes while still walled off from the held
+      // ground (goalRange ≈ the spread extent, so a creep correctly spread near the point doesn't detour).
+      steer(creep, magnets, { goal: point, goalRange: 3 });
     }
     return true;
   }

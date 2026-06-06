@@ -38,7 +38,9 @@ export function kiteStep(creep, threats) {
     creep.travelTo(target, { range: KITE_RANGE });
     return;
   }
-  steer(creep, [...enemyField(threats), ...separation(creep)]);
+  // Close in: field micro, with an A* fallback if the field freezes short of kite range (a wall/corner
+  // between us and the target — the field can't detour around it, A* can).
+  steer(creep, [...enemyField(threats), ...separation(creep)], { goal: target, goalRange: KITE_RANGE });
 }
 
 // Melee: strike if adjacent, else step to range 1. `opts` forwards to travelTo — a
