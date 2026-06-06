@@ -30,6 +30,7 @@
 //
 //  Toggle + read from the CLI: bin/sapi log (on/off/all-off/read/list).
 // ============================================================================
+import { log } from "./Logger.js";
 
 // Per-id ring rows kept (mirrors RoomLog's ROOM_LOG_LEN discipline). Tiny against
 // the 2 MB cap; bounds the per-tick JSON cost of an active id.
@@ -67,10 +68,19 @@ export const Debug = {
 
   // Bound total rows across every ring. When active keys accumulate past the cap,
   // shave the LONGEST ring (the heaviest contributor) until under it — the facility
-  // self-limits instead of risking the Memory ceiling on a forgotten switch.
+  // self-limits instead of risking the Memory ceiling on a forgotten switch. Returns
+  // immediately when under cap (the steady state), so the eviction scan only runs on
+  // overflow — a too-broad active key (e.g. a whole high-population role).
   enforceGlobalCap(store) {
     let total = 0;
     for (const k in store) total += store[k].length;
+    if (total <= GLOBAL_MAX) return;
+    // Over cap: warn so the operator knows debug is dropping data — but THROTTLED, never
+    // spam the console the human keeps for real warnings (it stays lit until they narrow
+    // Memory.debug.on or run `sapi log all-off`, so one line per ~100 ticks is enough).
+    if (Game.time % 100 === 0) {
+      log.warn(`Debug rings over cap (${total}/${GLOBAL_MAX}); dropping oldest — narrow Memory.debug.on or 'sapi log all-off'.`);
+    }
     while (total > GLOBAL_MAX) {
       let biggest = null;
       for (const k in store) if (!biggest || store[k].length > store[biggest].length) biggest = k;
