@@ -6,6 +6,8 @@ import { HealGroup } from "./combat/HealGroup.js";
 import { KiteScreen } from "./combat/KiteScreen.js";
 import { KillClosest } from "./combat/KillClosest.js";
 import { HoldPosition } from "./combat/HoldPosition.js";
+import { Kite } from "./combat/Kite.js";
+import { Regroup } from "./combat/Regroup.js";
 
 // ============================================================================
 //  Behavior registry (#39) — maps a behavior NAME (as stored in a creep's
@@ -33,6 +35,12 @@ import { HoldPosition } from "./combat/HoldPosition.js";
 //                  garrison a chokepoint/kill-zone without drifting off it.
 //
 //  A buffer/booster archetype is a future slot (needs labs/boosts — Stage 4).
+//
+//  ATOMS (#188 — the reusable bricks composites are built from; also assignable on
+//  their own, since the only thing separating an atom from a composite is whether it
+//  calls other behaviors):
+//   • kite    — ranged-combat nucleus: shoot at reach, step back on contact, close if far.
+//   • regroup — squad cohesion: converge on the warband anchor when there's nothing to fight.
 // ============================================================================
 export const BEHAVIORS = {
   raidRoom: RaidRoom,
@@ -42,6 +50,8 @@ export const BEHAVIORS = {
   kiteScreen: KiteScreen,
   killClosest: KillClosest,
   holdPosition: HoldPosition,
+  kite: Kite,
+  regroup: Regroup,
 };
 
 // Resolve a behavior name to its class, or null (an unknown/typo'd name is a no-op

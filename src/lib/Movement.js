@@ -1,5 +1,5 @@
 // ============================================================================
-//  Movement — shared pathfinding cost layers (#145).
+//  Movement — shared pathfinding cost layers (#145) + the ranged kite flee-step (#188).
 //
 //  The danger layer makes tiles within an armed RANGED hostile's reach EXPENSIVE
 //  (not impassable), so non-combat creeps detour around the kill-zone instead of
@@ -16,10 +16,21 @@
 //  Hostile positions aren't in the intel substrate (it stores only the scalar threat),
 //  so we read them live — once per room per tick, cached (the TrafficManager pattern) so
 //  many creeps pathing the same room share one scan.
+//
+//  kiteAway (#188) is the ranged-kite flee-step, lifted here as the shared movement
+//  primitive so the Behavior layer's Kite atom needs no import from the Guard role.
+//  NOTE: Guard.js still carries a sibling copy (Guard.kiteAway/kiteCostMatrix/blocksMovement);
+//  #189 deletes Guard's and points it + FocusFire here, completing the consolidation. The
+//  #190 magnet field then supersedes this flee-search for combat units (terrain-repulsion
+//  keeps a kiter out of the corner without a PathFinder flee).
 // ============================================================================
 
 const DANGER_REACH = 4; // RANGED reach (3) + 1 for the enemy's own step toward us
 const DANGER_COST = 12; // additive per kill-zone tile — above swamp (5) so a detour wins; < 255 (never a block)
+
+// RANGED_ATTACK reach — the ideal kite distance and the flee goal range. The single
+// source the Kite atom reads; Guard/FocusFire still define their own pending #189.
+export const KITE_RANGE = 3;
 
 const _spotCache = new Map(); // roomName -> { tick, spots: [{x,y}] }  (armed ranged hostiles)
 
@@ -62,5 +73,51 @@ export const Movement = {
     const room = Game.rooms[roomName];
     if (room) this.addDanger(matrix, room);
     return matrix;
+  },
+
+  // Step one tile AWAY from every threat to restore kite distance, without self-cornering
+  // (#130 — the death case was a guard kiting into the west edge and freezing). A greedy
+  // "best adjacent tile" still self-traps in concave terrain (it looks one tile ahead), so we
+  // flee with a real PathFinder search: it routes away from ALL threats with full lookahead,
+  // steps around obstacles, never into a dead end, and shuns swamp via the default terrain cost.
+  // The first step goes through travelTo (not a raw move) so it registers with the resolver and
+  // can shove a lower-priority idler out of the retreat. Empty path (boxed in / already at range)
+  // → hold and keep firing (the ranged shot already fired this tick).
+  kiteAway(creep, threats) {
+    const matrix = this.kiteCostMatrix(creep.room); // built once per call, not per callback
+    const goals = threats.map((t) => ({ pos: t.pos, range: KITE_RANGE }));
+    const { path } = PathFinder.search(creep.pos, goals, {
+      flee: true,
+      maxRooms: 1,
+      roomCallback: () => matrix,
+    });
+    if (path.length) creep.travelTo(path[0]);
+  },
+
+  // Cost matrix for the kite flee search: hard-block the room-exit ring (#119 — never leave the
+  // room), every movement-blocking structure (obstacles + enemy ramparts), and every HOSTILE
+  // creep (can't be shoved or stepped onto). Friendly creeps stay walkable so the resolver can
+  // shove a lower-priority idler aside instead of walling the kiter in. Walls come free from
+  // terrain; swamp stays costly via the default swampCost.
+  kiteCostMatrix(room) {
+    const matrix = new PathFinder.CostMatrix();
+    for (let i = 0; i < 50; i++) {
+      matrix.set(0, i, 0xff);
+      matrix.set(49, i, 0xff);
+      matrix.set(i, 0, 0xff);
+      matrix.set(i, 49, 0xff);
+    }
+    for (const s of room.find(FIND_STRUCTURES)) {
+      if (this.blocksMovement(s)) matrix.set(s.pos.x, s.pos.y, 0xff);
+    }
+    for (const c of room.find(FIND_HOSTILE_CREEPS)) matrix.set(c.pos.x, c.pos.y, 0xff);
+    return matrix;
+  },
+
+  // A structure blocks our movement: any standard obstacle type, plus a rampart we don't own
+  // and that isn't public (an enemy rampart is impassable; ours / a public one is not).
+  blocksMovement(structure) {
+    if (structure.structureType === STRUCTURE_RAMPART) return !structure.my && !structure.isPublic;
+    return OBSTACLE_OBJECT_TYPES.includes(structure.structureType);
   },
 };
