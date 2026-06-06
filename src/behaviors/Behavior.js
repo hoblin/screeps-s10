@@ -1,5 +1,5 @@
 import { Role } from "../roles/Role.js";
-import { Guard } from "../roles/Guard.js";
+import { combatBody } from "../lib/CombatBody.js";
 
 // ============================================================================
 //  Behavior — base for a named, stateless unit of creep conduct (#39).
@@ -26,11 +26,11 @@ export class Behavior {
   // The body this behavior needs to do its job (MVC: the behavior is the MODEL — it owns BOTH its
   // conduct AND its body requirement; a controller like WarbandOverlord READS this off the unit's
   // DEFAULT behavior and spawns it, never re-deciding the body itself). The base default is the
-  // ranged-kite combat body (RANGED_ATTACK + self-heal + MOVE) reused from the Guard — the right
-  // shape for every offensive/positional combat behavior (raidRoom/holdPoint/focusFire/kiteScreen),
-  // so only a behavior with a DIFFERENT need overrides it (e.g. HealGroup → a heal body).
+  // ranged-kite combat body (RANGED_ATTACK + self-heal + MOVE) from the shared combat sizer — the
+  // right shape for every offensive/positional combat behavior (raidRoom/holdPoint/focusFire/
+  // kiteScreen), so only a behavior with a DIFFERENT need overrides it (e.g. HealGroup → a heal body).
   static bodyFor(energyBudget) {
-    return Guard.bodyFor(energyBudget, { attack: 0, ranged: 1, heal: 0, tough: 0 });
+    return combatBody(energyBudget, { attack: 0, ranged: 1, heal: 0, tough: 0 });
   }
 
   // Telemetry tag (#103/#123) — reuse the single Role definition so a behavior's

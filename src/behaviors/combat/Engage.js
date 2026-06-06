@@ -37,8 +37,8 @@ export class Engage extends Behavior {
       creep.memory.foughtOwner = target.owner.username;
     }
 
-    // Dispatch by body (matches Behavior.ensureCombatMode): an ATTACK part → melee, else
-    // ranged. Equivalent to the spawn-set guardType for every non-mixed body we field.
+    // Dispatch by body — the body IS the source of truth for combat mode: an ATTACK part →
+    // melee, else ranged (a ranged body has no ATTACK, a melee body has no RANGED_ATTACK).
     if (creep.getActiveBodyparts(ATTACK) > 0) {
       this.note(creep, "engage:melee");
       meleeHit(creep, target);

@@ -1,9 +1,7 @@
 import { Role } from "./Role.js";
-import { bodyFromTemplate } from "../lib/BodyGenerator.js";
 import { Engage } from "../behaviors/combat/Engage.js";
+import { combatBody } from "../lib/CombatBody.js";
 
-const MELEE_MAX = 9; // max [ATTACK,MOVE] repeats (melee path: future core-clearing)
-const RANGED_MAX = 6; // max [RANGED_ATTACK,MOVE] repeats on the ranged body
 const GUARD_PARK_DELAY = 5; // ticks to hold the spot after the last hostile contact before walking
 // back to park — long enough to shoot a harasser that ducks across the border and returns (#160).
 
@@ -41,30 +39,9 @@ export class Guard extends Role {
   // to be — it shouldn't be shoved aside by an idle worker.
   static movementPriority = 3;
 
-  // Which counter to field for an enemy part-profile. Any MOBILE combat (ranged or
-  // melee) → "ranged" (kites melee, mirrors+outlasts ranged; melee can't catch an
-  // equal-speed kiter in the open, so we never melee a mobile enemy). Only a threat
-  // with no mobile combat (an invader core) gets cheap "melee" burst.
-  static counterType(profile) {
-    if (!profile) return "ranged";
-    return profile.ranged > 0 || profile.attack > 0 ? "ranged" : "melee";
-  }
-
-  // Dynamic body: type from the enemy profile, SIZE from the spawn budget. (TOUGH
-  // padding and a fuller RPS matrix are noted refinements; v1 wins winnable fights
-  // by out-sizing — the overlord only sends a guard whose power already beats the
-  // assessed threat.)
+  // The guard's body — its own role body, sized by the shared combat sizer (#189).
   static bodyFor(energyBudget, profile) {
-    if (this.counterType(profile) === "melee") {
-      return bodyFromTemplate([ATTACK, MOVE], { extra: [ATTACK, MOVE], max: MELEE_MAX, energy: energyBudget });
-    }
-    // ranged: base carries one HEAL (self-sustain) + 2 MOVE; each extra adds a
-    // RANGED_ATTACK+MOVE, so the body stays ~1:1 move-to-part (full speed on roads).
-    return bodyFromTemplate([RANGED_ATTACK, MOVE, HEAL, MOVE], {
-      extra: [RANGED_ATTACK, MOVE],
-      max: RANGED_MAX,
-      energy: energyBudget,
-    });
+    return combatBody(energyBudget, profile);
   }
 
   static run(creep, colony) {
