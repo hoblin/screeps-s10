@@ -1,6 +1,7 @@
 import { KITE_RANGE } from "../../../lib/Movement.js";
 import { towerFreeRoute, routeRoomBlocked } from "../../../lib/Routing.js";
 import { steer, enemyField, separation, APPROACH_RANGE } from "./field.js";
+import { Debug } from "../../../lib/Debug.js";
 
 // ============================================================================
 //  Combat acts (#189) — the EXECUTION primitives: each takes a creep + an already
@@ -82,6 +83,12 @@ export function closeTo(creep, target, range, opts = {}) {
 // decides what a trapped unit does — hold, pick another target).
 export function travelToRoom(creep, room, { range = 20, allowUnscouted = false } = {}) {
   if (creep.room.name === room) {
+    // Seed debug event (#215): reached the target room. Gate on _transit so it fires
+    // once on arrival (the corridor was still committed last tick), not every tick we
+    // sit in the destination. No-op unless this creep/role is debug-enabled.
+    if (creep.memory._transit) {
+      Debug.for(creep.memory.role, creep.name).event(() => ({ ev: "arrived", room }));
+    }
     delete creep.memory._transit; // arrived — drop the committed corridor
     return false;
   }

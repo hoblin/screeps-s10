@@ -1,5 +1,6 @@
 import { Role } from "./Role.js";
 import { bodyFromTemplate } from "../lib/BodyGenerator.js";
+import { Debug } from "../lib/Debug.js";
 
 // ============================================================================
 //  Hauler — a logistics creep (Stage 2b economy).
@@ -56,6 +57,15 @@ export class Hauler extends Role {
   static runCycle(creep, colony, conduct) {
     const wasDelivering = creep.memory.working || false;
     const delivering = Role.updateWorkingState(creep);
+    // Seed debug event (#215): the gather↔deliver TRANSITION (the economy analog of a
+    // behavior change). No-op unless this creep/role is debug-enabled.
+    if (delivering !== wasDelivering) {
+      Debug.for(creep.memory.role, creep.name).event(() => ({
+        ev: delivering ? "deliver" : "gather",
+        room: creep.pos.roomName, x: creep.pos.x, y: creep.pos.y,
+        e: creep.store.getUsedCapacity(RESOURCE_ENERGY),
+      }));
+    }
     if (delivering && !wasDelivering) creep.memory.haulTarget = null;
     if (delivering) {
       conduct.deliver(creep, colony);

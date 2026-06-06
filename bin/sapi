@@ -22,6 +22,7 @@
 #    bin/sapi flag warband E16S7 [x y]   # place/move the warband objective FLAG (#174); also: flag list|remove <n>|clear
 #    bin/sapi warband go E16S7 [x y]      # set the warband objective by MEMORY coords (no flag/vision); warband stop to recall
 #    bin/sapi warband set '<json>'       # set the warband composition spec (Memory.warband); also: warband show|clear
+#    bin/sapi log on remoteHauler [lvl]  # gated debug logger (#215): on/off/all-off/read <id>; level 1=events 2=trace
 #    bin/sapi --main obj W55S43          # target the main server instead of season
 #
 #  Filtering — add --jq '<filter>' to filter via jq; the result stream is slurped into a
@@ -176,6 +177,36 @@ print(json.dumps(data))" | out ;;
         console_eval "Memory.warband&&delete Memory.warband.objective;'objective cleared (stand down — flag, if any, still applies)'" ;;
       clear)
         console_eval "delete Memory.warband;'cleared warband spec (code defaults apply)'" ;;
+    esac ;;
+
+  log)
+    # Live debug logger (#215): toggle the gated facility + read its rings. Switch is
+    # Memory.debug.on = { <klass-or-id>: level } (level 1=events, 2=trace); absent
+    # Memory.debug = whole facility off. Per-id rings live in Memory.debug.log[id].
+    #   log                       list active targets (key→level) + per-id ring sizes
+    #   log on  <key> [level]     enable a class (role name) or id (creep name); default level 1
+    #   log off <key>             disable one target
+    #   log all-off               drop Memory.debug entirely (map + all rings)
+    #   log read <id>             dump one ring (delay-free), TOON by default
+    sub="${1:-list}"
+    case "$sub" in
+      list|ls)
+        console_eval "JSON.stringify({on:(Memory.debug&&Memory.debug.on)||{},rings:Object.fromEntries(Object.entries((Memory.debug&&Memory.debug.log)||{}).map(([k,v])=>[k,v.length]))})" ;;
+      on)
+        key="$2"; level="${3:-1}"
+        console_eval "(Memory.debug=Memory.debug||{on:{},log:{}}).on['$key']=$level,'debug on: $key @ level $level'" ;;
+      off)
+        key="$2"
+        console_eval "(Memory.debug&&Memory.debug.on&&'$key' in Memory.debug.on)?(delete Memory.debug.on['$key'],'debug off: $key'):'(not active: $key)'" ;;
+      all-off|alloff)
+        console_eval "delete Memory.debug,'debug ALL-OFF (map + rings cleared)'" ;;
+      read)
+        api_get "user/memory?path=debug.log.$2&shard=$SHARD" | python3 -c "
+import json,sys,base64,zlib
+d=json.load(sys.stdin); data=d.get('data')
+if isinstance(data,str) and data.startswith('gz:'):
+    data=json.loads(zlib.decompress(base64.b64decode(data[3:]),16+zlib.MAX_WBITS))
+print(json.dumps(data))" | out ;;
     esac ;;
 
   map|render)
