@@ -82,11 +82,12 @@ const VALUE = { score: 6, highway: 4, unknown: 3, player: 2, neutral: 1 };
 // ============================================================================
 export class ScoutOverlord extends Overlord {
   constructor(colony) {
-    // Priority 2 — above haulers (Logistics is 3), alongside Work/Filler (2). Safe to sit here
-    // because desiredCount is a small baseline plus a storage-surplus-capped delta (#159) — it
-    // only grows the fleet when the economy is banking energy — and a scout is dirt cheap ([MOVE]);
-    // it stands down entirely while home is under attack.
-    super(colony, { priority: 2 });
+    // Priority 3 — BELOW remote miners (#210: remote income must outrank the score-scout fleet in the
+    // spawn queue, else scouts starve the remotes). Ties with home Logistics (3); the overlord-array
+    // order lets home haulers win that tie. Safe here because desiredCount is a small baseline plus a
+    // storage-surplus-capped delta (#159) — it only grows when the economy is banking energy — and a
+    // scout is dirt cheap ([MOVE]); it stands down entirely while home is under attack.
+    super(colony, { priority: 3 });
   }
 
   get role() {

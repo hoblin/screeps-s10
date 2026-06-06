@@ -32,16 +32,12 @@ import { Threat } from "./Threat.js";
 const SATURATION_RICH_ON = 0.7; // avg source fill at/above which income is clearly wasted
 const SATURATION_RICH_OFF = 0.4; // ...and below which mining has caught up with consumption
 
-// Expansion readiness (#89): the home is ready to INVEST in remote mining when its
-// spawn has spare capacity — idle spawn time is the currency a remote creep costs.
-// We smooth the per-tick idle signal (EWMA) and Schmitt-latch it so it doesn't flap,
-// gated off during a home crisis. NOT energyRich: that goes false once logistics
-// consumes the surplus (proven live on E15S7), yet spare spawn time can remain. As
-// remote mining starts consuming spawn time the ratio falls and the latch releases —
-// so expansion self-throttles to available spawn capacity.
+// Spawn-idle EWMA — the smoothed fraction of recent ticks the spawn sat idle. NO LONGER gates
+// expansion (#210): tying expansion to spawn-idle was self-defeating — the ScoutOverlord (#170) fills
+// every idle cycle with score scouts, so spawn-idle reads ~0 even on a rich colony and strangled the
+// remotes. Kept SOLELY for ScoutOverlord's spawn-idle scout term (#170). expansionReady now reads home
+// economy health instead (see expansionReadiness).
 const IDLE_ALPHA = 0.05; // EWMA weight for the spawn-idle ratio (~20-tick memory)
-const EXPANSION_READY_ON = 0.5; // spawn idle ≥ half the time → spare capacity to invest
-const EXPANSION_READY_OFF = 0.2; // ...below this it's busy again → back off (hysteresis)
 const DOWNGRADE_CRISIS = 5000; // controller this near downgrade → focus home, don't expand
 
 // Road-build readiness (#135): a road costs ENERGY + worker build-time, NOT spawn
@@ -93,12 +89,13 @@ export const RoomHealthCheck = {
     // Home-crisis flags both readiness latches gate off on — computed ONCE so the
     // hostile scan (Threat.assess) isn't repeated per signal.
     const crisis = this.homeCrisis(colony);
-    const expansion = this.expansionReadiness(colony, prior, recovering, crisis);
+    const idleRatio = this.spawnIdleRatio(colony, prior); // EWMA, for ScoutOverlord #170 — NOT expansion
+    const expansionReady = this.expansionReadiness(colony, recovering, crisis); // #210: home-economy health
     const roadBuild = this.roadBuildReadiness(colony, prior, recovering, crisis);
     this.saveState(colony, {
       energyRich,
       recovering,
-      ...expansion.persist,
+      idleRatio,
       ...roadBuild.persist,
     });
 
@@ -111,9 +108,9 @@ export const RoomHealthCheck = {
       energyRich,
       // workforce-collapse latch the Recovery override stage reads (#54)
       recovering,
-      // the expansion-readiness dial the remote-mining overlord reads (#18/#89)
-      expansionReady: expansion.ready,
-      spawnIdle: Math.round(expansion.idleRatio * 100) / 100,
+      // the expansion-readiness gate the remote overlords read (#18/#210) — home-economy health
+      expansionReady,
+      spawnIdle: Math.round(idleRatio * 100) / 100,
       // the road-build dial Hatchery.planRoads reads (#135) — energy headroom, not
       // spawn-idle (a road costs energy + worker time, not spawn time)
       roadBuildReady: roadBuild.ready,
@@ -140,31 +137,46 @@ export const RoomHealthCheck = {
     };
   },
 
-  // Spare-spawn-capacity latch — the expansion-readiness signal (#89). The spawn is
-  // "idle" (spare) when none of our spawns is mid-spawn AND energy sits at cap (a
-  // busy spawn drains it). We smooth that into a ratio (EWMA) and Schmitt-latch it,
-  // gated off during a home crisis — controller decaying, room attacked, or we can't
-  // even afford a reserver body. Spawn-idle subsumes "home staffed": an understaffed
-  // colony keeps its spawn busy, so the ratio only climbs once targets are met.
-  expansionReadiness(colony, prior, recovering, crisis) {
+  // Spawn-idle EWMA (#170): the smoothed fraction of recent ticks the spawn was idle (no spawn in
+  // progress AND energy at cap). Persisted for cross-tick smoothing; consumed by ScoutOverlord to fill
+  // spare spawn cycles with score scouts. NOT an expansion signal anymore (#210).
+  spawnIdleRatio(colony, prior) {
     const room = colony.room;
     const idleNow =
       colony.spawns.length > 0 &&
       colony.spawns.every((s) => !s.spawning) &&
       room.energyAvailable >= room.energyCapacityAvailable;
-    const idleRatio = (prior.idleRatio ?? 0) * (1 - IDLE_ALPHA) + (idleNow ? 1 : 0) * IDLE_ALPHA;
+    return (prior.idleRatio ?? 0) * (1 - IDLE_ALPHA) + (idleNow ? 1 : 0) * IDLE_ALPHA;
+  },
 
-    const canAffordReserver =
-      room.energyCapacityAvailable >= BODYPART_COST[CLAIM] + BODYPART_COST[MOVE];
-
-    let ready = prior.expansionReady || false;
-    // Recovery is the ultimate home crisis — never expand while clawing back from a
-    // workforce collapse (it would steal the spawn time recovery needs).
-    if (crisis.decaying || crisis.attacked || !canAffordReserver || recovering) ready = false;
-    else if (idleRatio >= EXPANSION_READY_ON) ready = true;
-    else if (idleRatio <= EXPANSION_READY_OFF) ready = false;
-
-    return { ready, idleRatio, persist: { expansionReady: ready, idleRatio } };
+  // expansionReady (#210) — may we START/grow remote expansion? It asks "is the home colony's own
+  // economy alive and healthy", NOT "is the spawn idle" (the old spawn-idle gate was gamed by the
+  // score-scout fleet, #170, which eats every idle cycle — so it read false on a rich colony and
+  // starved the remotes). Ready when home PRODUCTION is staffed (a miner on every home source) AND its
+  // OUTPUT is moving (a hauler per un-linked source, or links carry it — a linked source needs no local
+  // hauler, per Yevhenii) AND there's no home crisis AND we can afford the expansion creep. Stateless
+  // (no latch) — a structural read, not a noisy ratio. The spawn-priority ladder does the rest: remotes
+  // sit below the home economy, so the Hatchery (serves the single top-priority request, waits otherwise)
+  // only reaches them once home is satisfied.
+  expansionReadiness(colony, recovering, crisis) {
+    const room = colony.room;
+    const sources = colony.sources.length;
+    if (sources === 0) return false;
+    const miners = colony.creepsWithRole("miner").filter((c) => !c.spawning).length;
+    const minersStaffed = miners >= sources; // a static miner on every home source
+    // Output moving: only un-linked sources need a hauler (a linked source feeds the link network), so
+    // require ≥1 hauler per un-linked source as the floor.
+    const haulers = colony.creepsWithRole("hauler").filter((c) => !c.spawning).length;
+    const transportOk = haulers >= Math.max(0, sources - colony.sourceLinks().length);
+    const canAffordReserver = room.energyCapacityAvailable >= BODYPART_COST[CLAIM] + BODYPART_COST[MOVE];
+    return (
+      minersStaffed &&
+      transportOk &&
+      canAffordReserver &&
+      !recovering &&
+      !crisis.decaying &&
+      !crisis.attacked
+    );
   },
 
   // Road-build readiness (#135): may we fund road construction NOW? A road costs

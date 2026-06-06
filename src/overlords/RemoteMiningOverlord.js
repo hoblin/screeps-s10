@@ -19,19 +19,21 @@ import { Threat } from "../lib/Threat.js";
 //  best-first. Each miner's source is stamped in its memory (its model); the
 //  controller hands out assignments on spawn and reconciles them every tick.
 //
-//  SUSTAIN vs EXPAND gating (#210): keeping an ALREADY-COVERED source staffed — including the
-//  just-in-time replacement of a dying incumbent (#168 JIT, generalized per-source here) — is
-//  SUSTAINING committed production and is funded UNCONDITIONALLY (only the `recovering` crisis floor
-//  yields). OPENING a NEW (uncovered) source is expansion: a spawn-time investment, gated on
-//  expansionReady (#89), which self-throttles to spare spawn capacity. Without per-source JIT a remote
-//  source sat minerless for the whole spawn+travel gap every cycle (the ~dist×3 trip is long), so
-//  ~half the sources had no miner at any moment. v1 drop-mines (no remote container).
+//  STAFFING (#210): one miner per safe source, PLUS a just-in-time relief pre-spawned for a dying
+//  incumbent (#168 generalized per-source — the ~dist×3 remote trip is long, so without JIT a source
+//  sat minerless for the whole spawn+travel gap every cycle). Gated on health.expansionReady — which is
+//  now HOME-ECONOMY HEALTH, not spawn-idle (the old spawn-idle gate was eaten by the score-scout fleet
+//  #170 and starved the remotes). Spawn priority 2 (above scouts) so remote income isn't starved by the
+//  score fleet in the queue. v1 drop-mines (no remote container).
 // ============================================================================
 const key = (s) => `${s.room}:${s.x}:${s.y}`;
 
 export class RemoteMiningOverlord extends Overlord {
   constructor(colony) {
-    super(colony, { priority: 5 }); // singleton: priority after the home economy
+    // Priority 2 (above scouts, #210): remote income must not be starved by the score-scout fleet in the
+    // spawn queue. expansionReady (home-economy health) ensures it only requests when home is staffed, so
+    // it never preempts a needed home unit — and the Hatchery serves home-critical (1) first regardless.
+    super(colony, { priority: 2 });
   }
 
   get role() {
@@ -45,23 +47,18 @@ export class RemoteMiningOverlord extends Overlord {
     return this.colony.remoteSources().filter((s) => !Threat.isHotForEconomy(s.room));
   }
 
-  // SUSTAIN (always) + EXPAND (gated). Sustain = keep every already-covered safe source staffed, plus
-  // pre-spawn a JIT relief for each dying incumbent (#210/#168) — committed production, unconditional.
-  // Expand = open the remaining uncovered safe sources — only when expansionReady (#89). The recovering
-  // crisis floor zeroes everything (the recovery worker takes the spawn first). The dying-incumbent +1
-  // is balanced by its relief in assignedCreeps, so exactly one relief is ordered per dying source.
+  // One miner per safe source, plus a JIT relief per dying incumbent so a source is never left minerless
+  // across the long spawn+travel gap (#210/#168). Gated wholesale on expansionReady — now home-economy
+  // HEALTH (#210), which also folds in the recovery crisis (it returns false while recovering). The
+  // dying-incumbent +1 is balanced by its relief in assignedCreeps, so exactly one relief per dying source.
   desiredCount() {
-    if (this.colony.health.recovering) return 0;
+    if (!this.colony.health.expansionReady) return 0;
     const safe = this.safeSources();
     const safeKeys = new Set(safe.map(key));
-    const onSafe = this.assignedCreeps.filter(
-      (c) => c.memory.remoteSource && safeKeys.has(key(c.memory.remoteSource))
-    );
-    const covered = new Set(onSafe.map((c) => key(c.memory.remoteSource))).size;
-    const dying = onSafe.filter((c) => this.isDying(c)).length;
-    const sustain = covered + dying; // staff active sources + pre-spawn JIT relief — unconditional
-    if (!this.colony.health.expansionReady) return sustain;
-    return sustain + (safe.length - covered); // + open the uncovered safe sources (expansion)
+    const dying = this.assignedCreeps.filter(
+      (c) => c.memory.remoteSource && safeKeys.has(key(c.memory.remoteSource)) && this.isDying(c)
+    ).length;
+    return safe.length + dying;
   }
 
   // A live incumbent within its (spawn + travel) replacement lead of dying — the JIT trigger. Uses the
