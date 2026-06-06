@@ -1,6 +1,6 @@
 import { Behavior } from "../Behavior.js";
 import { Engage } from "./Engage.js";
-import { strike, holdAnchor } from "./atoms/acts.js";
+import { strike, holdAnchor, travelToRoom } from "./atoms/acts.js";
 import { priorityTarget } from "./atoms/selectors.js";
 
 // ============================================================================
@@ -13,9 +13,21 @@ import { priorityTarget } from "./atoms/selectors.js";
 //  garrisons the controller. Walls/ramparts are NOT razed (a RANGED body can't — needs a
 //  dismantler, #178). Composed from shared atoms; no dependency on the Guard role.
 //
-//  Assignment: memory.target (room to deny, required), memory.targetOwner (jumper-lock, optional).
+//  Doubles as a machine OVERRIDE node for the RETALIATION case (#140/#187): with an attacker locked
+//  (memory.targetOwner), a released guard ENTERS this to deny HIS remote — razing his economy is worth
+//  far more than recycling. Exits when the lock clears (back to the defend default / freeHunter).
+//
+//  Assignment: memory.target (room to deny, required), memory.targetOwner (jumper-lock / retaliation, optional).
 // ============================================================================
 export class RaidRoom extends Behavior {
+  // Edge (when used as a node, e.g. the guard machine): enter on a locked attacker, exit when it clears.
+  static enteredWhen(creep, _colony) {
+    return !!creep.memory.target && !!creep.memory.targetOwner;
+  }
+  static exitWhen(creep, _colony) {
+    return !creep.memory.targetOwner;
+  }
+
   static run(creep, colony) {
     const room = creep.memory.target;
     if (!room) return false; // unassigned → nothing to raid
@@ -25,9 +37,14 @@ export class RaidRoom extends Behavior {
       // along the corridor); otherwise press on. We never divert off-route to chase (#140).
       const owner = creep.memory.targetOwner;
       if (owner && Engage.run(creep, colony, { ownerFilter: owner })) return true;
-      this.note(creep, "raid:to-room");
-      creep.travelTo(new RoomPosition(25, 25, room), { range: 20 });
-      return true;
+      // Danger-aware transit (#197): route around hot/towered rooms instead of walking blind into them.
+      if (travelToRoom(creep, room)) {
+        this.note(creep, "raid:to-room");
+        return true;
+      }
+      // No safe corridor — fight what's here, else hold; never suicide through a tower to reach the target.
+      this.note(creep, "raid:blocked");
+      return Engage.run(creep, colony);
     }
 
     // On target: the single priority pick (armed creep → spawn → economy creep → structure-by-value).

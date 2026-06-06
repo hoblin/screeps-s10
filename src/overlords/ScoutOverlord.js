@@ -1,6 +1,6 @@
 import { Overlord } from "./Overlord.js";
 import { Scout } from "../roles/Scout.js";
-import { Escort } from "../roles/Escort.js";
+import { Hunter } from "../roles/Hunter.js";
 import { combatBody } from "../lib/CombatBody.js";
 import { Threat } from "../lib/Threat.js";
 import { towerFreeRoute } from "../lib/Routing.js";
@@ -33,8 +33,8 @@ const STALE_MAX = 20000; // staleness cap; a never-seen room uses this as its ag
 const CLAIMED_PENALTY = 0.1; // another scout's queued room: deprioritise, don't exclude
 const SCOUT_THREAT_PENALTY = 0.05; // recently killed a scout / live armed threat: deprioritise hard
 const EMPTY_REPLAN_COOLDOWN = 50; // ticks before retrying a plan that came back empty
-const ESCORT_THRESHOLD = 2; // scout casualties in a room before it earns a guard escort (#147)
-const ESCORT_PRIORITY = 5; // escort spawns below economy/defence — clearing a blocker isn't urgent
+const BLOCKER_THRESHOLD = 2; // scout casualties in a room before it earns a clearer (#147/#187)
+const HUNTER_PRIORITY = 5; // the clearer spawns below economy/defence — clearing a blocker isn't urgent
 const SCORE_TILES_PER_ROOM = 50; // rough tiles/room — a [MOVE] scout walks 1 tile/tick, so this
 // × room-distance is a FLOOR estimate of travel ticks to weigh against a Score's decay (#24).
 const DIVERSION_MARGIN = 100; // slack over that ETA before abandoning a diversion: covers in-room
@@ -63,7 +63,7 @@ const VALUE = { score: 6, highway: 4, unknown: 3, player: 2, neutral: 1 };
 //  the GuardOverlord released-guard pattern; no tick-expiry.
 //
 //  Score diversion (#24): the Kernel's observe pass records ground Score objects into
-//  roomIntel; this overlord then diverts the CLOSEST free scout (no escort mission, not
+//  roomIntel; this overlord then diverts the CLOSEST free scout (no diversion yet, not
 //  fleeing) to step on a reachable Score tile — banking the points IS the season win — then
 //  the scout resumes its route. The win scales with coverage × speed: more scouts + spawns +
 //  colonies grab more Score before it decays. A fast [MOVE] scout is already the ideal score
@@ -93,11 +93,11 @@ export class ScoutOverlord extends Overlord {
     return "scout";
   }
 
-  // Owns two roles: scouts (always) + an optional escort (#147) — a guard that follows a
-  // mission scout to clear ANY persistent winnable blocker (#167), re-opening the room and the
-  // sector behind it. One controller, the whole domain — no cross-overlord coordination.
+  // Owns two roles: scouts (always) + an optional hunter (#187) — a SOLO clearer dispatched to a
+  // persistent winnable blocker (#167) to clear it and re-open the sector, then freeHunt the remotes.
+  // No bait-scout pairing: the hunter provides its own vision. One controller, the whole domain.
   get roles() {
-    return ["scout", "escort"];
+    return ["scout", "hunter"];
   }
 
   // Self-balancing count (#159): the always-on baseline plus a storage-surplus delta.
@@ -155,11 +155,18 @@ export class ScoutOverlord extends Overlord {
     return Math.max(Math.floor((this.colony.health.spawnIdle || 0) * SPAWN_IDLE_SCALE), 0);
   }
 
-  // Spawn an escort FIRST if a mission scout needs a bodyguard, else a scout (counting only
-  // scouts — assignedCreeps now includes escorts too). Fully overrides the base count gate.
+  // The current persistent winnable blocker (a scout-killer worth clearing), or null. Memoized per tick
+  // (findBlocker walks the BFS radius + reads intel). The single source of truth for the hunter's objective.
+  blocker() {
+    if (this._blocker === undefined) this._blocker = this.findBlocker();
+    return this._blocker;
+  }
+
+  // Spawn the solo clearer FIRST if a blocker wants one and none is fielded yet, else a scout (counting
+  // only scouts — assignedCreeps includes the hunter too). Fully overrides the base count gate.
   generateSpawnRequest() {
-    const escort = this.escortSpawnRequest();
-    if (escort) return escort;
+    const hunter = this.hunterSpawnRequest();
+    if (hunter) return hunter;
     if (this.colony.creepsWithRole("scout").length >= this.desiredCount()) return null;
     return {
       priority: this.priority,
@@ -169,33 +176,30 @@ export class ScoutOverlord extends Overlord {
     };
   }
 
-  // A guard sized to the blocker's threat for a mission scout that lacks a live escort.
-  escortSpawnRequest() {
-    const mission = Object.entries(this.routes).find(([, p]) => p.escortMission);
-    if (!mission) return null;
-    const [scoutName, plan] = mission;
-    if (!Game.creeps[scoutName]) return null; // the scout must be alive to be followed
-    const covered = this.assignedCreeps.some(
-      (c) => c.memory.role === "escort" && c.memory.escortScout === scoutName
-    );
-    if (covered) return null;
-    const profile = Threat.profileFor(plan.escortMission);
+  // A solo clearer sized to the blocker's threat — ONE at a time (a freeHunting hunter is re-targeted by
+  // run(), not duplicated). Null when there's no blocker, a hunter already exists, or intel went stale.
+  hunterSpawnRequest() {
+    const blocker = this.blocker();
+    if (!blocker) return null;
+    if (this.assignedCreeps.some((c) => c.memory.role === "hunter")) return null; // one hunter at a time
+    const profile = Threat.profileFor(blocker);
     if (!profile) return null; // intel went stale — don't spawn blind
     return {
-      priority: ESCORT_PRIORITY,
-      role: "escort",
+      priority: HUNTER_PRIORITY,
+      role: "hunter",
       body: combatBody(this.colony.spawnEnergyBudget(), profile),
       memory: {
-        role: "escort",
+        role: "hunter",
         colony: this.colony.name,
         overlord: this.identifier,
-        escortScout: scoutName,
+        target: blocker, // holdPoint clears it; nulled by run() once cleared → freeHunter roams (#187)
+        behaviors: Hunter.behaviors, // the role owns its conduct set (#187) — see Hunter.behaviors
       },
     };
   }
 
   runCreep(creep) {
-    if (creep.memory.role === "escort") Escort.run(creep, this.colony);
+    if (creep.memory.role === "hunter") Hunter.run(creep, this.colony);
     else Scout.run(creep, this.colony);
   }
 
@@ -224,25 +228,23 @@ export class ScoutOverlord extends Overlord {
       if (routes[name].lastRoom) Threat.bumpScoutThreat(routes[name].lastRoom);
       delete routes[name];
     }
-    // Detect a persistent winnable blocker and (re)assign the escort mission (#147).
-    this.manageEscortMission(routes);
+    // Command the hunter (#187): aim it at the current blocker, or null → it freeHunts the remotes
+    // (the BehaviorMachine edge does the switch). The same instruction re-targets a freeHunting hunter
+    // onto a freshly-detected blocker with no respawn — the WarbandOverlord.command pattern.
+    const blocker = this.blocker();
+    for (const creep of this.assignedCreeps) {
+      if (creep.memory.role === "hunter") creep.memory.target = blocker || null;
+    }
     // Divert the closest free scout onto a known, reachable ground Score tile (#24).
     this.manageScoreDiversions(routes);
 
-    // Give every live SCOUT a fresh leg if it has none or finished its last one (escorts
-    // have no route — they follow their scout). A mission scout is forced onto the blocker
-    // until it's cleared. A fleeing scout is left alone until safe, then re-planned. An empty
-    // plan (no candidates) backs off for a cooldown so we don't re-run the BFS every tick.
+    // Give every live SCOUT a fresh leg if it has none or finished its last one. A fleeing scout is
+    // left alone until safe, then re-planned. An empty plan (no candidates) backs off for a cooldown
+    // so we don't re-run the BFS every tick. (The hunter is a solo combat unit — it has no route.)
     for (const creep of this.assignedCreeps) {
       if (creep.memory.role !== "scout") continue;
       if ((creep.memory.fleeUntil || 0) > Game.time) continue; // fleeing — don't touch its route
       const plan = routes[creep.name];
-      if (plan?.escortMission) {
-        const onBlocker = plan.route.length === 1 && plan.route[0] === plan.escortMission;
-        if (onBlocker && plan.index < plan.route.length) continue; // still heading to the blocker
-        routes[creep.name] = { route: [plan.escortMission], index: 0, tick: Game.time, escortMission: plan.escortMission };
-        continue;
-      }
       if (plan?.scoreDiversion) continue; // detouring to a Score — keep its route intact to resume
       if (plan && plan.index < plan.route.length) continue; // still walking its route
       if (plan && plan.route.length === 0 && Game.time - plan.tick < EMPTY_REPLAN_COOLDOWN) continue;
@@ -251,30 +253,11 @@ export class ScoutOverlord extends Overlord {
     super.run();
   }
 
-  // Escort-mission lifecycle (#147): clear a mission once its blocker is cleared (scoutThreat
-  // back to 0), and — if none is active and a persistent winnable blocker exists — assign it
-  // to a live scout (one mission at a time). The forced route + the spawned escort then do
-  // the work; `escortSpawnRequest` reads the mission to field the bodyguard.
-  manageEscortMission(routes) {
-    for (const name in routes) {
-      const blocker = routes[name].escortMission;
-      if (blocker && Threat.scoutThreatOf(blocker) === 0) delete routes[name].escortMission;
-    }
-    if (Object.values(routes).some((p) => p.escortMission)) return; // one mission at a time
-    const blocker = this.findBlocker();
-    if (!blocker) return;
-    const scout = this.assignedCreeps.find(
-      (c) => c.memory.role === "scout" && routes[c.name] && !routes[c.name].escortMission
-    );
-    if (scout) routes[scout.name].escortMission = blocker;
-  }
-
   // Score-diversion lifecycle (#24): clear diversions whose Score was banked/decayed, then
   // hand each still-live, reachable Score to the CLOSEST free scout (one Score per scout,
   // de-conflicted so two scouts never chase the same tile). A free scout = a live, routed
-  // scout with no escort mission, no diversion yet, and not fleeing. The scout detours via
-  // Scout.collectScore, then resumes its route. Mirrors manageEscortMission, but a diversion
-  // is transient (grab one tile and resume) where an escort mission is sustained.
+  // scout with no diversion yet, and not fleeing. The scout detours via Scout.collectScore,
+  // then resumes its route.
   manageScoreDiversions(routes) {
     const cooldown = this.scoreCooldown;
     for (const key in cooldown) if (cooldown[key] <= Game.time) delete cooldown[key]; // prune expired
@@ -304,7 +287,6 @@ export class ScoutOverlord extends Overlord {
         c.memory.role === "scout" &&
         (c.memory.fleeUntil || 0) <= Game.time &&
         routes[c.name] &&
-        !routes[c.name].escortMission &&
         !routes[c.name].scoreDiversion
     );
     if (!free.length) return;
@@ -370,25 +352,24 @@ export class ScoutOverlord extends Overlord {
   }
 
   // The highest-casualty persistent, winnable blocker within reach (or null): a room that has
-  // killed scouts ≥ ESCORT_THRESHOLD times, still holds a mobile threat (fresh combat profile),
-  // and that an affordable escort out-guns by the win-margin (#130). NO highway/score "worth it"
+  // killed scouts ≥ BLOCKER_THRESHOLD times, still holds a mobile threat (fresh combat profile),
+  // and that an affordable clearer out-guns by the win-margin (#130). NO highway/score "worth it"
   // filter (#167): Score spawns in EVERY room and a persistent blocker severs a whole sector, so
-  // any winnable scout-killer is worth clearing — and a guard+scout sortie clears more by momentum
-  // as it routes through. `winnable` is the real gate (it rejects the un-beatable 800–1600 rooms);
-  // `scoutThreatOf` (the casualty count) is the persistence gate. Profile/threat freshness is the
-  // INTEL_FRESH_TICKS window, so a long-unobserved room is skipped at the `!profile` check; the
-  // narrow window where a threat just left an observed room self-corrects (the force-routed scout
-  // observes it empty → scoutThreat resets → the mission clears).
+  // any winnable scout-killer is worth clearing. `winnable` is the real gate (it rejects the
+  // un-beatable 800–1600 rooms); `scoutThreatOf` (the casualty count) is the persistence gate.
+  // Profile/threat freshness is the INTEL_FRESH_TICKS window, so a long-unobserved room is skipped
+  // at the `!profile` check; the narrow window where a threat just left an observed room self-corrects
+  // (the hunter's own vision observes it empty → scoutThreat resets → blocker() drops it → freeHunter).
   findBlocker() {
     const budget = this.colony.spawnEnergyBudget();
     let best = null;
     let bestThreat = 0;
     for (const room of this.roomsWithinRadius(this.colony.name, SCAN_RADIUS)) {
       const casualties = Threat.scoutThreatOf(room);
-      if (casualties < ESCORT_THRESHOLD || casualties <= bestThreat) continue;
-      const profile = Threat.profileFor(room);
-      if (!profile || profile.attack + profile.ranged === 0) continue; // need a creep to kill
-      if (!Threat.winnable(combatBody(budget, profile), room)) continue;
+      if (casualties < BLOCKER_THRESHOLD || casualties <= bestThreat) continue;
+      const profile = Threat.killableProfile(room); // a mobile threat to kill (not a lone core/tower)
+      if (!profile) continue;
+      if (!Threat.winnable(combatBody(budget, profile), room)) continue; // winnable now also rejects towers
       best = room;
       bestThreat = casualties;
     }
@@ -438,17 +419,14 @@ export class ScoutOverlord extends Overlord {
     return route;
   }
 
-  // Every room any live scout still has queued — the claim set the next plan avoids. A
-  // mission scout's blocker is claimed for the WHOLE mission (not just while it's queued in
-  // the route): on arrival the scout sits at index === route.length, which would otherwise
-  // drop the claim for a tick and let another scout get routed into the harasser.
+  // Every room any live scout still has queued — the claim set the next plan avoids, so two scouts
+  // don't pile into the same room (a known harasser included, while it's on a route).
   claimedRooms() {
     const claimed = new Set();
     const routes = this.routes;
     for (const name in routes) {
       const plan = routes[name];
       for (let i = plan.index; i < plan.route.length; i++) claimed.add(plan.route[i]);
-      if (plan.escortMission) claimed.add(plan.escortMission);
     }
     return claimed;
   }
@@ -469,7 +447,7 @@ export class ScoutOverlord extends Overlord {
       let score = staleness * this.roomValue(room, intel);
       // #147: deprioritise (not exclude) rooms that recently killed a scout or hold a live
       // armed threat — scouts drain SAFE space first; with the freshness decay these re-open
-      // to a cheap re-probe later. Persistent valuable blockers are the escort half's job.
+      // to a cheap re-probe later. Persistent valuable blockers are the hunter's job (#187).
       if (Threat.scoutThreatOf(room) > 0 || Threat.isHot(room)) score *= SCOUT_THREAT_PENALTY;
       out.push({ room, score });
     }

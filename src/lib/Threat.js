@@ -36,10 +36,13 @@ export const Threat = {
     );
   },
 
-  // A room's current threat: the summed lethal power of the hostiles present, plus a
-  // flat danger for a hostile invader core (it spawns attackers even before any are
-  // visible). 0 == safe to work in. Source-Keeper rooms are already excluded by the
-  // static map, so they never reach a remote overlord.
+  // A room's current threat (lethal DAMAGE-PER-TICK, comparable to guardCombatPower): the summed
+  // lethal power of the hostiles present, a flat danger for a hostile invader core (it spawns
+  // attackers even before any are visible), AND each hostile tower at its MAX output. Towers belong
+  // HERE, not as a `towers > 0` exclusion bolted onto every combat consumer — a tower is danger, so
+  // the threat module owns it: a towered room then reads unwinnable (winnable() rejects it) and no
+  // guard/hunter is ever sized for, dispatched to, or routed into one it can't out-trade (#178).
+  // 0 == safe to work in. Source-Keeper rooms are excluded by the static map (never reach an overlord).
   assess(room, hostiles = room.find(FIND_HOSTILE_CREEPS)) {
     let threat = 0;
     for (const hostile of hostiles) threat += this.combatPower(hostile);
@@ -47,6 +50,10 @@ export const Threat = {
       filter: (s) => s.structureType === STRUCTURE_INVADER_CORE,
     });
     if (cores.length) threat += 1;
+    const towers = room.find(FIND_HOSTILE_STRUCTURES, {
+      filter: (s) => s.structureType === STRUCTURE_TOWER,
+    });
+    threat += towers.length * TOWER_POWER_ATTACK; // max tower damage/tick — conservative, never under-rate
     return threat;
   },
 
@@ -81,7 +88,7 @@ export const Threat = {
       threat,
       // #150: our own combat power present — lets the economy lens (isHotForEconomy) net
       // a guard-held room to safe. Non-combat creeps (miners/haulers) score 0, so this is
-      // effectively the guard/escort force defending the room.
+      // effectively the guard/hunter force defending the room.
       defense: room.find(FIND_MY_CREEPS).reduce((sum, c) => sum + this.combatPower(c), 0),
       profile: this.profile(room, hostiles),
       tick: Game.time,
@@ -156,6 +163,16 @@ export const Threat = {
     return intel.profile || null;
   },
 
+  // The room's profile IF it holds a MOBILE threat a guard can KILL (fresh intel with attack/ranged
+  // parts), else null. A guard targets creeps, so a room whose only threat is a tower or invader core
+  // (no creep combat parts) yields null — it can't be cleared by dispatching a guard. The single gate
+  // the dispatch/blocker consumers share before sizing a counter-body, so "structural threats aren't
+  // guard-killable" lives in ONE place (paired with assess() folding tower danger into the threat).
+  killableProfile(roomName) {
+    const p = this.profileFor(roomName);
+    return p && p.attack + p.ranged > 0 ? p : null;
+  },
+
   // The fresh scalar threat of a room (or 0 if stale/unseen) — so the Guard layer can
   // compare a candidate guard's power against what it must beat.
   threatOf(roomName) {
@@ -202,13 +219,22 @@ export const Threat = {
   // A room is "winnable" only when a proposed combat BODY out-guns the room's assessed
   // threat by this factor — not merely beats it (#130). A thin margin (50 vs 40) loses to
   // a positioning slip, so require comfortable superiority and otherwise leave the room
-  // alone. Shared by GuardOverlord (remote clears) and ScoutOverlord (escort clears).
+  // alone. Shared by GuardOverlord (remote clears) and ScoutOverlord (blocker clears).
   WIN_MARGIN: 1.5,
 
   // Can a guard with `body` clear `roomName` with a comfortable margin? The go/no-go gate
   // both combat consumers use before committing a creep.
   winnable(body, roomName) {
     return this.guardCombatPower(body) >= this.threatOf(roomName) * this.WIN_MARGIN;
+  },
+
+  // Winnability of a LIVE creep against `roomName` — `winnable` over its current body. The one place
+  // the body→part-type idiom lives, so deniability / danger-aware routing don't each re-spell it.
+  winnableBy(creep, roomName) {
+    return this.winnable(
+      creep.body.map((p) => p.type),
+      roomName
+    );
   },
 
   // Lethal power of a proposed guard BODY (a plain part array) — symmetric to

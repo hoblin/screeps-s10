@@ -54,12 +54,10 @@ export class GuardOverlord extends Overlord {
     const rooms = [...new Set(this.colony.remoteSources().map((s) => s.room))];
     this._hotWinnable = rooms.filter((room) => {
       if (!Threat.isHot(room)) return false;
-      const profile = Threat.profileFor(room);
-      // Need a MOBILE enemy to kill: a guard targets creeps, so a threat that's only
-      // an invader core (no attack/ranged parts) can't be cleared by it — leave those
-      // Level-1 (clearing a core is a later capability).
-      if (!profile || profile.attack + profile.ranged === 0) return false;
-      return Threat.winnable(Guard.bodyFor(budget, profile), room);
+      // Need a MOBILE enemy a guard can kill (not a lone core/tower — clearing those is a later
+      // capability); winnable then also rejects a towered room (assess folds tower danger into threat).
+      const profile = Threat.killableProfile(room);
+      return !!profile && Threat.winnable(Guard.bodyFor(budget, profile), room);
     });
     return this._hotWinnable;
   }
@@ -71,8 +69,8 @@ export class GuardOverlord extends Overlord {
   homeTarget() {
     const home = this.colony.name;
     if (!Threat.isHot(home)) return null;
-    const profile = Threat.profileFor(home);
-    if (!profile || profile.attack + profile.ranged === 0) return null;
+    const profile = Threat.killableProfile(home); // a mobile threat to kill (not a lone core/tower)
+    if (!profile) return null;
     const body = Guard.bodyFor(this.colony.spawnEnergyBudget(), profile);
     return Threat.guardCombatPower(body) > 0 ? home : null;
   }
@@ -100,7 +98,7 @@ export class GuardOverlord extends Overlord {
   coveredRooms() {
     const want = new Set(this.targets());
     return new Set(
-      this.assignedCreeps.map((c) => c.memory.guardRoom).filter((r) => r && want.has(r))
+      this.assignedCreeps.map((c) => c.memory.target).filter((r) => r && want.has(r))
     );
   }
 
@@ -121,28 +119,18 @@ export class GuardOverlord extends Overlord {
         role: this.role,
         colony: this.colony.name,
         overlord: this.identifier,
-        guardRoom: room,
+        target: room, // the behaviours (holdPoint default, raidRoom on retaliation) read memory.target
+        behaviors: Guard.behaviors, // the role owns its conduct set (#187) — see Guard.behaviors
       },
     };
   }
 
-  // Release a guard ONLY when its room has left our footprint (no longer home, not in
-  // the remoteSources map) — then the role recycles it. A guard whose room merely
-  // cooled is NOT released: it garrisons there (#128), staying as a standing defender
-  // and counting as coverage so we don't re-dispatch a duplicate.
+  // A guard is NEVER released to idle/recycle (#197): once dispatched it commits to its remote and
+  // holds it until death, denying mining resumption there (the sunk asset stays fully employed). The
+  // only re-tasking is sunk-asset retaliation (#140) — manageRetaliation may redirect a guard whose
+  // own room has cooled to go deny the attacker's remote instead (still a stay-and-deny, just his room).
   run() {
-    const footprint = new Set([
-      this.colony.name,
-      ...this.colony.remoteSources().map((s) => s.room),
-    ]);
-    for (const creep of this.assignedCreeps) {
-      this.manageRetaliation(creep); // sunk-asset offence (#140) — may redirect an idle guard
-      // Release a guard whose room left our footprint — UNLESS it's on a retaliation mission, whose
-      // target (the attacker's remote) is off-footprint by definition.
-      if (creep.memory.guardRoom && !footprint.has(creep.memory.guardRoom) && !creep.memory.retaliationMission) {
-        creep.memory.guardRoom = null;
-      }
-    }
+    for (const creep of this.assignedCreeps) this.manageRetaliation(creep);
     super.run();
   }
 
@@ -155,33 +143,33 @@ export class GuardOverlord extends Overlord {
   // STREAM of guards toward his remotes (free, no extra logic; self-limits when he pulls back). Live
   // roomIntel only — scouts keep owner/reserver/towers fresh map-wide (#142), so no baked map needed.
   manageRetaliation(creep) {
-    const mission = creep.memory.retaliationMission;
+    const onMission = !!creep.memory.targetOwner; // a locked attacker = the retaliation signal (raidRoom edge)
     // Recall to defend the CORE the instant home is threatened — gated on isHot (NOT homeTarget,
     // which adds an affordability check): recall is free (an existing guard), so we want it most in
     // the low-energy/recovery case where we couldn't even afford a fresh home defender.
-    if (mission && Threat.isHot(this.colony.name)) {
-      delete creep.memory.retaliationMission;
-      creep.memory.guardRoom = this.colony.name;
+    if (onMission && Threat.isHot(this.colony.name)) {
+      creep.memory.target = this.colony.name;
+      creep.memory.targetOwner = null;
       return;
     }
     // A REMOTE re-heating does NOT recall — the guard stays on the offensive, and the overlord
     // spawns a FRESH guard for the hot remote (it's an uncovered target). That fresh guard cleans
     // then joins the offensive, so a persistent harasser mints a self-amplifying STREAM of guards
     // toward his remotes — free, no extra logic, and self-limiting once he pulls back to defend.
-    if (mission) {
+    if (onMission) {
       // Keep the mission only while the target is still a deniable room of that attacker (he may
       // have left / built a tower since — re-confirmed as our vision refreshes the intel).
-      if (!this.deniable(mission, creep.memory.foughtOwner, creep)) {
-        delete creep.memory.retaliationMission;
-        creep.memory.guardRoom = this.colony.name;
+      if (!this.deniable(creep.memory.target, creep.memory.foughtOwner, creep)) {
+        creep.memory.target = this.colony.name;
+        creep.memory.targetOwner = null;
       }
       return;
     }
     // No mission: only an IDLE guard whose OWN room is already CLEANED (on its post, cooled to
     // not-hot) with a remembered armed attacker may go on the offensive. Find that attacker's
     // nearest deniable remote it can reach in time.
-    if (creep.room.name !== creep.memory.guardRoom) return; // still in transit to its post
-    if (Threat.isHot(creep.memory.guardRoom)) return; // own room still hot — clean it first
+    if (creep.room.name !== creep.memory.target) return; // still in transit to its post
+    if (Threat.isHot(creep.memory.target)) return; // own room still hot — clean it first
     const owner = creep.memory.foughtOwner;
     if (!owner) return;
     // Rate-limit the findRoute-heavy target search: an idle guard with no reachable deniable room
@@ -190,8 +178,8 @@ export class GuardOverlord extends Overlord {
     creep.memory.retScan = Game.time;
     const target = this.retaliationTarget(owner, creep);
     if (target) {
-      creep.memory.retaliationMission = target;
-      creep.memory.guardRoom = target; // the in-transit branch carries it there
+      creep.memory.target = target; // raidRoom (targetOwner set) carries it there, hunting en route
+      creep.memory.targetOwner = owner;
     }
   }
 
@@ -214,15 +202,15 @@ export class GuardOverlord extends Overlord {
     return best;
   }
 
-  // Is `room` a deniable target of `owner`: his (owned or reserved) room, tower-free, fresh intel,
-  // and winnable by this guard's current body.
+  // Is `room` a deniable target of `owner`: his (owned or reserved) room, fresh intel, and winnable by
+  // this guard's current body — winnability now folds in tower danger (assess counts towers), so a
+  // towered room reads unwinnable and is rejected here without a separate `towers > 0` check.
   deniable(room, owner, creep) {
     if (!owner) return false;
     const intel = Memory.roomIntel?.[room];
     if (!intel || Game.time - intel.tick > RETALIATE_FRESH) return false;
-    if (intel.towers > 0) return false;
     if (intel.owner !== owner && intel.reserver !== owner) return false;
-    return Threat.winnable(creep.body.map((p) => p.type), room);
+    return Threat.winnableBy(creep, room);
   }
 
   runCreep(creep) {

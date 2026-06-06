@@ -1,5 +1,5 @@
 import { Behavior } from "../Behavior.js";
-import { shoot, meleeStrike } from "./atoms/acts.js";
+import { shoot, meleeStrike, travelToRoom } from "./atoms/acts.js";
 import { nearestHostile } from "./atoms/selectors.js";
 import { steer, enemyField, separation, attract, PRIORITY_HOLD, APPROACH_RANGE } from "./atoms/field.js";
 
@@ -23,8 +23,10 @@ export class HoldPosition extends Behavior {
     const point = this.holdPos(creep);
     if (!point) return false; // unpinned → nothing to hold
     if (creep.room.name !== point.roomName) {
-      this.note(creep, "hold:to-room"); // transit to the theatre on A*; the field takes over in-room
-      creep.travelTo(point, { range: 1 });
+      // Danger-aware transit to the theatre (#197 — route around what we can't beat); the field takes
+      // over in-room. No safe corridor → hold here rather than walk blind into a tower/unwinnable room.
+      if (travelToRoom(creep, point.roomName)) this.note(creep, "hold:to-room");
+      else this.note(creep, "hold:blocked");
       return true;
     }
 

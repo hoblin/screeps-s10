@@ -37,7 +37,7 @@ export class Scout extends Role {
   // Pure [MOVE] — SPEED is the win lever (race rivals to a Score tile before it decays,
   // deliver vision faster), and a [MOVE]-only creep takes 1 tile/tick on any terrain (zero
   // fatigue) and costs just 50. Self-defence is covered without a body part by three layers:
-  // escort clears persistent blockers (#149), reactive-flee bails on the first hit (#148),
+  // a solo hunter clears persistent blockers (#187), reactive-flee bails on the first hit (#148),
   // and avoidHostiles routes around ranged kill-zones (#145) — so the old lone RANGED_ATTACK
   // (which couldn't win a fight anyway and added swamp fatigue) is dropped.
   static bodyFor(_energyBudget) {

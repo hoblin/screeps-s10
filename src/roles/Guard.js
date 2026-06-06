@@ -1,113 +1,44 @@
 import { Role } from "./Role.js";
-import { Engage } from "../behaviors/combat/Engage.js";
-import { holdAnchor } from "../behaviors/combat/atoms/acts.js";
+import { BehaviorMachine } from "../behaviors/BehaviorMachine.js";
 import { combatBody } from "../lib/CombatBody.js";
 
-const GUARD_PARK_DELAY = 5; // ticks to hold the spot after the last hostile contact before walking
-// back to park — long enough to shoot a harasser that ducks across the border and returns (#160).
-
 // ============================================================================
-//  Guard — the colony's combat creep: clears a contested remote so the economy
-//  can flow back (#118, Levels 2-3 of the threat ladder).
+//  Guard — the colony's combat creep: clears a contested room so the economy can flow back
+//  (#118, Levels 2-3 of the threat ladder; home defence #122). Like Combatant, it is now a THIN
+//  STATE MACHINE — no bespoke conduct of its own. All behaviour is COMPOSED from the behavior set
+//  GuardOverlord stamps at spawn and driven each tick by the per-creep BehaviorMachine; the overlord
+//  steers it purely by writing memory.target / memory.targetOwner (the WarbandOverlord.command pattern).
 //
-//  A dumb executor (per the domain-controller doctrine): GuardOverlord decides
-//  WHICH hot room is winnable and stamps it (+ the body TYPE) at spawn; this role
-//  travels there, kills the armed threat, mops up the harmless stragglers (scouts /
-//  reservers), then GARRISONS the room — parks on its controller and holds for life,
-//  re-engaging anything that wanders in (#128). After a fight it holds the spot a few ticks
-//  before walking back to park, so a harasser that ducks across the border and returns is shot
-//  on the spot rather than re-chased from the controller (#160). It never recycles on clear (a
-//  stationed guard answers the next poke with no rebuild and keeps the room's intel
-//  fresh via vision); only the overlord releasing it (room left the footprint) sends
-//  it home. Bailing on a false alarm happens only in transit (room cooled en route).
+//  The guard's machine is `{ default: "holdPoint", nodes: ["raidRoom", "holdGround"] }`:
+//   • holdPoint  — DEFAULT: travel to the assigned room (danger-aware) and garrison it, engaging
+//                  intruders and holding the controller for life (#128).
+//   • holdGround — after a fight, hold the contested ground for a few ticks and re-engage returners
+//                  before walking back to the post (#160) — entered on a fresh contact in the room.
+//   • raidRoom   — RETALIATION (#140): with an attacker locked (targetOwner), deny HIS remote and STAY,
+//                  blocking his mining; razing his economy is worth far more than recycling one body.
+//  It never roams (no freeHunter) and never recycles (#197): a guard commits to denying ONE remote and
+//  holds it until it dies — its terminal is raidRoom, not a return home.
 //
-//  Retaliation (#140): once its room cools, the OVERLORD may redirect this idle guard to deny the
-//  attacker's tower-free remote — it stamps the enemy room as `guardRoom` + a `retaliationMission`.
-//  The guard then travels and engages/holds there exactly as it garrisons home, denying his economy
-//  (the in-transit empty-bail is suppressed for the mission). The combat itself is the shared
-//  `Engage` behavior atom (#189) — it remembers the armed attacker's owner as `creep.memory.foughtOwner`;
-//  Guard.run keeps only the role orchestration (transit, garrison #128, post-clear hold #160).
-//
-//  Type is rock-paper-scissors to the enemy profile (chosen by the overlord):
-//   • "ranged" — RANGED_ATTACK + HEAL + MOVE: kites melee (they can't reach us) and
-//     out-sustains a ranged mirror. The robust counter to any MOBILE threat.
-//   • "melee"  — ATTACK + MOVE: cheap burst for a threat that can't kite back
-//     (an invader core / structure). Higher DPS-per-energy when kiting isn't needed.
+//  Guard is the defence-domain combat role (GuardOverlord owns it by the "guard" role tag — unrelated to
+//  the commanded warband's "combatant"). Body TYPE is rock-paper-scissors to the enemy profile, chosen
+//  by the overlord (ranged kiter vs cheap melee burst) via bodyFor.
 // ============================================================================
 export class Guard extends Role {
-  // Above idle/work roles but below the core haul/mine economy: a guard mostly lives
-  // in a remote room, so it rarely contends home traffic, but it still has somewhere
-  // to be — it shouldn't be shoved aside by an idle worker.
+  // Above idle/work roles but below the core haul/mine economy: a guard mostly lives in a remote room,
+  // so it rarely contends home traffic, but it still has somewhere to be — not shoved aside by an idler.
   static movementPriority = 3;
 
-  // The guard's body — its own role body, sized by the shared combat sizer (#189).
+  // The role's behaviour set — the role OWNS its conduct composition (GuardOverlord stamps this into
+  // each guard's memory.behaviors at spawn). Default holdPoint (garrison the assigned room), with
+  // raidRoom (retaliation deny) and holdGround (#160 post-combat hold) as conditional override nodes.
+  static behaviors = { default: "holdPoint", nodes: ["raidRoom", "holdGround"] };
+
+  // The guard's body — sized by the shared combat sizer to the threat profile (#189). Used by GuardOverlord.
   static bodyFor(energyBudget, profile) {
     return combatBody(energyBudget, profile);
   }
 
   static run(creep, colony) {
-    const room = creep.memory.guardRoom;
-    if (!room) return this.recycleAtHome(creep, colony); // released (off-map) → recycle
-
-    // In transit: bail only if we can SEE the room is truly empty (no hostiles at
-    // all) — a confirmed false alarm. We do NOT bail on !isHot: isHot is lethal-only,
-    // so it drops the moment the armed threat dies while a reserver/scout still needs
-    // mopping; and we never bail blind (no vision → trust the dispatch, keep going).
-    // The on-arrival scan below then decides mop / park / (nothing to do →) garrison.
-    if (creep.room.name !== room) {
-      // Bail on a confirmed-empty room in transit — but NOT on a retaliation mission (#140): a
-      // momentarily-empty enemy remote isn't a false alarm, it's the target; the overlord owns
-      // when that mission ends (recall / tower / he left).
-      const seen = Game.rooms[room];
-      if (seen && !creep.memory.retaliationMission && seen.find(FIND_HOSTILE_CREEPS).length === 0) {
-        creep.memory.guardRoom = null;
-        return this.recycleAtHome(creep, colony);
-      }
-      // En-route on a retaliation mission (#140): if the locked offender's creeps are in THIS room,
-      // fight them; else travel on. A mobile guard hunting the owner along the route — the jumper
-      // can't shake it the way it escapes a garrison — but it never DIVERTS off-route to chase (the
-      // route through his territory does the following), so it still reaches the remote to deny it.
-      if (creep.memory.retaliationMission && Engage.run(creep, colony, { ownerFilter: creep.memory.foughtOwner })) {
-        creep.memory.lastEngaged = Game.time;
-        return;
-      }
-      this.note(creep, "guard:to-room");
-      creep.travelTo(new RoomPosition(25, 25, room), { range: 20 });
-      return;
-    }
-
-    // On station. Fight any hostiles (armed first, then mop harmless stragglers); once the
-    // room is clean, garrison the controller and hold for life.
-    if (Engage.run(creep, colony)) {
-      creep.memory.lastEngaged = Game.time; // mark contact for the post-clear hold (#160)
-      return;
-    }
-    // Just cleared: hold the spot for a few ticks before walking back to park (#160), so a
-    // harasser that ducked across the border and returns is shot from here instead of re-chased
-    // from the controller (the old controller↔border oscillation). A retask/recall exits earlier
-    // — it trips the in-transit branch above before this is reached.
-    if (this.holding(creep)) {
-      this.note(creep, "guard:hold");
-      return;
-    }
-    const ctrl = creep.room.controller;
-    if (ctrl && holdAnchor(creep, ctrl, 1)) {
-      this.note(creep, "guard:to-post");
-    } else {
-      // Garrison: defend the controller, deny reservers, keep intel fresh. On a retaliation
-      // mission (#140) the "controller" is the ATTACKER's — parking there denies HIS remote.
-      this.note(creep, creep.memory.retaliationMission ? "guard:deny" : "guard:park");
-    }
-  }
-
-  // Within the post-engagement hold window (#160): true for the GUARD_PARK_DELAY clear ticks after
-  // the last hostile contact. `<=` (not `<`) so a delay of 5 yields a full 5 clear ticks of hold —
-  // `lastEngaged` is the LAST contact tick, and the first clear tick is already `now - last == 1`.
-  // Keyed off that contact tick (stamped on engage), so it expires on its own and is never
-  // refreshed on clear ticks; a never-engaged guard (no lastEngaged) skips the hold and parks
-  // immediately on arrival.
-  static holding(creep) {
-    const last = creep.memory.lastEngaged;
-    return last !== undefined && Game.time - last <= GUARD_PARK_DELAY;
+    BehaviorMachine.run(creep, colony);
   }
 }

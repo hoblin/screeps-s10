@@ -7,7 +7,7 @@
 //  Costing, not blocking: a creep with no safe route still flees through rather than
 //  freezing (the #130 self-corner lesson).
 //
-//  Opt-in, never global: combat creeps (Guard/Escort) must APPROACH the threat to
+//  Opt-in, never global: combat creeps (guard/hunter/combatant) must APPROACH the threat to
 //  kite/clear it, so they keep plain travel + their own flee search. A caller asks for
 //  the layer with `creep.travelTo(target, { avoidHostiles: true })` — Creep.travel.js
 //  injects `dangerCallback` as the path's costCallback, which ADDS danger onto the

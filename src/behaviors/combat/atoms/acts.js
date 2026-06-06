@@ -1,4 +1,5 @@
 import { KITE_RANGE } from "../../../lib/Movement.js";
+import { towerFreeRoute } from "../../../lib/Routing.js";
 import { steer, enemyField, separation, APPROACH_RANGE } from "./field.js";
 
 // ============================================================================
@@ -66,6 +67,23 @@ export function meleeHit(creep, target, opts = {}) {
 // Close to within `range` of a target (no attack — the caller fires separately).
 export function closeTo(creep, target, range, opts = {}) {
   creep.travelTo(target, { range, ...opts });
+}
+
+// Cross-room transit that ROUTES AROUND danger it can't beat. Picks the next hop of a safe corridor
+// toward `room` and heads to its centre — avoiding towered rooms and UNWINNABLE hot rooms, but passing
+// THROUGH a winnable hot room (clearing it in passing, assessed against this creep's body). Stateless —
+// recomputed each tick, so it always walks the currently-safe corridor one room at a time (a room going
+// hot/cleared mid-transit reroutes next tick). Returns true if it has a leg to walk, false if already
+// there OR no safe corridor exists (the caller decides what a trapped unit does — hold, pick another
+// target). Replaces the hand-rolled `travelTo(new RoomPosition(25,25,room),{range:20})` blind transit (#197).
+export function travelToRoom(creep, room, { range = 20, allowUnscouted = false } = {}) {
+  if (creep.room.name === room) return false; // already in the room — transit done
+  // `clearer: creep` lets a winnable hot leg stay on-route (we clear it in passing); judged via winnableBy.
+  const route = towerFreeRoute(creep.room.name, room, { allowUnscouted, avoidHot: true, clearer: creep });
+  if (!route) return false; // no safe corridor — trapped; caller's fallback handles it
+  const next = route.length ? route[0].room : room; // first hop (or the dest if adjacent)
+  creep.travelTo(new RoomPosition(25, 25, next), { range });
+  return true;
 }
 
 // Damage a target by body, closing to reach — NO kite. For a target to kill outright rather than

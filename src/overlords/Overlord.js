@@ -54,7 +54,7 @@ export class Overlord {
   /**
    * Every role this overlord owns. Defaults to just the primary role, so a normal
    * single-role overlord is unchanged. A controller that drives a SET of roles for one
-   * task (e.g. ScoutOverlord owning "scout" + an optional "escort") overrides this to
+   * task (e.g. ScoutOverlord owning "scout" + an optional "hunter") overrides this to
    * list them all; `assignedCreeps` then claims creeps across the whole set and
    * `runCreep` dispatches by `creep.memory.role`.
    */
