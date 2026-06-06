@@ -3,7 +3,7 @@ import { bodyFromTemplate } from "./BodyGenerator.js";
 // ============================================================================
 //  CombatBody (#189) — shared combat body-sizing, lifted off the Guard role so the
 //  whole combat layer (the Guard role, the Behavior base that bodies combatants, and
-//  the escort spawn) sizes bodies from ONE place instead of reaching into Guard. Type
+//  the hunter spawn) sizes bodies from ONE place instead of reaching into Guard. Type
 //  is rock-paper-scissors to the enemy profile; SIZE scales with the spawn budget.
 // ============================================================================
 

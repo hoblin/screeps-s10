@@ -10,7 +10,7 @@ import { RemoteHauler } from "./RemoteHauler.js";
 import { RemoteWorker } from "./RemoteWorker.js";
 import { Guard } from "./Guard.js";
 import { Scout } from "./Scout.js";
-import { Escort } from "./Escort.js";
+import { Hunter } from "./Hunter.js";
 import { Filler } from "./Filler.js";
 import { Combatant } from "./Combatant.js";
 
@@ -43,7 +43,7 @@ export const ROLES = {
   remoteWorker: RemoteWorker,
   guard: Guard,
   scout: Scout,
-  escort: Escort,
+  hunter: Hunter, // solo blocker-clearer → freeHunter (#187), a thin BehaviorMachine role (ScoutOverlord)
   filler: Filler,
   combatant: Combatant, // generic warband creep — conduct from its memory.behaviors set (#39)
 };

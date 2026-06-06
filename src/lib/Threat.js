@@ -81,7 +81,7 @@ export const Threat = {
       threat,
       // #150: our own combat power present — lets the economy lens (isHotForEconomy) net
       // a guard-held room to safe. Non-combat creeps (miners/haulers) score 0, so this is
-      // effectively the guard/escort force defending the room.
+      // effectively the guard/hunter force defending the room.
       defense: room.find(FIND_MY_CREEPS).reduce((sum, c) => sum + this.combatPower(c), 0),
       profile: this.profile(room, hostiles),
       tick: Game.time,
@@ -202,7 +202,7 @@ export const Threat = {
   // A room is "winnable" only when a proposed combat BODY out-guns the room's assessed
   // threat by this factor — not merely beats it (#130). A thin margin (50 vs 40) loses to
   // a positioning slip, so require comfortable superiority and otherwise leave the room
-  // alone. Shared by GuardOverlord (remote clears) and ScoutOverlord (escort clears).
+  // alone. Shared by GuardOverlord (remote clears) and ScoutOverlord (blocker clears).
   WIN_MARGIN: 1.5,
 
   // Can a guard with `body` clear `roomName` with a comfortable margin? The go/no-go gate
