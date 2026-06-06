@@ -31,8 +31,13 @@ import { KITE_RANGE } from "../../../lib/Movement.js";
 // Tunables (ship and observe — we live-tune on the warband). Potentials are summed and
 // the min tile wins, so these are RELATIVE weights, not absolute costs.
 const SWAMP_POT = 2; // standing in swamp is mildly bad (don't camp a marsh)
-const WALL_NEAR = 3; // per adjacent wall/exit tile — raises corners/edges so a kiter is never
-// driven into one (the principled fix for the #130 self-corner death: the corner is high-potential).
+const OPENNESS_RADIUS = 2; // how far the enclosure scan looks — wide enough to "see" a narrow pocket
+const OPENNESS_WEIGHT = 2; // per unit of DISTANCE-WEIGHTED enclosure. A 1-tile-greedy field can be lured
+// into a cave/dead-end where the only exit is back through the attacker; this raises the potential of
+// ENCLOSED ground (corridors, pockets, corners) so a kiter never enters one — it fights in the open and
+// stays out of the trap. Also the principled #130 self-corner fix (a corner is enclosed = high cost).
+// Enclosure is summed over nearby wall/edge tiles WEIGHTED BY CLOSENESS ((R+1−d)): a wall right next to
+// the tile dominates, a wall two tiles out only hints — matching the rest of the field's distance decay.
 //
 // An enemy's magnet is the SUM of its body parts' potentials, and each combat-relevant part carries
 // TWO kernels: a SHORT repel (its danger zone — don't get hit) and a WIDE attract (its kill-priority —
@@ -67,7 +72,7 @@ const _terrainPot = new Map(); // roomName -> Float32Array(2500)
 const _blockCache = new Map(); // roomName -> { tick, blocked: Set<idx> }
 
 // The static field: ∞ on the exit ring (#119) and natural walls; swamp costs SWAMP_POT; every
-// tile is then raised by WALL_NEAR per adjacent wall/exit so corners and edges are shunned.
+// tile is then raised by its distance-weighted enclosure so caves, dead-ends and corners are shunned.
 function terrainPotential(room) {
   const cached = _terrainPot.get(room.name);
   if (cached) return cached;
@@ -83,19 +88,26 @@ function terrainPotential(room) {
       pot[idx(x, y)] = t === TERRAIN_MASK_WALL ? Infinity : t === TERRAIN_MASK_SWAMP ? SWAMP_POT : 0;
     }
   }
-  // Wall-proximity pass: a tile next to N impassable tiles gets +N·WALL_NEAR (corner avoidance).
+  // Enclosure pass: raise each walkable tile by its distance-weighted surrounding wall/edge mass, so a
+  // kiter "sees" a cave/dead-end/corner (high enclosure) and never steps into it. A wall at chebyshev d
+  // counts (R+1−d) — adjacent walls dominate, far ones only hint (the field's distance decay applied to
+  // terrain). Out-of-bounds and ∞ tiles (walls + the exit ring) are the enclosing mass.
+  const R = OPENNESS_RADIUS;
   for (let y = 1; y < 49; y++) {
     for (let x = 1; x < 49; x++) {
       const i = idx(x, y);
       if (pot[i] === Infinity) continue;
-      let walls = 0;
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
+      let enclosure = 0;
+      for (let dx = -R; dx <= R; dx++) {
+        for (let dy = -R; dy <= R; dy++) {
           if (!dx && !dy) continue;
-          if (pot[idx(x + dx, y + dy)] === Infinity) walls++;
+          const nx = x + dx;
+          const ny = y + dy;
+          const wall = nx < 0 || nx > 49 || ny < 0 || ny > 49 || pot[idx(nx, ny)] === Infinity;
+          if (wall) enclosure += R + 1 - Math.max(Math.abs(dx), Math.abs(dy));
         }
       }
-      pot[i] += walls * WALL_NEAR;
+      pot[i] += enclosure * OPENNESS_WEIGHT;
     }
   }
   _terrainPot.set(room.name, pot);
