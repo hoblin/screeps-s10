@@ -1,4 +1,5 @@
 import { INTEL_FRESH_TICKS, Threat } from "./Threat.js";
+import { isSourceKeeperRoom } from "./RoomType.js";
 
 // ============================================================================
 //  Routing — shared multi-room route planning (#194). Extracted from GuardOverlord so
@@ -44,6 +45,14 @@ export function routeRoomBlocked(roomName, { allowUnscouted = false, clearer = n
 // The shared per-room cost for a safe corridor (one source for the route-callback policy). 1 = passable,
 // Infinity = closed (findRoute routes around it). The destination is always passable — the caller vets it.
 function safeRouteCost(roomName, dest, allowUnscouted, avoidHot, clearer) {
+  // Source-Keeper rooms are statically lethal (keepers we can't clear) and known
+  // from the room NAME alone — no vision needed, so this closes them regardless of
+  // intel freshness or the avoidHot/allowUnscouted axes. Non-destination only: a
+  // deliberate SK destination (a future keeper-mining op) stays the caller's vetted
+  // choice. This is what routes economy/claim transit AROUND the keeper rooms en
+  // route to a 2nd colony (#220) instead of through them (the E12S5 corridor crosses
+  // keeper space the BFS-shortest path would otherwise dive into).
+  if (roomName !== dest && isSourceKeeperRoom(roomName)) return Infinity;
   const intel = Memory.roomIntel?.[roomName];
   // A missing/invalid tick reads as stale (tick 0), not NaN→fresh — defensive against a legacy/corrupt
   // intel entry that would otherwise be wrongly trusted.
