@@ -35,7 +35,7 @@ import { behaviorClass } from "../behaviors/index.js";
 // ============================================================================
 const HAULER_SPEED = 1; // tiles/tick on roads/plains for a 1:1 CARRY:MOVE body
 const FREIGHT_MARGIN = 1.3; // same headroom as the home freight model (#84)
-const DIAG_LEN = 50; // TEMP: capped ring buffer of dispatch snapshots in memory (idle-diagnosis hotfix) — ~50 tiny rows, negligible vs the 2 MB cap
+const DIAG_LEN = 20; // TEMP: capped ring buffer of dispatch snapshots in memory (idle-diagnosis hotfix)
 
 export class RemoteLogisticsOverlord extends Overlord {
   constructor(colony) {
@@ -123,17 +123,34 @@ export class RemoteLogisticsOverlord extends Overlord {
       if (t && !candidates.has(this.sourceKey(t))) c.memory.haulTarget = null;
     }
 
-    // TEMP idle-diagnosis (#204 follow-up): snapshot the dispatch state so the empty-hauler stalls can be
-    // read from memory (bin/sapi mem colonyData.<room>.rhaulLog). The smoking gun is `idle > 0` while
-    // `cand` (candidates) is low/0 and `mining` < `srcTot` — i.e. sources sit minerless and collapse the
-    // candidate set. Recorded both on the no-candidate early-out and after assignment.
+    // TEMP idle-diagnosis (#204 follow-up): the aggregate `idle` counter (empty + untargeted) hid the
+    // haulers Yevhenii sees STANDING on base, so also dump the exact state of every hauler that did NOT
+    // move since last tick (`stuck`) — that reveals WHY each stands: full + can't offload (delivering,
+    // sinks saturated), empty + no target (true idle), or has-target + not pathing (transit). `_p` is the
+    // prior packed position; comparing it to now detects a no-move tick. Read: bin/sapi mem
+    // colonyData.<room>.rhaulLog (rows: t, srcTot, miners, mining, cand, hauls, idle, stuck, sl[], sent).
+    const stuck = [];
+    for (const c of haulers) {
+      const p = `${c.pos.roomName}:${c.pos.x},${c.pos.y}`;
+      if (c.memory._p === p) stuck.push(c);
+      c.memory._p = p;
+    }
     const diag = {
       srcTot: this.colony.remoteSources().length, // total remote sources (geometric set)
       miners: this.colony.creepsWithRole("remoteMiner").filter((c) => !c.spawning).length, // live remote miners
       mining: mined.size, // sources with an ARRIVED, producing miner
       cand: sources.length, // dispatch candidates this tick
       hauls: haulers.length, // live haulers
-      idle: haulers.filter((c) => !c.memory.haulTarget && c.store[RESOURCE_ENERGY] === 0).length, // empty + untargeted (the symptom)
+      idle: haulers.filter((c) => !c.memory.haulTarget && c.store[RESOURCE_ENERGY] === 0).length, // empty + untargeted
+      stuck: stuck.length, // haulers that didn't move since last tick (the "standing" ones)
+      sl: stuck.slice(0, 6).map((c) => ({
+        n: c.name.slice(-4),
+        r: c.pos.roomName,
+        xy: `${c.pos.x},${c.pos.y}`,
+        w: c.memory.working ? 1 : 0, // 1 = delivering (full), 0 = gathering
+        e: c.store.getUsedCapacity(RESOURCE_ENERGY), // energy carried
+        t: c.memory.haulTarget ? c.memory.haulTarget.room : "-", // assigned source room, or none
+      })),
     };
     if (!sources.length) {
       this.recordDiag({ ...diag, sent: 0 });
