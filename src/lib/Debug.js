@@ -47,7 +47,11 @@ export const Debug = {
     const dbg = Memory.debug;
     if (!dbg) return 0;
     const on = dbg.on || {};
-    return (on[id] ?? on[klass]) || 0;
+    // Coerce to a finite number: a manual Memory edit / sapi typo can leave a
+    // non-numeric value, and `NaN < need` is false → it would WRONGLY open the gate.
+    // Garbage fails CLOSED (treated as off), so a malformed switch never logs.
+    const n = Number(on[id] ?? on[klass]);
+    return Number.isFinite(n) ? n : 0;
   },
 
   // A logger bound to one entity. `.event`/`.trace` take a CLOSURE that builds the
@@ -59,15 +63,26 @@ export const Debug = {
     };
   },
 
-  // Gate, then append `{ t, ...dataFn() }` to the id's capped ring. dataFn runs only
-  // past the gate, so building the payload costs nothing when off. No Memory is
-  // written until a target is enabled (level >= need implies Memory.debug exists).
+  // Gate, then append `{ ...data, t }` to the id's capped ring. dataFn runs only past
+  // the gate, so building the payload costs nothing when off. No Memory is written
+  // until a target is enabled (level >= need implies Memory.debug exists).
+  //
+  // The bot must NEVER die for a debug log: a dataFn that throws or returns a
+  // non-object is caught and recorded, not propagated. `t` is spread LAST so the tick
+  // stamp can't be clobbered by a payload field of the same name.
   write(klass, id, need, dataFn) {
     if (this.level(klass, id) < need) return;
+    let data;
+    try {
+      data = dataFn();
+    } catch (err) {
+      data = { err: String((err && err.message) || err) };
+    }
+    if (!data || typeof data !== "object") data = { v: data };
     const dbg = (Memory.debug ||= { on: {} });
     const logs = (dbg.log ||= {});
     const ring = logs[id] || [];
-    ring.push({ t: Game.time, ...dataFn() });
+    ring.push({ ...data, t: Game.time });
     if (ring.length > DEBUG_RING_LEN) ring.splice(0, ring.length - DEBUG_RING_LEN);
     logs[id] = ring;
     this.enforceTotalCap(logs);
@@ -77,15 +92,20 @@ export const Debug = {
   // thousands of ticks), drop oldest from the longest rings until under the cap and
   // warn. Unreachable in normal use; bounds the pathological case well under 2 MB.
   enforceTotalCap(logs) {
+    const ids = Object.keys(logs);
     let total = 0;
-    for (const id in logs) total += logs[id].length;
-    if (total <= DEBUG_TOTAL_CAP) return;
-    while (total > DEBUG_TOTAL_CAP) {
-      let longest = null;
-      for (const id in logs) if (!longest || logs[id].length > logs[longest].length) longest = id;
-      if (!longest || !logs[longest].length) break;
-      logs[longest].shift();
-      total--;
+    for (const id of ids) total += logs[id].length;
+    let overflow = total - DEBUG_TOTAL_CAP;
+    if (overflow <= 0) return;
+    // Single pass: trim the overflow off the largest rings first (oldest rows), one
+    // sweep — no per-dropped-row search for the current longest (the prior O(rows·ids)
+    // worst case). Sort once, take a min(overflow, len) bite from each until cleared.
+    ids.sort((a, b) => logs[b].length - logs[a].length);
+    for (const id of ids) {
+      if (overflow <= 0) break;
+      const take = Math.min(overflow, logs[id].length);
+      logs[id].splice(0, take);
+      overflow -= take;
     }
     log.warn(`Debug rings hit total cap ${DEBUG_TOTAL_CAP} — trimmed oldest`);
   },
