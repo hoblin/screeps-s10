@@ -10,13 +10,6 @@ const RETALIATE_MIN_DENY = 100; // remaining life the guard needs AFTER arrival 
 const RETALIATE_SCAN_INTERVAL = 25; // ticks between target searches for an idle guard (findRoute is
 // not free; an attacker with no reachable deniable room shouldn't cost a full scan every tick)
 
-// The guard's behaviour set — a thin state machine over a defend default (the role carries no conduct):
-//   holdPoint (default) garrison the assigned room · holdGround hold the spot after a fight (#160) ·
-//   raidRoom deny a locked attacker's remote (#140). The overlord steers it by stamping memory.target /
-//   memory.targetOwner. NO freeHunter: a guard does not roam — it raids/garrisons ONE remote and STAYS
-//   there denying mining resumption until it dies (sunk-asset, #197); freeHunter is the solo clearer's job.
-const GUARD_BEHAVIORS = { default: "holdPoint", nodes: ["raidRoom", "holdGround"] };
-
 // ============================================================================
 //  GuardOverlord — owns the combat-clearing domain (#118, Levels 2-3 of the
 //  threat ladder; home defense added in #122). A cheap enemy harasser can deny a
@@ -129,7 +122,7 @@ export class GuardOverlord extends Overlord {
         colony: this.colony.name,
         overlord: this.identifier,
         target: room, // the behaviours (holdPoint default, raidRoom on retaliation) read memory.target
-        behaviors: GUARD_BEHAVIORS,
+        behaviors: Guard.behaviors, // the role owns its conduct set (#187) — see Guard.behaviors
       },
     };
   }

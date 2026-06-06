@@ -20,7 +20,10 @@ Kernel        orchestrator (CPU guard, discovers colonies, drives tick)
           ├─ DefenseOverlord         -> Towers (no creeps; attack/heal/repair)
           ├─ ReserveOverlord         -> Reserver (remote, CLAIM+MOVE)
           ├─ RemoteMiningOverlord    -> RemoteMiner (remote drop-mining)
-          └─ RemoteLogisticsOverlord -> RemoteHauler (remote -> home haul)
+          ├─ RemoteLogisticsOverlord -> RemoteHauler (remote -> home haul)
+          ├─ ScoutOverlord           -> Scout (map intel + score) + Hunter (solo blocker-clearer)
+          ├─ GuardOverlord           -> Guard (clears/denies a contested room; home defence)
+          └─ WarbandOverlord         -> Combatant (flag-commanded offence squad)
 ```
 
 - **Overlord** (base) holds shared spawn-request + creep-iteration logic (DRY).
@@ -35,6 +38,26 @@ Kernel        orchestrator (CPU guard, discovers colonies, drives tick)
   in-room moves and delegates the inter-room leg to native `moveTo` (multi-room).
 - **BodyGenerator** scales bodies to available energy.
 - **prototypes/** install mixins (e.g. `creep.travelTo`) at load.
+
+### Behaviour layer (combat)
+
+Combat creeps carry no hardcoded conduct: each is a **thin state machine** whose role just runs
+`BehaviorMachine.run`, with its conduct COMPOSED from a behaviour set in `creep.memory.behaviors`
+(`{ default, nodes }`). The overlord steers a unit purely by stamping `memory.target` /
+`memory.targetOwner` each tick (the `WarbandOverlord.command` pattern) — no role rewrite needed.
+
+- **`BehaviorMachine`** (`src/behaviors/`) — per-creep node selector: a `default` plus override
+  `nodes` with `enteredWhen`/`exitWhen` edges (a fallback/priority selector).
+- **Behaviours** (`src/behaviors/combat/`) — composable conduct, contract `run(creep, colony, ctx?) -> bool`:
+  `engage` (fight what's here), `holdPoint` (garrison), `holdGround` (#160 post-combat hold),
+  `raidRoom` (deny/raze a room), `freeHunter` (roam remotes + kill), `focusFire`, `healGroup`,
+  `holdPosition`, `killClosest`, … composed via `fallback`/`sequence` combinators.
+- **Atoms** (`src/behaviors/combat/atoms/`) — shared `acts` (execution verbs: `shoot`, `meleeHit`,
+  `kiteStep`, `strike`, `travelToRoom`, …) and `selectors` (target policy), plus the magnet
+  **potential-field** steering (`field.js`) for close-combat micro.
+- **Danger-aware transit** — `travelToRoom` routes via `Routing.towerFreeRoute` (avoid towered and
+  unwinnable hot rooms; pass THROUGH a winnable hot room, clearing it in passing), so no mode walks
+  blind under a tower or into a losing fight.
 
 ## Build
 

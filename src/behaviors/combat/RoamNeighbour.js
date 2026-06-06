@@ -21,7 +21,15 @@ export class RoamNeighbour extends Behavior {
       return false;
     }
     let i = (creep.memory.roamIndex ?? 0) % rooms.length;
-    if (creep.room.name === rooms[i]) i = (i + 1) % rooms.length; // arrived → advance to the next remote
+    if (creep.room.name === rooms[i]) {
+      // Arrived at the current sweep target. With only ONE remote there's nowhere else to go — hold
+      // here (freeHunter's engage covers anything that enters); otherwise advance to the next remote.
+      if (rooms.length === 1) {
+        this.note(creep, "roam:hold");
+        return true;
+      }
+      i = (i + 1) % rooms.length;
+    }
     creep.memory.roamIndex = i;
 
     if (travelToRoom(creep, rooms[i])) {

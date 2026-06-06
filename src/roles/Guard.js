@@ -28,6 +28,11 @@ export class Guard extends Role {
   // so it rarely contends home traffic, but it still has somewhere to be — not shoved aside by an idler.
   static movementPriority = 3;
 
+  // The role's behaviour set — the role OWNS its conduct composition (GuardOverlord stamps this into
+  // each guard's memory.behaviors at spawn). Default holdPoint (garrison the assigned room), with
+  // raidRoom (retaliation deny) and holdGround (#160 post-combat hold) as conditional override nodes.
+  static behaviors = { default: "holdPoint", nodes: ["raidRoom", "holdGround"] };
+
   // The guard's body — sized by the shared combat sizer to the threat profile (#189). Used by GuardOverlord.
   static bodyFor(energyBudget, profile) {
     return combatBody(energyBudget, profile);

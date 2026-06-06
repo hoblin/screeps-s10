@@ -16,6 +16,10 @@ export class Hunter extends Role {
   // Combat rank (matches Guard/Combatant): it has somewhere to be, not shoved aside by idlers.
   static movementPriority = 3;
 
+  // The role's behaviour set — the role OWNS its conduct (ScoutOverlord stamps this at spawn). Default
+  // holdPoint clears the assigned blocker; freeHunter (the no-objective node) roams once it's cleared.
+  static behaviors = { default: "holdPoint", nodes: ["freeHunter"] };
+
   static run(creep, colony) {
     BehaviorMachine.run(creep, colony);
   }

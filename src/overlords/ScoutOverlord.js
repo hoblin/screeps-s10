@@ -193,7 +193,7 @@ export class ScoutOverlord extends Overlord {
         colony: this.colony.name,
         overlord: this.identifier,
         target: blocker, // holdPoint clears it; nulled by run() once cleared → freeHunter roams (#187)
-        behaviors: { default: "holdPoint", nodes: ["freeHunter"] },
+        behaviors: Hunter.behaviors, // the role owns its conduct set (#187) — see Hunter.behaviors
       },
     };
   }
