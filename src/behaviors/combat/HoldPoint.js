@@ -1,4 +1,4 @@
-import { Behavior } from "../Behavior.js";
+import { CombatBehaviour } from "./CombatBehaviour.js";
 import { Engage } from "./Engage.js";
 import { holdAnchor, travelToRoom } from "./atoms/acts.js";
 
@@ -9,7 +9,7 @@ import { holdAnchor, travelToRoom } from "./atoms/acts.js";
 //
 //  Assignment: memory.point ({x,y,roomName}, preferred) OR memory.target (room → centre).
 // ============================================================================
-export class HoldPoint extends Behavior {
+export class HoldPoint extends CombatBehaviour {
   static run(creep, colony) {
     const point = this.holdPos(creep);
     if (!point) return false; // unassigned → nothing to hold

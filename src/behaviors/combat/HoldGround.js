@@ -1,4 +1,4 @@
-import { Behavior } from "../Behavior.js";
+import { CombatBehaviour } from "./CombatBehaviour.js";
 import { Engage } from "./Engage.js";
 
 const GUARD_PARK_DELAY = 5; // hold the contested ground this many ticks after the last contact before
@@ -16,7 +16,7 @@ const GUARD_PARK_DELAY = 5; // hold the contested ground this many ticks after t
 //  the hold window lapses. `lastEngaged` is stamped by the Engage atom on every combat tick, so a
 //  returner that walks back in refreshes the window through this node's own engage.
 // ============================================================================
-export class HoldGround extends Behavior {
+export class HoldGround extends CombatBehaviour {
   static enteredWhen(creep, _colony) {
     return creep.room.name === creep.memory.target && this.recentlyEngaged(creep);
   }

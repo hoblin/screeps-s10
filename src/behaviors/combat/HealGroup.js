@@ -1,4 +1,4 @@
-import { Behavior } from "../Behavior.js";
+import { CombatBehaviour } from "./CombatBehaviour.js";
 import { holdAnchor } from "./atoms/acts.js";
 import { armedOf } from "./atoms/selectors.js";
 import { bodyFromTemplate } from "../../lib/BodyGenerator.js";
@@ -16,7 +16,7 @@ const HEAL_MAX = 6; // [HEAL,MOVE] repeats cap — at ecap 1800 the budget caps 
 //
 //  Assignment: memory.warband — the group tag it heals + follows (set by #174).
 // ============================================================================
-export class HealGroup extends Behavior {
+export class HealGroup extends CombatBehaviour {
   // A healer's body (MVC: the behavior owns its body) — 1:1 HEAL:MOVE so it keeps full road speed
   // with the skirmishers it escorts. Overrides the base ranged-combat default.
   static bodyFor(energyBudget) {

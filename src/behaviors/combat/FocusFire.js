@@ -1,4 +1,4 @@
-import { Behavior } from "../Behavior.js";
+import { CombatBehaviour } from "./CombatBehaviour.js";
 import { Engage } from "./Engage.js";
 import { skirmish } from "./atoms/acts.js";
 import { armedOf, lowestHitsArmed } from "./atoms/selectors.js";
@@ -16,7 +16,7 @@ import { armedOf, lowestHitsArmed } from "./atoms/selectors.js";
 //  Doubles as an OVERRIDE node (entry/exit edges): drop it over a positional default and
 //  the creep snaps to focus-fire on contact, returns to its default when the room clears.
 // ============================================================================
-export class FocusFire extends Behavior {
+export class FocusFire extends CombatBehaviour {
   // Entry: an armed hostile is present. Exit: the room is clear of armed hostiles.
   static enteredWhen(creep, _colony) {
     return this.armed(creep).length > 0;

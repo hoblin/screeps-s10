@@ -1,4 +1,4 @@
-import { Behavior } from "../Behavior.js";
+import { CombatBehaviour } from "./CombatBehaviour.js";
 import { Kite } from "./Kite.js";
 import { Regroup } from "./Regroup.js";
 import { fallback } from "../combinators.js";
@@ -16,7 +16,7 @@ import { fallback } from "../combinators.js";
 //
 //  Assignment: memory.warband — the group tag Regroup converges toward (set by #174).
 // ============================================================================
-export class KiteScreen extends Behavior {
+export class KiteScreen extends CombatBehaviour {
   static run(creep, colony) {
     return fallback(creep, colony, [Kite, Regroup]);
   }

@@ -1,5 +1,4 @@
 import { Role } from "../roles/Role.js";
-import { combatBody } from "../lib/CombatBody.js";
 
 // ============================================================================
 //  Behavior — base for a named, stateless unit of creep conduct (#39).
@@ -10,6 +9,13 @@ import { combatBody } from "../lib/CombatBody.js";
 //  is now "body + composable behaviors", re-taskable on the fly: rewrite
 //  creep.memory.behaviors (via the #174 command interface / set_memory) and the
 //  switch takes effect next tick.
+//
+//  DOMAIN-NEUTRAL (#204): this base carries ONLY what every behavior shares —
+//  the run contract, the body contract, and the telemetry tag. Combat-specific
+//  conduct (the ranged-kite body default, warband squad helpers) lives one level
+//  down in CombatBehaviour; economy behaviors (RemoteHaul) extend this base
+//  directly, so no behavior inherits a body or helper from a domain it isn't in
+//  (Liskov + SRP — combat was just the first tenant, not the base).
 //
 //  EDGES (the trigger spine, mirrored from Stages.js one level down): a SPECIAL
 //  node may declare a paired entry edge `enteredWhen(creep, colony)` that pulls a
@@ -24,39 +30,18 @@ export class Behavior {
   }
 
   // The body this behavior needs to do its job (MVC: the behavior is the MODEL — it owns BOTH its
-  // conduct AND its body requirement; a controller like WarbandOverlord READS this off the unit's
-  // DEFAULT behavior and spawns it, never re-deciding the body itself). The base default is the
-  // ranged-kite combat body (RANGED_ATTACK + self-heal + MOVE) from the shared combat sizer — the
-  // right shape for every offensive/positional combat behavior (raidRoom/holdPoint/focusFire/
-  // kiteScreen), so only a behavior with a DIFFERENT need overrides it (e.g. HealGroup → a heal body).
-  static bodyFor(energyBudget) {
-    return combatBody(energyBudget, { attack: 0, ranged: 1, heal: 0, tough: 0 });
+  // conduct AND its body requirement; a controller like WarbandOverlord/RemoteLogisticsOverlord READS
+  // this off the unit's DEFAULT behavior and spawns it, never re-deciding the body itself). Abstract
+  // on the neutral base — there is no universal default body, so every behavior MUST declare its own
+  // (CombatBehaviour gives combat units the ranged-kite default; RemoteHaul returns a CARRY/MOVE body).
+  static bodyFor(_energyBudget) {
+    throw new Error("Behavior subclass must implement bodyFor(energyBudget)");
   }
 
   // Telemetry tag (#103/#123) — reuse the single Role definition so a behavior's
   // per-tick action shows in the trace + as an in-game speech bubble, exactly like
-  // a role's. Tag shape stays "category:action" (e.g. "raid:deny", "heal:heal").
+  // a role's. Tag shape stays "category:action" (e.g. "raid:deny", "rhaul:withdraw").
   static note(creep, action) {
     Role.note(creep, action);
-  }
-
-  // Fellow warband members — my live creeps sharing this creep's `memory.warband`
-  // group tag (excluding itself). The lightweight grouping the squad behaviors
-  // (FocusFire / HealGroup / KiteScreen) coordinate through; absent tag → no group.
-  static warbandMates(creep) {
-    const tag = creep.memory.warband;
-    if (!tag) return [];
-    return Object.values(Game.creeps).filter(
-      (c) => c.memory.warband === tag && c.name !== creep.name
-    );
-  }
-
-  // The point to regroup toward to stay with the squad: the nearest mate in THIS
-  // room, else any mate (travelTo handles the cross-room hop). Null with no group.
-  static groupAnchor(creep) {
-    const mates = this.warbandMates(creep);
-    if (!mates.length) return null;
-    const here = mates.filter((c) => c.room.name === creep.room.name);
-    return here.length ? creep.pos.findClosestByRange(here) : mates[0];
   }
 }

@@ -12,6 +12,7 @@ import { Engage } from "./combat/Engage.js";
 import { FreeHunter } from "./combat/FreeHunter.js";
 import { RoamNeighbour } from "./combat/RoamNeighbour.js";
 import { HoldGround } from "./combat/HoldGround.js";
+import { RemoteHaul } from "./economy/RemoteHaul.js";
 
 // ============================================================================
 //  Behavior registry (#39) — maps a behavior NAME (as stored in a creep's
@@ -52,6 +53,11 @@ import { HoldGround } from "./combat/HoldGround.js";
 //   • roamNeighbour — freeHunter's sweep leg: patrol the protected remotes in turn (danger-aware).
 //   • holdGround — the post-combat hold (#160): hold the contested spot for a few ticks after a fight
 //                  and re-engage returners, before walking back to the post. A node over holdPoint.
+//
+//  ECONOMY (#204 — the first non-combat behavior; extends the neutral Behavior base directly):
+//   • remoteHaul — carry a remote source's energy home. Executes the source the
+//                  RemoteLogisticsOverlord stamps (command pattern); the overlord balances
+//                  the fleet across containers (rate-matched tonne-km, no swarm).
 // ============================================================================
 export const BEHAVIORS = {
   raidRoom: RaidRoom,
@@ -67,6 +73,7 @@ export const BEHAVIORS = {
   freeHunter: FreeHunter,
   roamNeighbour: RoamNeighbour,
   holdGround: HoldGround,
+  remoteHaul: RemoteHaul,
 };
 
 // Resolve a behavior name to its class, or null (an unknown/typo'd name is a no-op

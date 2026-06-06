@@ -1,4 +1,4 @@
-import { Behavior } from "../Behavior.js";
+import { CombatBehaviour } from "./CombatBehaviour.js";
 import { Engage } from "./Engage.js";
 import { RoamNeighbour } from "./RoamNeighbour.js";
 import { fallback } from "../combinators.js";
@@ -15,7 +15,7 @@ import { fallback } from "../combinators.js";
 //  objective (defend a hot room / deny an attacker's remote); clearing it drops the unit to hunting,
 //  setting it pulls the unit back to its default conduct.
 // ============================================================================
-export class FreeHunter extends Behavior {
+export class FreeHunter extends CombatBehaviour {
   // Enter when the overlord has given no objective (mission done / released); exit the moment it does.
   static enteredWhen(creep, _colony) {
     return !creep.memory.target;

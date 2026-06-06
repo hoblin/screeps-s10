@@ -1,4 +1,4 @@
-import { Behavior } from "../Behavior.js";
+import { CombatBehaviour } from "./CombatBehaviour.js";
 import { travelToRoom } from "./atoms/acts.js";
 
 // ============================================================================
@@ -13,7 +13,7 @@ import { travelToRoom } from "./atoms/acts.js";
 //  Returns true (it always handles the tick: a leg walked, or — single-remote / all-unreachable — it
 //  holds in place, where freeHunter's engage still kills anything that wanders in).
 // ============================================================================
-export class RoamNeighbour extends Behavior {
+export class RoamNeighbour extends CombatBehaviour {
   static run(creep, colony) {
     const rooms = this.sweepSet(colony);
     if (!rooms.length) {
