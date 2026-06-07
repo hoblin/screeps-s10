@@ -87,9 +87,10 @@ export class ClaimOverlord extends Overlord {
     const t = this.target();
     const room = t && Game.rooms[t.room];
     if (!room || room.find(FIND_MY_SPAWNS).length === 0) return false;
-    const locals = room
-      .find(FIND_MY_CREEPS)
-      .filter((c) => c.memory.colony === t.room).length;
+    // Count by colony tag across ALL creeps, not just those currently in-room — a
+    // local that steps out (or a bootstrap worker fetching from a neighbour tile)
+    // must not drop the count and restart the pioneer seed.
+    const locals = Object.values(Game.creeps).filter((c) => c.memory.colony === t.room).length;
     return locals >= 2;
   }
 

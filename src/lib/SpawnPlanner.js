@@ -34,6 +34,13 @@ export const SpawnPlanner = {
     const anchor = this.anchor(room);
     if (!anchor) return; // no buildable tile found (compute() logged it)
     const result = room.createConstructionSite(anchor, STRUCTURE_SPAWN);
+    if (result === ERR_INVALID_TARGET) {
+      // The cached anchor turned unbuildable (a road/structure/site landed on it
+      // since we picked it) — else we'd retry it fruitlessly every tick. Drop the
+      // cache so compute() re-picks a clear tile next tick.
+      if (Memory.colonyData?.[room.name]) delete Memory.colonyData[room.name].spawnAnchor;
+      return;
+    }
     // ERR_FULL (100-site global cap) / ERR_RCL_NOT_ENOUGH (>1 spawn before RCL7) are
     // expected/transient — only log a genuinely unexpected failure.
     if (result !== OK && result !== ERR_FULL && result !== ERR_RCL_NOT_ENOUGH) {
@@ -80,6 +87,7 @@ export const SpawnPlanner = {
         if (!this.clear3x3(terrain, x, y)) continue;
         const pos = new RoomPosition(x, y, room.name);
         if (served.some((o) => o.pos.getRangeTo(pos) <= 2)) continue; // don't crowd them
+        if (!this.buildable(room, x, y)) continue; // terrain-clear but occupied (road/structure/site)
         const score = served.reduce((s, o) => s + o.pos.getRangeTo(pos), 0);
         if (score < bestScore) {
           bestScore = score;
@@ -89,6 +97,19 @@ export const SpawnPlanner = {
     }
     if (!best) log.warn(`[${room.name}] SpawnPlanner found no clear anchor`);
     return best;
+  },
+
+  // Is the anchor tile actually buildable for a spawn? Terrain-clear is necessary but
+  // not sufficient — a leftover road/structure or an existing construction site (a
+  // claimed room may carry remnants) makes createConstructionSite return
+  // ERR_INVALID_TARGET. A rampart is fine (a spawn can sit under one). Checked only on
+  // the handful of terrain-clear candidates, so the lookForAt cost stays bounded.
+  buildable(room, x, y) {
+    const blocked = room
+      .lookForAt(LOOK_STRUCTURES, x, y)
+      .some((s) => s.structureType !== STRUCTURE_RAMPART);
+    if (blocked) return false;
+    return room.lookForAt(LOOK_CONSTRUCTION_SITES, x, y).length === 0;
   },
 
   // Is the 3×3 block centred on (x,y) all non-wall terrain? Gives the spawn its own
