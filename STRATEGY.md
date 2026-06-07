@@ -4,10 +4,12 @@ Living strategy doc. Stages of the game, what to prioritize at each, and how our
 architecture grows to support it. Inspired by Overmind (bencbartlett) and the
 jonwinsley Field Journal game plan.
 
-> **Where we are now (update this line as we grow):** E15S7, **RCL 3, Stage
-> 2b:Hauling**, climbing to RCL 4. Economy self-running and net-positive. Remote
-> mining is **live** (pulled forward of its Stage-3 slot by the `expansionReady`
-> signal — see "the second axis" below).
+> **Where we are now (update this line as we grow):** TWO colonies (GCL 2).
+> **E15S7 — RCL 6, Stage 4:Industry**, climbing to RCL 7. Storage + link network
+> live (CommandCenter operating: source→controller link kills the longest haul),
+> remote mining net-positive, 12 scouts roaming for vision + score. **E12S5 — RCL 2,
+> Stage 2b:Hauling**, freshly founded (#220), bootstrapping toward RCL 3 on
+> pioneers (#242). Frontier: Stage-4 industry is **unbuilt** — see "Priorities".
 
 ## Core principle (the whole game in one line)
 
@@ -165,8 +167,13 @@ A `MiningSite` HiveCluster (source + container + link) is the Overmind pattern.
   higher-value E15S8 source), self-built remote container (stop ground decay).
 
 **Architecture add:** `ReserveOverlord` + `RemoteMiningOverlord` +
-`RemoteLogisticsOverlord` ✅ done. Still TODO: the `CommandCenter`/`LinkNetwork`
-HiveCluster (storage + links) — the remaining Stage-3 infra (#16 Storage, #17 Links).
+`RemoteLogisticsOverlord` ✅ done. `CommandCenter` HiveCluster ✅ **done** (#16
+Storage + #17 Links shipped): `StoragePlanner` places the RCL-4 buffer, `LinkPlanner`
+the RCL-5 controller+source link pair, and `CommandCenter.operateLinks` runs the
+source→controller transfer (a `LinkedMiner` feeds the source link) — both two-axis
+gated (RCL cap + `energyRich && !recovering`). Stage 3 is fully shipped and operating
+live on E15S7. **Deferred:** Overmind's greedy `LinkNetwork` matcher, until a 2nd
+source link exists (RCL 6+ raises the cap 2→3 — currently only the pair is placed).
 
 ## Stage 4 — Industry (RCL 6–7)
 
@@ -211,12 +218,12 @@ We follow Overmind's evolution. Current vs. target:
 
 | Concept | Now | Target (Overmind-style) |
 |---|---|---|
-| Creep logic | Roles (static) | Roles OK early; Overmind later folded logic into Overlords |
+| Creep logic | Static roles; combat + work folded into a composable **behaviour layer** (`BehaviorMachine`, #39/#239) ✅ | extend the behaviour catalog as new conduct appears |
 | Goal management | Overlords (1 responsibility each) ✅ | + priority queue on an **Overseer** |
 | Economic control | `RoomHealthCheck` signals drive counts + pull capabilities forward (#81/#84/#89) ✅ | richer feed-forward signals; a `LogisticsNetwork` request/provide queue |
 | Movement | priority traffic layer + multi-room transit (#55–#67, #92) ✅ | path caching / resolver polish (#57) |
 | Conditional reactions | none | **Directives** — placed by Overseer to react to stimuli (invaders, expansion, score) (#25) |
-| Physical systems | HiveCluster (Hatchery) ✅ | + MiningSite, `CommandCenter`/LinkNetwork, EvolutionChamber |
+| Physical systems | HiveClusters: Hatchery + `CommandCenter` (storage + link network, #16/#17) ✅ | + MiningSite, `EvolutionChamber` (labs), greedy `LinkNetwork` matcher |
 | Logistics | freight-turnover-sized hauler fleet (#84) ✅ | dedicated `LogisticsNetwork` (request/provide queue) |
 
 **Directives** are the big missing idea: conditional Overlords that auto-spawn in
@@ -225,17 +232,31 @@ ScoreDirective). Overseer scans rooms each tick and places/removes them.
 
 ## Priorities right now (current frontier)
 
-Stages 1 → 2b are shipped (static mining, freight-sized haulers, controller
-container, roads, RCL-3 tower). Economy is self-running on E15S7 (RCL 3, climbing to
-4) and remote mining is live and net-positive. The open frontier:
+Stages 0 → 3 are shipped **and operating live** — founding, static mining,
+freight-sized haulers, controller container, roads, RCL-3 tower, storage, the link
+network, and remote mining. The stage-machine triggers (`src/lib/Stages.js`) are all
+sound. **The lag is Stage 4.** E15S7 sits at RCL 6 — squarely inside `4:Industry` —
+but **none of what that stage `provides` is built**: no extractor, no terminal, no
+labs, no mineral economy (the code doesn't exist yet). We entered the stage
+reactively-empty, the one place the "prepare ahead" doctrine has slipped. Close it,
+in trigger order:
 
-1. **#18 remote-mining refinements** — multi-source / per-source overlords (mine the
-   better E15S8 source we currently ignore), self-built remote container.
-2. **Stage 3 infra (prepare ahead for RCL 4):** #16 Storage, then #17 Links.
-3. **Robustness bugs:** #54 emergency self-harvest, #63 workers abandon when clustered.
-4. **#111 (done):** reverted the offline tooling to standard `y*50+x` terrain +
-   standard adjacency (the "transposed-coord" belief was false); resolves #97.
-5. **Architecture:** #25 Directives layer, once a 2nd directive (defense/score) appears.
+1. **Prepare ahead of RCL 7 — #22 2nd spawn.** The next trigger E15S7 will cross is
+   RCL 7 (2nd spawn). Build the planner NOW so it auto-places the instant RCL 7 lands
+   (spawn throughput is the classic mid-game bottleneck). This is the literal
+   "prepare-ahead" fix.
+2. **Stage 4 mineral economy (unlocked NOW at RCL 6):** #19 Extractor + mineral
+   hauling (ours = **K @ (45,18)**) → #20 Terminal (S10: own-terminals only, no
+   market) → #21 Labs + boosts (stronger combat creeps vs Robalian for less body).
+3. **Link refinement:** RCL 6 raised the link cap 2→3 — place a 2nd source link and
+   extract Overmind's greedy `LinkNetwork` matcher (the deferred-until-2nd-sender
+   abstraction, see Stage 3).
+4. **Keep scaling Stage 5 (score) from now** — scout-diversion collection (#24) is
+   live; more scouts + more colonies = more score reached before decay/rivals.
+   Expansion remains the #1 marathon lever (E12S5 is colony #2; claim away from
+   Robalian).
+5. **Robustness / architecture:** #243 worker gather latch, #63 cluster abandon;
+   #25 Directives layer once a 2nd directive (defense/score) earns it.
 
 ## Sources
 - Overmind: https://github.com/bencbartlett/Overmind + design blog series (bencbartlett.com/blog)
