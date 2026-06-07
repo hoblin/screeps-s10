@@ -1,7 +1,6 @@
 import { Behavior } from "../Behavior.js";
 import { Role } from "../../roles/Role.js";
 import { Hauler } from "../../roles/Hauler.js";
-import { Upgrade } from "./Upgrade.js";
 import { bodyFromTemplate } from "../../lib/BodyGenerator.js";
 
 // ============================================================================
@@ -9,8 +8,9 @@ import { bodyFromTemplate } from "../../lib/BodyGenerator.js";
 //  procedural Upgrader role into the behaviour paradigm (mirrors Worker→Work, Pioneer→Pioneer).
 //
 //  A TWO-LEVEL loop, like Work, driven by the shared Hauler.runCycle gather↔work FSM:
-//   • DELIVER (full) — pump the controller via the shared Upgrade atom (upgradeController at range 3,
-//     travelTo only if out of range). This IS the pre-lift working-state conduct, unchanged.
+//   • DELIVER (full) — pump the controller (upgradeController at range 3, travelTo only if out of
+//     range). This IS the pre-lift working-state conduct, unchanged, keeping its own `upgrade:pump`
+//     telemetry tag (the generic Work `upgrade` atom would mislabel a dedicated upgrader as a worker).
 //   • COLLECT (empty) — the controller-FEED ladder, so the upgrader never walks back to a source
 //     container: controller LINK → controller CONTAINER → (container empty) park beside it / top up
 //     from reachable spare energy rather than idle toward a downgrade → (no container yet) generic
@@ -33,10 +33,14 @@ export class UpgradeController extends Behavior {
     Hauler.runCycle(creep, colony, this);
   }
 
-  // ---- deliver (full): pump the controller — the shared Upgrade atom. Identical to the pre-lift
-  //      working-state branch (upgradeController, travelTo on ERR_NOT_IN_RANGE).
+  // ---- deliver (full): pump the controller. The pre-lift working-state branch verbatim, with its own
+  //      `upgrade:pump` tag so a dedicated upgrader stays distinct from a worker's idle upgrade in the
+  //      trace (NOT the generic Work `upgrade` atom, which stamps `work:upgrade`).
   static deliver(creep, colony) {
-    Upgrade.run(creep, colony);
+    this.note(creep, "upgrade:pump");
+    if (creep.upgradeController(colony.controller) === ERR_NOT_IN_RANGE) {
+      creep.travelTo(colony.controller);
+    }
   }
 
   // ---- collect (empty): the park-and-pump feed chain, preferring the controller's own feeders.

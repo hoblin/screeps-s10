@@ -76,10 +76,11 @@ import { UpgradeController } from "./economy/UpgradeController.js";
 //                  on a remote child room with a NULL colony (colony-optional atoms target creep.room).
 //                  Builds a freshly-claimed colony's first spawn, then fills + upgrades it toward RCL3.
 //                  ClaimOverlord stamps its build targets over the child's sites (the same command pattern).
-//   • upgradeController — the dedicated upgrader (#251): the gather↔work cycle whose work-half is the
-//                  Upgrade atom and whose gather-half is the controller-FEED ladder (link → controller
-//                  container → park/spare → generic), so it parks and pumps without walking to a source
-//                  container. UpgradeOverlord owns the count + the controller-container planning.
+//   • upgradeController — the dedicated upgrader (#251): the gather↔work cycle whose work-half pumps
+//                  the controller (its own `upgrade:pump` tag) and whose gather-half is the controller-
+//                  FEED ladder (link → controller container → park/spare → generic), so it parks and
+//                  pumps without walking to a source container. UpgradeOverlord owns the count + the
+//                  controller-container planning.
 // ============================================================================
 export const BEHAVIORS = {
   raidRoom: RaidRoom,
