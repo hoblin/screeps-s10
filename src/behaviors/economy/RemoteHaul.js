@@ -91,6 +91,7 @@ export class RemoteHaul extends Behavior {
 
     // No container yet (pre-#114 era) — grab the miner's loose ground pile.
     const pile = creep.pos.findClosestByPath(FIND_DROPPED_RESOURCES, {
+      ignoreCreeps: true, // select as if no creeps; travelTo routes around them (#63)
       filter: (r) => r.resourceType === RESOURCE_ENERGY,
     });
     if (pile) {

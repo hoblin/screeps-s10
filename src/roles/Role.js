@@ -127,52 +127,64 @@ export class Role {
       }).length > 0;
     const reserveSourceContainers = haulerCanDrain && !unbuiltContainers;
 
-    // 1. Dropped energy nearby
-    const dropped = creep.pos.findClosestByPath(FIND_DROPPED_RESOURCES, {
-      filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount >= 50,
-    });
-    if (dropped) {
-      if (creep.pickup(dropped) === ERR_NOT_IN_RANGE) move(dropped);
+    // 1+2. The committed PICKUP: dropped energy, else a container/storage with energy (a source
+    //    container excluded while a hauler owns it — the miner→container→hauler→consumer pipeline,
+    //    fair game only in the #37 emergency / #74 unbuilt-container window when reserveSourceContainers
+    //    is false). LATCHED via committedTarget (#243): commit to ONE source until it's drained instead
+    //    of re-picking the closest-with-energy every tick. The old per-tick re-pick flipped between the
+    //    two source containers as their miners refilled them → travelTo repathed → a stampede (haulers
+    //    never glitched because they latch their pickup, #86). Selection is ignoreCreeps (#63): a cluster
+    //    of creeps between us and the target can't hide it (findClosestByPath treats creeps as walls by
+    //    default → null → "nothing to gather"); travelTo routes around them.
+    //    isValid rechecks the reservation EACH TICK against the freshly-computed reserveSourceContainers,
+    //    so a committed source container releases the instant a hauler spawns (or the container drains) —
+    //    the #37/#52/#74 invariants stay tick-fresh, never frozen into a stale latch.
+    const pickup = this.committedTarget(
+      creep,
+      "gatherTarget",
+      (t) =>
+        t.amount != null
+          ? t.amount > 0 // a dropped pile — finish it once committed, even below the 50 start threshold
+          : t.store[RESOURCE_ENERGY] > 0 &&
+            !(reserveSourceContainers && Role.isSourceContainer(t, colony)),
+      () => {
+        const dropped = creep.pos.findClosestByPath(FIND_DROPPED_RESOURCES, {
+          ignoreCreeps: true,
+          filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount >= 50,
+        });
+        if (dropped) return dropped;
+        return creep.pos.findClosestByPath(FIND_STRUCTURES, {
+          ignoreCreeps: true,
+          filter: (s) =>
+            (s.structureType === STRUCTURE_CONTAINER || s.structureType === STRUCTURE_STORAGE) &&
+            s.store[RESOURCE_ENERGY] > 0 &&
+            !(reserveSourceContainers && Role.isSourceContainer(s, colony)),
+        });
+      }
+    );
+    if (pickup) {
+      const result =
+        pickup.amount != null ? creep.pickup(pickup) : creep.withdraw(pickup, RESOURCE_ENERGY);
+      if (result === ERR_NOT_IN_RANGE) move(pickup);
       return;
     }
 
-    // 2. Containers / storage with energy — but skip a source container while a
-    //    hauler owns it. That container is the hauler's pickup point: a static
-    //    miner fills it and the hauler exists solely to drain it and push the
-    //    energy outward. A worker/upgrader withdrawing here competes with (and
-    //    beats) the hauler, stalling logistics — so we leave it alone and draw
-    //    from delivered energy (controller container, storage, dropped piles).
-    //    If no hauler is alive (reserveSourceContainers false) the source
-    //    container is fair game — see the note above.
-    const store = creep.pos.findClosestByPath(FIND_STRUCTURES, {
-      filter: (s) =>
-        (s.structureType === STRUCTURE_CONTAINER || s.structureType === STRUCTURE_STORAGE) &&
-        s.store[RESOURCE_ENERGY] > 0 &&
-        !(reserveSourceContainers && Role.isSourceContainer(s, colony)),
-    });
-    if (store) {
-      if (creep.withdraw(store, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) move(store);
-      return;
-    }
-
-    // 3. Last resort BEFORE hauling: harvest a source directly (keeps the
-    //    controller alive while infrastructure is built).
+    // 3. Last resort BEFORE hauling: harvest a source directly (keeps the controller alive while
+    //    infrastructure is built). ignoreCreeps selection (#63) — pick the source, travelTo routes around.
     if (!colony || !stageAtLeast(colony, "2b:Hauling")) {
-      const source = creep.pos.findClosestByPath(FIND_SOURCES_ACTIVE);
+      const source = creep.pos.findClosestByPath(FIND_SOURCES_ACTIVE, { ignoreCreeps: true });
       if (source) {
         if (creep.harvest(source) === ERR_NOT_IN_RANGE) move(source);
       }
       return;
     }
 
-    // 4. Hauling is active but nothing is drainable this tick. Park beside the
-    //    nearest eligible container and wait for it to refill. While a hauler
-    //    owns the source containers we exclude them — idling on one would let us
-    //    snatch energy the instant a miner drops it, the exact starvation we're
-    //    avoiding — leaving the controller container / storage, where delivered
-    //    energy lands. In the #37 emergency (no hauler) that exclusion lifts, so
-    //    a source container becomes an eligible wait target again.
+    // 4. Hauling is active but nothing is drainable this tick. Park beside the nearest eligible
+    //    container and wait for it to refill. Source containers excluded while a hauler owns them (idling
+    //    on one would let us snatch energy the instant a miner drops it — the starvation we avoid);
+    //    the #37 emergency lifts that. ignoreCreeps selection (#63).
     const container = creep.pos.findClosestByPath(FIND_STRUCTURES, {
+      ignoreCreeps: true,
       filter: (s) =>
         (s.structureType === STRUCTURE_CONTAINER || s.structureType === STRUCTURE_STORAGE) &&
         !(reserveSourceContainers && Role.isSourceContainer(s, colony)),
