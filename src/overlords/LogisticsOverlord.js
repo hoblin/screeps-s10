@@ -59,14 +59,17 @@ export class LogisticsOverlord extends Overlord {
   desiredCount() {
     if (!stageAtLeast(this.colony, "2b:Hauling")) return 0;
     const cap = this.colony.room.energyCapacityAvailable;
+    const carry = Hauler.capacityAt(cap); // also key on capacity so a bodyFor change (deploy) recomputes
     const cached = this.fleetCache;
     // Validate the cached count — a corrupt/partial Memory write (undefined/NaN)
     // would otherwise make generateSpawnRequest compare against NaN and spawn
     // haulers forever. A bad value just falls through to recompute/baseline.
-    if (cached && cached.cap === cap && Number.isFinite(cached.count)) return cached.count;
+    if (cached && cached.cap === cap && cached.carry === carry && Number.isFinite(cached.count)) {
+      return cached.count;
+    }
     const count = this.computeFleet(cap);
     if (count == null) return this.colony.sources.length; // geometry not ready → baseline
-    this.fleetCache = { cap, count };
+    this.fleetCache = { cap, carry, count };
     return count;
   }
 
@@ -92,9 +95,9 @@ export class LogisticsOverlord extends Overlord {
     return Math.max(1, Math.ceil((demand * FREIGHT_MARGIN) / turnoverPerHauler));
   }
 
-  // Memoized fleet size, keyed on the spawn cap (the recompute trigger): the path
-  // measurement only runs again when an extension completes. Cross-tick, so it
-  // lives in Memory (the overlord is rebuilt every tick, same as the other caches).
+  // Memoized fleet size, keyed on the spawn cap AND the resulting hauler capacity (the recompute
+  // triggers): the path measurement only runs again when an extension completes OR a code change
+  // resizes the hauler body. Cross-tick, so it lives in Memory (the overlord is rebuilt every tick).
   get fleetCache() {
     return Memory.colonyData?.[this.colony.name]?.haulerFleet;
   }

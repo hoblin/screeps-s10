@@ -26,10 +26,14 @@ export class Hauler extends Role {
   // to shove idle consumers out of its delivery lane (issue #55).
   static movementPriority = 2;
 
-  // Balanced CARRY/MOVE hauler body: full speed on roads, half speed off-road while
-  // loaded. Capacity scales with the energy budget — up to 6×CARRY (300).
+  // Balanced 1:1 CARRY/MOVE hauler body: full speed on roads/plains while loaded. Capacity scales with
+  // the spawn-energy budget up to 12×CARRY (600). The cap is a RESILIENCE choice, not a budget limit
+  // (#248): the freight model (#84) sizes the fleet COUNT from this capacity (N ∝ 1/C), so a bigger
+  // hauler self-reduces the fleet — but we stop at 600 so a colony keeps a handful of haulers (an idle
+  // spawn + one death is survivable) instead of one giant single-point-of-failure. Bigger remote hauls
+  // get more haulers, not one enormous one. (Road-aware 2:1 CARRY:MOVE is a separate follow-up.)
   static bodyFor(energyBudget) {
-    return bodyFromTemplate([CARRY, MOVE], { extra: [CARRY, MOVE], max: 5, energy: energyBudget });
+    return bodyFromTemplate([CARRY, MOVE], { extra: [CARRY, MOVE], max: 11, energy: energyBudget });
   }
 
   // Carry capacity (energy) this body holds at a given budget. The logistics fleet

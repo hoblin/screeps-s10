@@ -28,9 +28,11 @@ export class RemoteWorker extends Role {
   // Detour around hostile ranged kill-zones en route to the remote container (#145).
   static avoidHostiles = true;
 
-  // WORK to build/repair + CARRY to fuel it + MOVE for the cross-border trip.
+  // WORK to build/repair + CARRY to fuel it + MOVE for the cross-border trip. Scales to 6×WORK
+  // (1200e) so a remote container (250k hits) builds/repairs faster over the long haul (#248) instead
+  // of stalling at 4 WORK; one per source, so capacity is the throughput lever.
   static bodyFor(energyBudget) {
-    return bodyFromTemplate([WORK, CARRY, MOVE], { extra: [WORK, CARRY, MOVE], max: 3, energy: energyBudget });
+    return bodyFromTemplate([WORK, CARRY, MOVE], { extra: [WORK, CARRY, MOVE], max: 5, energy: energyBudget });
   }
 
   static run(creep, colony) {
