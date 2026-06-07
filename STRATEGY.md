@@ -70,6 +70,26 @@ Two consequences for doctrine:
 
 ---
 
+## Stage 0 — Founding (a claimed colony with no spawn yet)
+
+**Only a 2nd+ colony ever sees this.** The home colony's first spawn is placed manually at game
+start, so it begins at Stage 1 — that assumption was baked silently into the whole machine. But a
+colony we **claim** (#220) starts with a controller and nothing else: no spawn, no creeps, no energy.
+Stage 0 is the formal contract for that state:
+
+- **enter trigger:** the room is ours but `spawns.length === 0`.
+- **provides:** the first spawn — the `Hatchery` places its construction site (`SpawnPlanner`, computed
+  live from terrain) and **pioneers** from the main colony build it. **Nothing else** runs: source
+  containers and static miners are gated off (useless without a spawn, and placing them early just
+  steals the pioneers' build effort from the spawn — the container-before-spawn bug, #228).
+- **next trigger:** `spawns.length > 0` → Stage 1. The instant the spawn stands, the colony spawns its
+  own workers and bootstraps normally.
+
+This is now the absolute floor for an owned room (the role Stage 1's old `() => true` enter trigger
+played). `Recovery` still preempts it, but a fresh RCL 0/1 room never trips `recovering` (its
+"developed" guard). The single predicate `stageAtLeast("1:Bootstrap")` = "past Founding / has a spawn"
+is what every pre-spawn-suppressed behaviour keys on.
+
 ## Stage 1 — Bootstrap (RCL 1)
 
 **Goal:** get the economy self-sustaining; rush RCL 2.

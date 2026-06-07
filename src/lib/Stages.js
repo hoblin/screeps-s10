@@ -74,9 +74,26 @@ export const STAGES = [
     readyForNextWhen: (colony) => !colony.health.recovering,
   },
   {
-    key: "1:Bootstrap",
-    // We're always at least bootstrapping while the room is ours.
+    // Stage 0 — Founding (#228): a freshly-CLAIMED colony has a controller but NO spawn yet, and the
+    // spawn must be BUILT — unlike the home colony's first spawn, which is placed manually at game
+    // start (the silent assumption the rest of the machine was written under). The ONLY job here is to
+    // stand up that first spawn: the Hatchery places its construction site (SpawnPlanner) and pioneers
+    // from the main colony build it. Everything else (source containers, static miners) is gated off
+    // until 1:Bootstrap — it's useless without a spawn (the container-before-spawn bug this fixes). This
+    // is now the absolute floor for an owned room (the role 1:Bootstrap's `() => true` used to play).
+    // Recovery still preempts it, but a fresh RCL0/1 room never trips `recovering` (its "developed"
+    // guard = RCL≥2 or a source container), so a founding colony correctly stays here, not in Recovery.
+    key: "0:Founding",
     enteredWhen: (_colony) => true,
+    provides: ["first spawn construction site (SpawnPlanner) + pioneers build it"],
+    // Cosmetic (the enteredWhen scan picks the real stage); promote once the first spawn stands.
+    readyForNextWhen: (colony) => colony.spawns.length > 0,
+  },
+  {
+    key: "1:Bootstrap",
+    // A spawn now EXISTS — built during Founding, or placed manually at game start (the home colony).
+    // Founding (above) is the floor below this; Bootstrap onward means "we can spawn for ourselves".
+    enteredWhen: (colony) => colony.spawns.length > 0,
     provides: ["generic miners", "workers", "upgraders"],
     // Promote once we hit RCL 2 (unlocks extensions + containers) OR a source
     // container already exists.
