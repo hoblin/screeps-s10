@@ -313,10 +313,16 @@ function bordersConnect(ag, dir, bg) {
 // Room-graph BFS from `start`, flooding only ACTUALLY-CONNECTED, scanned rooms up to
 // `maxHops`. Returns Map(room -> hop distance). This is the real "can a creep march
 // here" metric: a base that is grid-near but walled off / behind unscanned space is
-// correctly far or unreachable, NOT the lie a Manhattan offset tells. Enemy & SK rooms
-// stay passable (an army marches through them); an unscanned room breaks the path
-// (unknown terrain isn't trusted as a route).
-function connectedDist(start, maxHops) {
+// correctly far or unreachable, NOT the lie a Manhattan offset tells. An unscanned room
+// breaks the path (unknown terrain isn't trusted as a route).
+//
+// `blocked(name, facts)` (optional) marks a room IMPASSABLE for this traversal, so the
+// BFS routes AROUND it. Two callers, two semantics: the enemy-threat field passes none
+// (an enemy ARMY marches through SK/enemy rooms — they stay passable), while the home-
+// support distance passes `supportBlocked` (OUR economy creeps die in SK/invader/enemy
+// rooms, so the safe supply route goes around them — the E12S5 "4 hops through 2 SK" vs
+// the real 5 safe hops lesson).
+function connectedDist(start, maxHops, blocked = null) {
   const dist = new Map([[start, 0]]);
   let frontier = [start];
   for (let h = 0; h < maxHops && frontier.length; h++) {
@@ -327,6 +333,7 @@ function connectedDist(start, maxHops) {
         if (dist.has(nb)) continue;
         let b; try { b = requireRoom(nb); } catch { continue; } // unscanned => not a trusted route
         if (!bordersConnect(a.g, dir, b.g)) continue;
+        if (blocked && blocked(nb, b)) continue; // impassable for this traversal → route around
         dist.set(nb, h + 1);
         next.push(nb);
       }
@@ -334,6 +341,25 @@ function connectedDist(start, maxHops) {
     frontier = next;
   }
   return dist;
+}
+
+// Rooms OUR economy creeps (claimer, pioneers, haulers) can't safely march THROUGH when
+// supporting a forward base: Source-Keeper rooms (keepers kill non-combat creeps),
+// invader-core rooms, and enemy CLAIMED bases. Mirrors the live bot's danger-aware
+// corridor (src/lib/Routing.js blocks SK by room-coordinate). Our own bases/reservations
+// stay passable — we hold them.
+function supportBlocked(name, facts) {
+  if (facts.keeperLairs?.length > 0) return true;
+  if (facts.invaderCore) return true;
+  const occ = land().byRoom.get(name);
+  return !!(occ && occ.level >= 1 && !(ME && (occ.owner === ME || occ.uname === ME)));
+}
+
+// Safe support distance: connected hops from `start` that route AROUND danger — the real
+// "how far to send a claimer + pioneer seed, and to haul back from" metric for a forward
+// base. The honest replacement for the SK-blind hop count.
+function supportDist(start, maxHops) {
+  return connectedDist(start, maxHops, supportBlocked);
 }
 
 // Enemy-threat at a candidate: Σ over rivals of weight × distance-decay, where weight
@@ -540,7 +566,7 @@ async function main() {
 // value an OWNED home room's remotes — scoreRoom itself refuses owned rooms (it
 // scores claim candidates), but the underlying model is the same (extract-and-
 // share per CLAUDE.md, not copy-paste).
-export { scoreRoom, distField, crossBorderDist, valueOf, orthoNeighbours, connectedDist, BASE_REMOTE, K };
+export { scoreRoom, distField, crossBorderDist, valueOf, orthoNeighbours, connectedDist, supportDist, BASE_REMOTE, K };
 
 // Only run the CLI when invoked directly, not when imported as a module.
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];

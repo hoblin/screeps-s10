@@ -25,7 +25,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { deflateSync } from "node:zlib";
 import { openDb } from "./db.mjs";
-import { scoreRoom, connectedDist } from "./region-score.mjs";
+import { scoreRoom, supportDist } from "./region-score.mjs";
 
 function arg(name, def) {
   const i = process.argv.indexOf(`--${name}`);
@@ -37,8 +37,9 @@ const FROM = arg("from", null);
 const PNG_OUT = String(arg("out", "tmp/season-heatmap.png"));
 const WANT_PNG = arg("no-png", false) !== true;
 const WANT_ANSI = arg("no-ansi", false) !== true;
-const NEAR = arg("near", null); // reference room (e.g. our main) — annotate the top-N with connected hops to it,
-                                // so the near-vs-far trade-off (supportability vs new-territory coverage) is visible
+const NEAR = arg("near", null); // reference room (e.g. our main) — annotate the top-N with SAFE connected hops to it
+                                // (routes around SK/invader/enemy, as our claimer+pioneers must), so the near-vs-far
+                                // trade-off (supportability vs new-territory coverage) is visible and honest
 const TOPN = parseInt(String(arg("top", "10")), 10);
 
 // Playable grid: signed coords. west = negative sx, north = positive sy.
@@ -323,9 +324,27 @@ function renderPng() {
 if (WANT_ANSI) renderAnsi();
 if (WANT_PNG) renderPng();
 
-const homeDist = NEAR ? connectedDist(NEAR, 60) : null; // connected hop distance from our base to every reachable room
-const top = [...score.entries()].sort((a, b) => b[1] - a[1]).slice(0, TOPN);
-console.log(`\nTop ${top.length} rooms by score (src = home+remote source NODES — the lever${NEAR ? `; ${NEAR}→ = connected hops from our base` : ""}):`);
+const homeDist = NEAR ? supportDist(NEAR, 60) : null; // SAFE connected hops from our base (routes around SK/invader/enemy), the real supply distance
+
+// Forward-base supply decay (#220): a 2nd base far from our empire is harder to claim
+// (the claimer marches there), seed (the pioneers walk there), and defend. So when a
+// reference base is given (--near), re-rank by a FORWARD score = economy × supply-decay:
+// a nearby strong-remote room beats a far richer one we can't realistically support. The
+// taper is gentle (a much richer far room can still surface), and an unreachable room
+// (no safe corridor within the BFS horizon) takes a hard floor — we can't support what we
+// can't safely reach. Pure economy ranking (no --near) is unchanged.
+const SUPPLY_K = 0.04; // ~0.83× at 5 safe hops, ~0.71× at 10, ~0.56× at 20
+const UNREACHABLE_FACTOR = 0.25; // >60 safe hops away → effectively unsupportable
+const supplyDecay = (h) => (h == null ? UNREACHABLE_FACTOR : 1 / (1 + SUPPLY_K * h));
+const forwardOf = (nm, v) => v * supplyDecay(homeDist.get(nm));
+
+const top = [...score.entries()]
+  .sort((a, b) => (NEAR ? forwardOf(b[0], b[1]) - forwardOf(a[0], a[1]) : b[1] - a[1]))
+  .slice(0, TOPN);
+console.log(
+  `\nTop ${top.length} rooms by ${NEAR ? `FORWARD score (economy × supply-decay from ${NEAR})` : "score"}` +
+    ` (src = home+remote source NODES — the lever${NEAR ? `; →Nh = SAFE hops, routed around SK/enemy` : ""}):`,
+);
 for (const [nm, v] of top) {
   const d = detail.get(nm) || {};
   const tr = d.threats?.[0];
@@ -333,9 +352,13 @@ for (const [nm, v] of top) {
   const rem = (d.remoteSources || []).filter((s) => s.reachable).length;
   const exits = (d.neighbours || []).map((n) => `${n.dir}=${n.type}${n.srcs ? `·${n.srcs}` : ""}`).join("  ") || "(none)";
   const threatStr = tr ? `  threat ${tr.player}·L${tr.mainRcl}@${tr.dist}` : "";
-  const distStr = NEAR ? `  ${NEAR}→${homeDist.get(nm) ?? ">60"}h` : "";
+  const hops = homeDist?.get(nm);
+  const distStr = NEAR ? `  ${NEAR}→${hops ?? ">60"}h` : "";
+  const scoreStr = NEAR
+    ? `fwd ${forwardOf(nm, v).toFixed(1).padStart(6)}  econ ${v.toFixed(0)}`
+    : `${v.toFixed(1).padStart(6)}`;
   console.log(
-    `  ${nm.padEnd(7)} ${v.toFixed(1).padStart(6)}  src ${home}+${rem}  risk ${d.risk ?? "-"}  min ${d.mineral || "-"}${distStr}${threatStr}`,
+    `  ${nm.padEnd(7)} ${scoreStr}  src ${home}+${rem}  risk ${d.risk ?? "-"}  min ${d.mineral || "-"}${distStr}${threatStr}`,
   );
   console.log(`          exits: ${exits}`);
 }
