@@ -1,7 +1,7 @@
 import { Overlord } from "./Overlord.js";
 import { Miner } from "../roles/Miner.js";
 import { LinkedMiner } from "../roles/LinkedMiner.js";
-import { ContainerPlanner } from "../lib/ContainerPlanner.js";
+import { MiningSite } from "../lib/MiningSite.js";
 import { stageAtLeast } from "../lib/Stages.js";
 
 // ============================================================================
@@ -31,6 +31,10 @@ export class MiningOverlord extends Overlord {
     // between two sources that share their last few chars.
     super(colony, { priority: 1, instanceId: source.id });
     this.source = source;
+    // The container-site lifecycle (mining tile + container keep-alive) is the shared MiningSite,
+    // also used by mineral mining (#19). Source-only state (the JIT-relief `dist`) is layered onto
+    // the same cache object below — MiningSite only writes the position fields, so they coexist.
+    this.site = new MiningSite(colony, source, "source");
   }
 
   get role() {
@@ -112,65 +116,29 @@ export class MiningOverlord extends Overlord {
   }
 
   // --------------------------------------------------------------------------
-  //  Mining position: the tile a miner parks on and the container sits under.
-  //  Heuristic: of all walkable tiles adjacent to the source, pick the one
-  //  closest (by path) to the colony's first spawn — that minimises hauler
-  //  travel. Computed once and cached in the overlord's colony memory so we
-  //  don't repeat the pathing every tick.
+  //  Mining position: the tile a miner parks on and the container sits under —
+  //  the walkable source-adjacent tile nearest (by path) to a spawn. Delegated to
+  //  the shared MiningSite (compute-once + cache). The source-only `dist` for JIT
+  //  relief is layered onto the same cache object by sourceDistance() below.
   // --------------------------------------------------------------------------
   get miningPosition() {
-    const cache = this.miningPositionCache;
-    if (cache) {
-      return new RoomPosition(cache.x, cache.y, cache.roomName);
-    }
-    const { position, reachedByPath } = this.computeMiningPosition();
-    // Only cache a tile we genuinely reached by path. Caching a transient
-    // pathing-failure fallback would make a temporary glitch permanent.
-    if (position && reachedByPath) {
-      this.miningPositionCache = {
-        x: position.x,
-        y: position.y,
-        roomName: position.roomName,
-      };
-    }
-    return position;
+    return this.site.position;
   }
 
+  // Read-only view of the cache object (the {x,y,roomName} MiningSite wrote, plus the dist/distSpawns
+  // sourceDistance mutates onto it in place). MiningSite owns the position WRITE; this getter is just
+  // how sourceDistance reaches the shared object to append its source-only JIT fields.
   get miningPositionCache() {
     return (Memory.colonyData?.[this.colony.name]?.miningPos || {})[this.source.id];
   }
 
-  set miningPositionCache(value) {
-    Memory.colonyData ||= {};
-    Memory.colonyData[this.colony.name] ||= {};
-    Memory.colonyData[this.colony.name].miningPos ||= {};
-    Memory.colonyData[this.colony.name].miningPos[this.source.id] = value;
-  }
-
-  // Walkable source-adjacent tile nearest (by path) to a spawn — minimises the
-  // hauler trip. Delegates the geometry to the shared ContainerPlanner so the
-  // source and controller containers plan their tiles the same way.
-  computeMiningPosition() {
-    const anchor = this.colony.spawns[0] || this.colony.controller;
-    return ContainerPlanner.bestContainerTile(this.room, this.source.pos, anchor.pos);
-  }
-
   // --------------------------------------------------------------------------
-  //  Container lifecycle: make sure a container (or its construction site)
-  //  exists on the mining position. Workers build the site; the miner drops
+  //  Container lifecycle: delegated to the shared MiningSite — keep a container
+  //  (or its site) alive on the mining tile. Workers build it; the miner drops
   //  energy into the finished container.
   // --------------------------------------------------------------------------
   ensureContainerSite() {
-    // No source container without a spawn (#228, Founding): a freshly-claimed spawnless colony must
-    // build its SPAWN first. A source container is useless without the static miner the spawn produces,
-    // and placing it during the bootstrap steals the pioneers' build effort from the spawn (the
-    // container-before-spawn bug). An explicit spawn check (not a stageAtLeast gate) so it's robust to
-    // any stage-machine edge and unaffected during Recovery (which keeps its spawn). The home colony
-    // (spawn from tick 0) is never spawnless, so it's wholly unaffected.
-    if (this.colony.spawns.length === 0) return;
-    const position = this.miningPosition;
-    if (!position) return;
-    ContainerPlanner.ensureSite(this.room, position, "source");
+    this.site.ensureContainer();
   }
 
   // --------------------------------------------------------------------------

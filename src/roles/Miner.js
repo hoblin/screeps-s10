@@ -64,9 +64,16 @@ export class Miner extends Role {
     return Math.min(SOURCE_ENERGY_CAPACITY / ENERGY_REGEN_TIME, workParts * HARVEST_POWER);
   }
 
+  // The id of the thing this miner harvests. A source miner reads memory.sourceId; MineralMiner (#19)
+  // overrides this to memory.mineralId. Everything else in run() is target-agnostic — `harvest()` is
+  // the same API call for a Source or a Mineral (a Mineral just additionally needs a built Extractor).
+  static harvestTargetId(creep) {
+    return creep.memory.sourceId;
+  }
+
   static run(creep, colony) {
-    const source = Game.getObjectById(creep.memory.sourceId);
-    if (!source) return; // source out of vision (shouldn't happen in owned room)
+    const source = Game.getObjectById(this.harvestTargetId(creep));
+    if (!source) return; // target out of vision (shouldn't happen in owned room)
 
     const miningPosition = this.resolveMiningPosition(creep);
 

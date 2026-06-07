@@ -1,6 +1,7 @@
 import { Hatchery } from "./hiveClusters/Hatchery.js";
 import { CommandCenter } from "./hiveClusters/CommandCenter.js";
 import { MiningOverlord } from "./overlords/MiningOverlord.js";
+import { MineralMiningOverlord } from "./overlords/MineralMiningOverlord.js";
 import { LogisticsOverlord } from "./overlords/LogisticsOverlord.js";
 import { UpgradeOverlord } from "./overlords/UpgradeOverlord.js";
 import { WorkOverlord } from "./overlords/WorkOverlord.js";
@@ -76,6 +77,10 @@ export class Colony {
       // rather than splitting per source/room, so cross-room decisions (re-home a
       // miner when its room turns hot) live in one owner with full visibility. All
       // gate on health.expansionReady, which self-throttles the expansion.
+      // Mineral economy (#19, Stage 4): places the extractor, drop-mines the room mineral into a
+      // container, hauls it to storage. Spare-capacity (priority 5, miner gated on expansionReady) so
+      // it never preempts the core economy — with no terminal/labs yet it just banks mineral for later.
+      new MineralMiningOverlord(this),
       new ReserveOverlord(this), // one reserver per safe remote room
       new RemoteMiningOverlord(this), // one miner per safe remote source
       new RemoteWorkOverlord(this), // builds + maintains each remote source's container (#114)
@@ -206,6 +211,25 @@ export class Colony {
     return cache ? new RoomPosition(cache.x, cache.y, cache.roomName) : null;
   }
 
+  // The room's mineral (every controlled room has exactly one). The colony owns this room-geometry
+  // query so MineralMiningOverlord (#19) asks it rather than re-scanning. Memoized per-tick like the
+  // other getters; `undefined` sentinel since the result can be falsy (a room with no mineral).
+  get mineral() {
+    if (this._mineral === undefined) this._mineral = this.room.find(FIND_MINERALS)[0] || null;
+    return this._mineral;
+  }
+
+  // The mineral's drop-mining container (adjacent to the mineral, where the MineralMiner parks), or
+  // null until built. Mirrors sourceContainerPos's cache → live-structure resolution.
+  mineralContainer() {
+    if (!this.mineral) return null;
+    const cache = Memory.colonyData?.[this.name]?.miningPos?.[this.mineral.id];
+    if (!cache) return null;
+    return new RoomPosition(cache.x, cache.y, cache.roomName)
+      .lookFor(LOOK_STRUCTURES)
+      .find((s) => s.structureType === STRUCTURE_CONTAINER) || null;
+  }
+
   // The controller container: a non-source container within range 3 of the
   // controller (ContainerPlanner places it ≤3 tiles short). The colony owns this
   // structure query — roles/overlords ask it rather than re-scanning the room.
@@ -219,7 +243,13 @@ export class Colony {
       const near = this.controller.pos.findInRange(FIND_STRUCTURES, 3, {
         filter: (s) => s.structureType === STRUCTURE_CONTAINER,
       });
-      container = near.find((c) => !this.isSourceContainerTile(c.pos)) || null;
+      // Exclude both source containers (haulers' pickup) and the mineral container (#19) — a mineral
+      // that happens to sit within range 3 of the controller would otherwise be mistaken for the
+      // upgrade-feed container and have energy mis-delivered into it.
+      container =
+        near.find(
+          (c) => !this.isSourceContainerTile(c.pos) && !this.isMineralContainerTile(c.pos)
+        ) || null;
     }
     this._controllerContainer = container;
     return container;
@@ -237,6 +267,16 @@ export class Colony {
   // A container tile is a source container iff it's adjacent to one of our sources.
   isSourceContainerTile(pos) {
     return this.sources.some((source) => source.pos.getRangeTo(pos) <= 1);
+  }
+
+  // Is this the EXACT mineral-container tile (#19)? Matched against the cached mining tile
+  // (miningPos[mineral.id]), not mere adjacency to the mineral — a controller container that happens
+  // to sit within range 1 of the mineral must NOT be excluded from controllerContainer(); only the
+  // one actual mineral-container tile is.
+  isMineralContainerTile(pos) {
+    if (!this.mineral) return false;
+    const cache = Memory.colonyData?.[this.name]?.miningPos?.[this.mineral.id];
+    return !!cache && pos.x === cache.x && pos.y === cache.y && pos.roomName === cache.roomName;
   }
 
   // The CommandCenter-planned links (#17), resolved from the cached layout to live

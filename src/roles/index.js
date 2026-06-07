@@ -1,5 +1,7 @@
 import { Role } from "./Role.js";
 import { Miner } from "./Miner.js";
+import { MineralMiner } from "./MineralMiner.js";
+import { MineralHauler } from "./MineralHauler.js";
 import { Hauler } from "./Hauler.js";
 import { Harvester } from "./Harvester.js";
 import { Worker } from "./Worker.js";
@@ -35,6 +37,8 @@ import { Pioneer } from "./Pioneer.js";
 // ============================================================================
 export const ROLES = {
   miner: Miner,
+  mineralMiner: MineralMiner, // static miner on the room mineral (#19, Stage 4) — MiningOverlord twin
+  mineralHauler: MineralHauler, // drains the mineral container → storage (#19)
   hauler: Hauler,
   harvester: Harvester,
   worker: Worker,
