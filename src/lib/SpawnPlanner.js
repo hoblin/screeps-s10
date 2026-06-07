@@ -71,7 +71,11 @@ export const SpawnPlanner = {
     const cached = Memory.colonyData?.[room.name]?.spawnAnchors?.[slot];
     if (cached) {
       const pos = new RoomPosition(cached.x, cached.y, room.name);
-      if (this.buildable(room, pos.x, pos.y)) return pos;
+      // Re-validate against the CURRENT spawns, not just buildability: if a spawn was
+      // destroyed/rebuilt elsewhere the cached tile could now sit too close to one, so re-check the
+      // separation it was chosen for and recompute if it's stale.
+      const separated = taken.every((p) => p.getRangeTo(pos) > SPAWN_SEPARATION);
+      if (separated && this.buildable(room, pos.x, pos.y)) return pos;
     }
     const pos = this.compute(room, taken);
     if (pos) {

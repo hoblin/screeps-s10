@@ -200,8 +200,10 @@ export class Hatchery extends HiveCluster {
       // attempt anyway (spawnCreep then fails cleanly if the body is truly unaffordable).
       if (cost > this.room.energyAvailable && haveCreeps) break;
 
-      // Unique name even when two spawns fire the same tick (same role → same Game.time would collide).
-      const name = `${req.role}_${Game.time % 10000}_${si}`;
+      // Globally-unique name: the colony name disambiguates across colonies (two rooms spawning the
+      // same role the same tick), `si` across the room's own spawns that tick, Game.time across ticks.
+      // Role stays the first "_"-segment so offline tooling (bin/sapi map) still reads it from the name.
+      const name = `${req.role}_${this.colony.name}_${Game.time % 10000}_${si}`;
       const result = idle[si].spawnCreep(req.body, name, { memory: req.memory });
       if (result === OK) {
         log.info(`[${this.colony.name}] spawning ${name} (${req.body.length} parts, cost ${cost})`);
