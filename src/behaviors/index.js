@@ -16,6 +16,7 @@ import { SelfDefense } from "./combat/SelfDefense.js";
 import { RemoteHaul } from "./economy/RemoteHaul.js";
 import { Work } from "./economy/Work.js";
 import { Pioneer } from "./economy/Pioneer.js";
+import { UpgradeController } from "./economy/UpgradeController.js";
 
 // ============================================================================
 //  Behavior registry (#39) — maps a behavior NAME (as stored in a creep's
@@ -75,6 +76,10 @@ import { Pioneer } from "./economy/Pioneer.js";
 //                  on a remote child room with a NULL colony (colony-optional atoms target creep.room).
 //                  Builds a freshly-claimed colony's first spawn, then fills + upgrades it toward RCL3.
 //                  ClaimOverlord stamps its build targets over the child's sites (the same command pattern).
+//   • upgradeController — the dedicated upgrader (#251): the gather↔work cycle whose work-half is the
+//                  Upgrade atom and whose gather-half is the controller-FEED ladder (link → controller
+//                  container → park/spare → generic), so it parks and pumps without walking to a source
+//                  container. UpgradeOverlord owns the count + the controller-container planning.
 // ============================================================================
 export const BEHAVIORS = {
   raidRoom: RaidRoom,
@@ -94,6 +99,7 @@ export const BEHAVIORS = {
   remoteHaul: RemoteHaul,
   work: Work,
   pioneer: Pioneer,
+  upgradeController: UpgradeController,
 };
 
 // Resolve a behavior name to its class, or null (an unknown/typo'd name is a no-op
