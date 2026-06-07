@@ -269,9 +269,14 @@ export class Colony {
     return this.sources.some((source) => source.pos.getRangeTo(pos) <= 1);
   }
 
-  // A container tile is the mineral container iff it's adjacent to the room mineral (#19).
+  // Is this the EXACT mineral-container tile (#19)? Matched against the cached mining tile
+  // (miningPos[mineral.id]), not mere adjacency to the mineral — a controller container that happens
+  // to sit within range 1 of the mineral must NOT be excluded from controllerContainer(); only the
+  // one actual mineral-container tile is.
   isMineralContainerTile(pos) {
-    return !!this.mineral && this.mineral.pos.getRangeTo(pos) <= 1;
+    if (!this.mineral) return false;
+    const cache = Memory.colonyData?.[this.name]?.miningPos?.[this.mineral.id];
+    return !!cache && pos.x === cache.x && pos.y === cache.y && pos.roomName === cache.roomName;
   }
 
   // The CommandCenter-planned links (#17), resolved from the cached layout to live
