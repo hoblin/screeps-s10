@@ -22,7 +22,11 @@ import { Pioneer } from "../roles/Pioneer.js";
 //
 //  Gated like the other expansion overlords on home-economy health (expansionReady),
 //  plus GCL headroom (can't claim past Game.gcl.level) and "target still unowned".
-//  Sits at priority 5 (the expansion tier) so the home economy always spawns first.
+//  Priority 2 — below the home core (mining/filler/defense) and home builders, but ABOVE
+//  the remote economy (remote mining/reserve/haul): a 2nd base compounds the economy more
+//  than one extra local remote, so expansion spawns ahead of the remotes (ordered before
+//  RemoteMiningOverlord in Colony for the same-tier tie-break). This also stops a one-shot
+//  claimer from starving behind a saturated single spawn (#220 follow-up).
 // ============================================================================
 
 // Seed crew that builds the first spawn and keeps the new controller from
@@ -32,7 +36,7 @@ const PIONEER_COUNT = 3;
 
 export class ClaimOverlord extends Overlord {
   constructor(colony) {
-    super(colony, { priority: 5 }); // expansion tier — below the home economy
+    super(colony, { priority: 2 }); // above the remote economy, below the home core (#220 follow-up)
   }
 
   get role() {

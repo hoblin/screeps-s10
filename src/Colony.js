@@ -62,6 +62,12 @@ export class Colony {
     this.overlords = [
       ...miningOverlords,
       new WorkOverlord(this),
+      // Expansion directive (#220): spawns AHEAD of the remote economy — listed before the
+      // remote block so its priority-2 request wins the same-tier tie over RemoteMining. A
+      // 2nd base compounds the economy more than a marginal local remote. Idle (no spawn
+      // requests) unless armed via Memory.expansion.claimTarget, so this never disturbs a
+      // colony that isn't expanding.
+      new ClaimOverlord(this),
       new LogisticsOverlord(this), // requests 0 haulers until 2b:Hauling stage
       new FillerOverlord(this), // storage → spawn/extensions pump, once storage is built (#152)
       new UpgradeOverlord(this),
@@ -77,7 +83,6 @@ export class Colony {
       new GuardOverlord(this), // clears winnable threats in the remote footprint (#118)
       new DefenseOverlord(this), // places + operates towers (no-op until RCL3)
       new ScoutOverlord(this), // roams cheap scouts to keep map intel fresh (#142)
-      new ClaimOverlord(this), // claims + bootstraps a designated 2nd colony (#220, gated/armed)
       new WarbandOverlord(this), // commander's manual offence: flag-commanded warband (#174)
     ];
   }

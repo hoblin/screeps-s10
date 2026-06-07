@@ -34,10 +34,14 @@ export class Overlord {
    * SPAWN-PRIORITY LADDER (lowest number first; the Hatchery serves the single highest-priority
    * request and WAITS if it can't afford it — so this ladder IS a strict gate, lower tiers spawn only
    * when nothing higher wants spawning; each overlord documents its own rank). Current ladder:
-   *   1 Mining(home)/Defense/Filler · 2 Work/RemoteMining/Warband · 3 Logistics/Scout · 4 Upgrade/Guard ·
-   *   5 Reserve/RemoteWork/RemoteLogistics/Claim(claimer+pioneer).
+   *   1 Mining(home)/Defense/Filler · 2 Work/Claim(expansion)/RemoteMining/Warband · 3 Logistics/Scout ·
+   *   4 Upgrade/Guard · 5 Reserve/RemoteWork/RemoteLogistics.
    * RemoteMining sits at 2 (above Scout at 3) so remote income isn't starved by the score-scout fleet
    * (#210); its expansionReady gate (home-economy health) keeps it from requesting before home is staffed.
+   * Claim (claimer+pioneer, a 2nd base) also sits at 2 but ABOVE RemoteMining (ordered before it in
+   * Colony) — a 2nd base compounds the economy more than one extra local remote, so expansion
+   * out-prioritises the remote economy while staying below the home core (mining/filler/defense) and the
+   * home builders (Work) (#220 follow-up).
    * New overlord: pick a tier, set it in super(colony, { priority }).
    */
   constructor(colony, { priority = 5, instanceId = null } = {}) {
