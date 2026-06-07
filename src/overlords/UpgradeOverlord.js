@@ -1,22 +1,28 @@
 import { Overlord } from "./Overlord.js";
 import { Upgrader } from "../roles/Upgrader.js";
-import { Hauler } from "../roles/Hauler.js";
-import { bodyFromTemplate } from "../lib/BodyGenerator.js";
+import { behaviorClass } from "../behaviors/index.js";
 import { stageAtLeast } from "../lib/Stages.js";
 import { ContainerPlanner } from "../lib/ContainerPlanner.js";
 
-// Upgraders to run when energy is going to waste (#81) — drains the surplus into
-// the controller instead of letting source regen burn.
-const UPGRADERS_RICH = 3;
-
-// Storage-proportional upgrader scaling (#137), ADDED on top of the #81 baseline. The
-// controller is the only meaningful sink for surplus before a 2nd spawn (RCL7) lets us
-// expand, so banked energy should drain into RCL rather than sit. Self-regulating via
-// storage LEVEL: storage is the lowest hauler-delivery priority, so its depth is the
-// true post-consumption surplus. All tunable from live behaviour.
-const UPGRADE_STORAGE_RESERVE = 20000; // bank this cushion before adding any extra upgrader
-const ENERGY_PER_UPGRADER = 30000; // surplus above the reserve that justifies one extra upgrader
-const UPGRADE_EXTRA_MAX = 4; // ceiling on the bonus so the single spawn isn't swamped
+// Surplus-proportional upgrader scaling (#137, generalised to pre-storage in #251). The controller
+// is the only meaningful energy SINK before a 2nd spawn (RCL7) lets us expand, so banked surplus
+// should drain into RCL rather than sit (a full container = waste). Self-regulating via the buffer
+// LEVEL: the count rides on how deep the surplus has pooled, and as upgraders consume it the pool
+// stops climbing and the count settles (consumption ≈ source surplus). The loop closes through the
+// hauler priority chain — storage / source containers are the LOWEST delivery priority, so a rising
+// buffer means the controller container is already fed and the extra upgraders are guaranteed energy.
+//
+// TWO buffer SCALES, because the buffer is a different structure pre- vs post-storage:
+//  • STORAGE (RCL4+): a deep central buffer — bank a big cushion, one upgrader per large slice.
+//  • SOURCE CONTAINERS (pre-storage): the only buffer is the 2000-cap source containers, so the scale
+//    is ~10× smaller — react to a shallow backup, one upgrader per small slice. Pre-storage the count
+//    is ALSO bounded physically by the parking tiles around the controller container (~5-6), which the
+//    shared EXTRA_MAX cap aligns with. All tunable from live behaviour.
+const UPGRADE_STORAGE_RESERVE = 20000; // storage cushion banked before any extra upgrader
+const ENERGY_PER_UPGRADER = 30000; // storage surplus above the reserve per extra upgrader
+const CONTAINER_BUFFER_RESERVE = 500; // source-container backup tolerated before any extra upgrader
+const ENERGY_PER_UPGRADER_CONTAINER = 1500; // container backup above the reserve per extra upgrader
+const UPGRADE_EXTRA_MAX = 4; // ceiling on the bonus (single spawn / parking tiles)
 
 // A maxed (RCL8) controller accepts at most 15 energy/tick, and each WORK upgrades 1/tick
 // (UPGRADE_CONTROLLER_POWER), so 15 WORK saturates it. Beyond that, extra WORK is dead weight, so it
@@ -52,7 +58,7 @@ export class UpgradeOverlord extends Overlord {
   }
 
   desiredCount() {
-    return this.workCappedCount(this.baseCount() + this.storageDelta());
+    return this.workCappedCount(this.baseCount() + this.bufferDelta());
   }
 
   // At RCL8 the controller accepts ≤15 energy/tick, so fielding more than 15 WORK total wastes spawn
@@ -65,39 +71,52 @@ export class UpgradeOverlord extends Overlord {
     return Math.max(1, Math.min(count, Math.floor(RCL8_UPGRADE_CAP / perBody)));
   }
 
-  // The #81 baseline, unchanged: burn idle energy into the controller when sources
-  // back up (energyRich), else 1, or 2 once extensions can feed two. The storage delta
-  // rides ON TOP of this, so pre-storage early game behaves exactly as before.
+  // The always-on FLOOR: enough to keep the controller from downgrading and give it constant
+  // pressure — 2 once extensions can feed two upgraders, else 1. The buffer delta rides ON TOP for
+  // the surplus case. The old `energyRich`→3 branch is RETIRED (#251): `energyRich` keys on source
+  // saturation, which static mining keeps low by design, so it almost never fires in a mature colony
+  // and can't see a downstream (container) backup — the buffer delta now covers surplus at every RCL.
   baseCount() {
-    if (this.colony.health.energyRich) return UPGRADERS_RICH;
     return this.room.energyCapacityAvailable >= 550 ? 2 : 1;
   }
 
-  // Extra upgraders proportional to the banked storage surplus (#137). Self-regulating:
-  // storage is the LOWEST hauler-delivery priority (after spawn/extensions/tower/the
-  // controller container), so a rising storage means the controller container is already
-  // kept fed — the extra upgraders are guaranteed energy. As they consume the surplus,
-  // storage stops climbing and the count settles at equilibrium (consumption ≈ source
-  // surplus). Reserve-gated (bank a cushion first), capped (so the single spawn isn't
-  // swamped), and the DELTA is zeroed during recovery (no EXTRA burn while clawing out of
-  // a workforce collapse — the baseline upgraders still run; NOT gated on `decaying`,
-  // since upgrading is the FIX for a decaying controller).
-  // Read live, not smoothed: the per-upgrader granularity dwarfs per-tick storage jitter,
-  // so the count can't chatter (same live-read sizing idiom as WorkOverlord's backlog).
-  storageDelta() {
+  // Extra upgraders proportional to the banked-energy SURPLUS (#137/#251). Self-regulating via the
+  // buffer LEVEL: the buffer is storage (RCL4+) or, before storage exists, the sum of the source
+  // containers — both the LOWEST hauler-delivery priority, so a rising level means the controller
+  // container is already kept fed and the extra upgraders are guaranteed energy. As they consume the
+  // surplus the level stops climbing and the count settles at equilibrium (consumption ≈ source
+  // surplus). Reserve-gated (bank a cushion first), capped, and zeroed during recovery (no EXTRA burn
+  // while clawing out of a workforce collapse — the floor still runs; NOT gated on `decaying`, since
+  // upgrading is the FIX for a decaying controller).
+  // Read live, not smoothed: the per-upgrader granularity dwarfs per-tick buffer jitter, so the count
+  // can't chatter (same live-read sizing idiom as WorkOverlord's backlog).
+  bufferDelta() {
     if (this.colony.health.recovering) return 0;
     const storage = this.colony.room.storage;
-    if (!storage) return 0; // pre-storage (early game) → no delta
-    const surplus = storage.store[RESOURCE_ENERGY] - UPGRADE_STORAGE_RESERVE;
-    return Math.min(Math.max(Math.floor(surplus / ENERGY_PER_UPGRADER), 0), UPGRADE_EXTRA_MAX);
+    if (storage) {
+      return this.surplusUpgraders(storage.store[RESOURCE_ENERGY], UPGRADE_STORAGE_RESERVE, ENERGY_PER_UPGRADER);
+    }
+    // Pre-storage: the source containers ARE the surplus buffer (the colony owns the structure query).
+    const banked = this.colony.sourceContainers().reduce((sum, c) => sum + c.store[RESOURCE_ENERGY], 0);
+    return this.surplusUpgraders(banked, CONTAINER_BUFFER_RESERVE, ENERGY_PER_UPGRADER_CONTAINER);
   }
 
-  // Scales to 15×WORK (the RCL8 controller saturation, RCL8_UPGRADE_CAP) so an upgrader uses the
-  // available spawn capacity instead of stalling at 5 WORK (#248) — pre-RCL8 a big upgrader drains the
-  // storage hoard into RCL fast; at RCL8 a single 15-WORK upgrader alone maxes the controller (the
-  // count cap above then fields just one). Budget caps it lower at low RCL (≈11 WORK at 2300).
-  bodyFor(energy) {
-    return bodyFromTemplate([WORK, CARRY, MOVE], { extra: [WORK, CARRY, MOVE], max: 14, energy });
+  // One extra upgrader per `step` of energy banked above `reserve`, clamped to [0, EXTRA_MAX].
+  surplusUpgraders(buffered, reserve, step) {
+    return Math.min(Math.max(Math.floor((buffered - reserve) / step), 0), UPGRADE_EXTRA_MAX);
+  }
+
+  // The body is the model's: read it off the unit's default behaviour (the `upgradeController` node
+  // owns the WORK/CARRY/MOVE recipe, scaled to 15×WORK / #248), sized to the colony's spawn budget.
+  bodyFor(energyBudget) {
+    return behaviorClass(Upgrader.behaviors.default).bodyFor(energyBudget);
+  }
+
+  // Stamp the behaviour set at birth so the BehaviorMachine drives the thin Upgrader role (#251).
+  generateSpawnRequest() {
+    const req = super.generateSpawnRequest();
+    if (req) req.memory.behaviors = Upgrader.behaviors;
+    return req;
   }
 
   runCreep(creep) {
@@ -154,11 +173,7 @@ export class UpgradeOverlord extends Overlord {
   // origin), else the first spawn, else the controller itself. We minimise the
   // controller container's distance to this anchor.
   haulerAnchor() {
-    const sourceContainers = this.room.find(FIND_STRUCTURES, {
-      filter: (s) =>
-        s.structureType === STRUCTURE_CONTAINER &&
-        Hauler.isSourceContainer(s, this.colony),
-    });
+    const sourceContainers = this.colony.sourceContainers();
     if (sourceContainers.length > 0) {
       return (
         this.colony.controller.pos.findClosestByPath(sourceContainers) ||

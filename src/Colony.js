@@ -211,6 +211,16 @@ export class Colony {
     return cache ? new RoomPosition(cache.x, cache.y, cache.roomName) : null;
   }
 
+  // Every live source container (a container adjacent to one of our sources). The colony owns this
+  // structure query so overlords ask it rather than re-scanning the room. Memoized per-tick (the
+  // instance is rebuilt each tick); the result is an array (never null), so `??=` suffices. Consumers:
+  // the upgrader count's pre-storage surplus buffer and the controller-container hauler anchor (#251).
+  sourceContainers() {
+    return (this._sourceContainers ??= this.room.find(FIND_STRUCTURES, {
+      filter: (s) => s.structureType === STRUCTURE_CONTAINER && this.isSourceContainerTile(s.pos),
+    }));
+  }
+
   // The room's mineral (every controlled room has exactly one). The colony owns this room-geometry
   // query so MineralMiningOverlord (#19) asks it rather than re-scanning. Memoized per-tick like the
   // other getters; `undefined` sentinel since the result can be falsy (a room with no mineral).
