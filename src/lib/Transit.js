@@ -23,6 +23,15 @@ import { Movement } from "./Movement.js";
 //  TILE pathing only WITHIN the safe room set, and naturally takes the clean far exits. On damage,
 //  bump the room's scoutThreat so the ScoutOverlord hunter clears a persistent blocker and re-opens
 //  the route for the next unit (#147/#187) — cheaper than escorting or arming a fragile CLAIM body.
+//
+//  Tower/SK-free vs Game.map.findRoute: blocking the room in the cost callback is still fully tower/SK-
+//  safe (the engine never ENTERS a blocked room — it routes AROUND it), but it's a TILE search bounded
+//  to the engine's ~16-room horizon, not findRoute's whole-map room graph. Ample for our hop counts; the
+//  only gap is a tower whose detour exceeds that horizon. We deliberately do NOT lock the path to a
+//  towerFreeRoute corridor: the swamp detours must be free to dip into adjacent rooms for clean exits,
+//  and a strict corridor would re-break exactly that. If a far target ever needs a guaranteed long tower
+//  detour, widen this to a "safe REGION" (the towerFreeRoute corridor PLUS a margin of neighbours) as the
+//  allowed set — keeps the swamp freedom and restores the whole-map guarantee.
 // ============================================================================
 
 // Drive `creep` toward `destRoom`, letting the engine path swamp-aware within SK/tower/hot-safe rooms.
