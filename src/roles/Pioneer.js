@@ -56,10 +56,13 @@ export class Pioneer extends Role {
       return;
     }
 
-    // 1. Build the first spawn (and any other site) — the whole point of the seed.
+    // 1. Build the SPAWN first — it's the whole point of the seed (Stage 0 Founding, #228). Until it
+    //    stands the colony can't spawn for itself, so it outranks every other site (a stray container/
+    //    road must never win on mere proximity). Fall back to the nearest site once no spawn site remains.
     const sites = creep.room.find(FIND_MY_CONSTRUCTION_SITES);
     if (sites.length) {
-      const site = creep.pos.findClosestByPath(sites) || sites[0];
+      const spawnSite = sites.find((s) => s.structureType === STRUCTURE_SPAWN);
+      const site = spawnSite || creep.pos.findClosestByPath(sites) || sites[0];
       this.note(creep, "pioneer:build");
       if (creep.build(site) === ERR_NOT_IN_RANGE) creep.travelTo(site);
       return;

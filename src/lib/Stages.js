@@ -55,6 +55,26 @@ export function hasSourceContainer(colony) {
 // ----------------------------------------------------------------------------
 export const STAGES = [
   {
+    // Stage 0 — Founding (#228) is an OVERRIDE stage, like Recovery: a colony with NO spawn yet
+    // (a freshly-CLAIMED 2nd colony — its first spawn must be BUILT, unlike the home colony's
+    // manually-placed one — or any colony that lost its last spawn) preempts the whole RCL-derived
+    // progression. It MUST be an override: a non-override Founding could be leap-frogged by a later
+    // stage whose trigger is RCL/container-based, not spawn-based (e.g. pioneers upgrade the controller
+    // to RCL 2 before the spawn is built → 2:StaticMining's trigger fires while still spawnless), and
+    // `stageAtLeast("1:Bootstrap")` would wrongly read true with no spawn. As an override, `spawns
+    // .length === 0` forces the machine to the bottom regardless of RCL, so that predicate reliably
+    // means "has a spawn". The only job here: stand up the first spawn — the Hatchery places its site
+    // (SpawnPlanner), pioneers from the main colony build it; everything else (containers, miners) gates
+    // off until a spawn exists. Checked BEFORE Recovery: no spawn is the more fundamental crisis (you
+    // can't refill a spawn that doesn't exist), so a spawnless room founds rather than "recovers".
+    key: "0:Founding",
+    override: true,
+    enteredWhen: (colony) => colony.spawns.length === 0,
+    provides: ["first spawn construction site (SpawnPlanner) + pioneers build it"],
+    // Cosmetic (the override latch controls it); we leave the instant the first spawn stands.
+    readyForNextWhen: (colony) => colony.spawns.length > 0,
+  },
+  {
     // Recovery is an OVERRIDE stage (#54): it is not part of the forward
     // progression — when its trigger fires it preempts whatever RCL-derived stage
     // we'd otherwise be in. A developed colony that loses its whole workforce can't
@@ -63,8 +83,9 @@ export const STAGES = [
     // RoomHealthCheck) `currentStage` returns this stage, dropping every
     // `stageAtLeast` gate to the bottom of the machine — which reactivates Stage-1
     // bootstrap behaviour (generic self-harvesting workers refill the spawn) for
-    // free, until the colony can sustain specialists again. Sits at index 0 so
-    // `stageAtLeast(<anything past bootstrap>)` is false throughout recovery.
+    // free, until the colony can sustain specialists again. Below Founding (a
+    // workforce collapse only matters once a spawn exists), still below every normal
+    // stage so `stageAtLeast(<anything past bootstrap>)` is false throughout recovery.
     key: "Recovery",
     override: true,
     enteredWhen: (colony) => colony.health.recovering,
@@ -75,7 +96,8 @@ export const STAGES = [
   },
   {
     key: "1:Bootstrap",
-    // We're always at least bootstrapping while the room is ours.
+    // We're always at least bootstrapping while the room is ours AND has a spawn — the spawnless case
+    // is the Founding override above, so this stays the plain floor for a spawned colony.
     enteredWhen: (_colony) => true,
     provides: ["generic miners", "workers", "upgraders"],
     // Promote once we hit RCL 2 (unlocks extensions + containers) OR a source

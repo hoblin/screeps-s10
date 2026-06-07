@@ -161,6 +161,13 @@ export class MiningOverlord extends Overlord {
   //  energy into the finished container.
   // --------------------------------------------------------------------------
   ensureContainerSite() {
+    // No source container without a spawn (#228, Founding): a freshly-claimed spawnless colony must
+    // build its SPAWN first. A source container is useless without the static miner the spawn produces,
+    // and placing it during the bootstrap steals the pioneers' build effort from the spawn (the
+    // container-before-spawn bug). An explicit spawn check (not a stageAtLeast gate) so it's robust to
+    // any stage-machine edge and unaffected during Recovery (which keeps its spawn). The home colony
+    // (spawn from tick 0) is never spawnless, so it's wholly unaffected.
+    if (this.colony.spawns.length === 0) return;
     const position = this.miningPosition;
     if (!position) return;
     ContainerPlanner.ensureSite(this.room, position, "source");
