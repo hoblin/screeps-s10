@@ -13,7 +13,10 @@ import { Debug } from "../lib/Debug.js";
 //  SAME freight-turnover model (#84) summed over every source we're actually mining:
 //    N = ceil( 2·Σ(r·d)·margin / (C·v) )
 //  r = a remote miner's output, d = that source's one-way haul (static map), C =
-//  hauler capacity. Demand is summed only over sources with a LIVE miner in an
+//  hauler capacity. `margin` is per-colony ADAPTIVE (#222): a base 1.3 plus a delta the
+//  colony LEARNS from observed spill, because the static `d` is an optimistic ideal-path
+//  estimate and each colony's real round-trip inflates differently — see adaptFreightMargin.
+//  Demand is summed only over sources with a LIVE miner in an
 //  economy-safe room — so the fleet tracks real production (it grows as miners come
 //  online, not ahead of them) and ignores under-defended rooms (Threat.isHotForEconomy,
 //  #150 — a guard-held room keeps its haulers). Sustaining this haul of
@@ -35,7 +38,27 @@ import { Debug } from "../lib/Debug.js";
 //  production ("по мере выработки"). See assignTargets().
 // ============================================================================
 const HAULER_SPEED = 1; // tiles/tick on roads/plains for a 1:1 CARRY:MOVE body
-const FREIGHT_MARGIN = 1.3; // same headroom as the home freight model (#84)
+const FREIGHT_MARGIN = 1.3; // BASE headroom (#84) — a cold-start floor the per-colony delta tops up
+
+// Adaptive per-colony freight delta (#222). The fleet sizing uses `d`, the static map's terrain-weighted
+// IDEAL one-way haul. Real round-trips run longer — congestion on unroaded remote paths (#139), repathing,
+// border waits — and that optimism eats the 1.3 base, so containers cap and energy spills to the ground
+// (lost income). Every colony's geometry inflates differently, so rather than guess one bigger global
+// constant we LEARN a per-colony top-up from the unambiguous loss signal — energy on the ground at OUR
+// mined sources — and add it to the base: margin = FREIGHT_MARGIN + delta. The model stays feed-forward;
+// the delta is a slow CALIBRATION of it (EWMA + Schmitt latch + Memory.colonyData, mirroring RoomHealthCheck),
+// NOT a reactive per-tick controller. It rises only when the fleet is already fully delivered (else the spill
+// is a spawn shortfall, not a margin one — never chase a saturated spawn) and melts back toward base when the
+// spill clears (so it self-heals when remote roads land). Remote-only: home haul is short + roaded + works.
+const FREIGHT_DELTA_MAX = 0.7;    // cap so the effective margin stays in [1.3, 2.0] — no runaway over-stuffing
+const FREIGHT_DELTA_STEP = 0.1;   // rise per decision when chronically spilling (additive increase)
+const FREIGHT_DELTA_DECAY = 0.05; // fall per decision when clearly not spilling — slower than the rise
+const SPILL_ENERGY = 150;         // dropped energy at a mined source above which it counts as overflowing
+const SPILL_ALPHA = 0.05;         // EWMA weight for the spill ratio (~20-sample memory), like IDLE_ALPHA
+const SPILL_HIGH = 0.25;          // spill-ratio at/above which the margin is too low → raise the delta
+const SPILL_LOW = 0.05;           // ...and at/below which drain has caught up → ease it back (dead zone = hold)
+const ADAPT_INTERVAL = 50;        // ticks between delta steps — ~a hauler's travel, so each step's effect
+                                  // settles into the EWMA before the next decision (calibrate, don't hunt)
 
 export class RemoteLogisticsOverlord extends Overlord {
   constructor(colony) {
@@ -57,7 +80,14 @@ export class RemoteLogisticsOverlord extends Overlord {
       .filter((s) => isFinite(s.dist) && !Threat.isHotForEconomy(s.room) && mined.has(this.sourceKey(s)))
       .reduce((sum, s) => sum + rate * s.dist, 0); // Σ r·d (tonne-tiles/tick)
     if (demand === 0) return 0;
-    return Math.max(1, Math.ceil((2 * demand * FREIGHT_MARGIN) / (carry * HAULER_SPEED)));
+    const margin = FREIGHT_MARGIN + this.freightDelta(); // base + the learned per-colony top-up (#222)
+    return Math.max(1, Math.ceil((2 * demand * margin) / (carry * HAULER_SPEED)));
+  }
+
+  // The learned per-colony freight top-up (0 until calibrated), persisted in Memory.colonyData like every
+  // other cross-tick colony signal — the Colony (and this overlord) is rebuilt each tick.
+  freightDelta() {
+    return Memory.colonyData?.[this.colony.name]?.freight?.delta || 0;
   }
 
   // The body is the model's: read it off the unit's default behavior (the remoteHaul
@@ -73,15 +103,69 @@ export class RemoteLogisticsOverlord extends Overlord {
     return req;
   }
 
-  // Balanced dispatch (#204), then drive the creeps. Runs BEFORE super.run() so the
-  // behavior reads a fresh target the same tick.
+  // Calibrate the per-colony freight margin from observed spill (#222), balanced-dispatch (#204),
+  // then drive the creeps. assignTargets runs BEFORE super.run() so the behavior reads a fresh target
+  // the same tick.
   run() {
+    this.adaptFreightMargin();
     this.assignTargets();
     super.run();
   }
 
   runCreep(creep) {
     RemoteHauler.run(creep, this.colony);
+  }
+
+  // Calibrate the per-colony freight delta from observed under-drain (#222). Every tick we EWMA the fraction
+  // of our visible, actively-mined remote sources that are SPILLING energy to the ground — the unambiguous
+  // "the fleet is behind" signal (a miner only drops on the floor once its container is full). On a slow
+  // interval we step the delta: UP when chronically spilling AND the fleet is already fully delivered (so we
+  // KNOW the margin is short, not a spawn that hasn't caught up — the saturation trap, #220/#222), DOWN once
+  // the spill clears. Slow + hysteretic so it calibrates rather than hunts; the feed-forward sizing formula is
+  // untouched, it just gets a per-colony-correct margin.
+  //
+  // Recovery: we HOLD the delta, not reset it. desiredCount returns 0 while recovering so the delta has no
+  // effect anyway, and the geometry it encodes (haul inflation) doesn't change across a workforce crisis — so
+  // the calibration is still valid when the economy comes back. If a stale delta were left too high, it
+  // self-corrects: the rebuilt fleet won't be spilling, so the DOWN branch decays it back toward base. (No
+  // sudden over-spawn either — the target tracks active miners as they return, the delta just sizes it.)
+  adaptFreightMargin() {
+    if (this.colony.health.recovering) return;
+
+    const ratio = this.spillRatio();
+    if (ratio === null) return; // no vision on any mined remote → can't observe; hold the signal + delta
+
+    Memory.colonyData ||= {};
+    const cd = (Memory.colonyData[this.colony.name] ||= {});
+    const f = (cd.freight ||= { delta: 0, spill: 0 });
+    f.spill = f.spill * (1 - SPILL_ALPHA) + ratio * SPILL_ALPHA;
+
+    if (Game.time % ADAPT_INTERVAL !== 0) return; // step only on the interval — let the EWMA settle between steps
+
+    const delivered = this.assignedCreeps.filter((c) => !c.spawning).length >= this.desiredCount();
+    if (f.spill >= SPILL_HIGH && delivered) {
+      f.delta = Math.min(FREIGHT_DELTA_MAX, f.delta + FREIGHT_DELTA_STEP);
+    } else if (f.spill <= SPILL_LOW) {
+      f.delta = Math.max(0, f.delta - FREIGHT_DELTA_DECAY);
+    }
+  }
+
+  // Fraction of our ACTIVELY-MINED, currently-VISIBLE remote sources that are spilling energy on the ground
+  // (container full → miner drops on the floor → income decaying). null when we can see none of them — no
+  // observation, so the caller holds the signal rather than reading a false zero. Only mined sources count;
+  // an un-mined source never spills.
+  spillRatio() {
+    const mined = this.minedSources();
+    let visible = 0;
+    let spilling = 0;
+    for (const s of this.colony.remoteSources()) {
+      if (!mined.has(this.sourceKey(s))) continue;
+      const st = this.drainState(s);
+      if (!st) continue; // no vision on this room
+      visible++;
+      if (st.dropped >= SPILL_ENERGY) spilling++;
+    }
+    return visible ? spilling / visible : null;
   }
 
   // Assign each FREE hauler a balanced remote source, rate-matched and claim-aware so the
@@ -176,23 +260,44 @@ export class RemoteLogisticsOverlord extends Overlord {
     }
   }
 
-  // Energy waiting at a source we can see: the miner's dropped pile (within range 2) plus the source
-  // container's store once built (#114). No vision → 0 (the value tie-break carries the choice). Mirrors
-  // the old role-side pickHaulTarget pending, now owned by the controller.
-  pendingAt(s) {
-    const room = Game.rooms[s.room];
-    if (!room) return 0;
-    let pending = new RoomPosition(s.x, s.y, s.room)
-      .findInRange(FIND_DROPPED_RESOURCES, 2, { filter: (r) => r.resourceType === RESOURCE_ENERGY })
-      .reduce((sum, r) => sum + r.amount, 0);
-    const cinfo = Memory.colonyData?.[this.colony.name]?.remoteContainers?.[this.sourceKey(s)];
-    if (cinfo && cinfo.hits != null) {
-      const container = new RoomPosition(cinfo.x, cinfo.y, s.room)
-        .lookFor(LOOK_STRUCTURES)
-        .find((st) => st.structureType === STRUCTURE_CONTAINER);
-      if (container) pending += container.store[RESOURCE_ENERGY];
+  // Energy waiting at a source we can see, split into ground vs container: the miner's dropped pile (within
+  // range 2) and the source container's store once built (#114). null with NO vision (Game.rooms[s.room]
+  // absent) — the caller decides what no-observation means. Dispatch sums it (pendingAt); the spill calibration
+  // reads the ground part on its own (#222), so the split lives here in one place rather than two scans.
+  //
+  // Memoized per tick: both the spill read (spillRatio) and every dispatch read (pendingAt) hit a source in the
+  // same run() — without the cache that's two FIND_DROPPED_RESOURCES + LOOK_STRUCTURES scans per mined source
+  // per tick. The overlord instance is rebuilt every tick (Colony rebuilds its overlords), so the field is
+  // naturally fresh each tick — same per-tick-memo pattern as Colony._health / _remoteSources.
+  drainState(s) {
+    const key = this.sourceKey(s);
+    const cache = (this._drain ||= {});
+    if (key in cache) return cache[key];
+
+    let state = null;
+    if (Game.rooms[s.room]) {
+      const dropped = new RoomPosition(s.x, s.y, s.room)
+        .findInRange(FIND_DROPPED_RESOURCES, 2, { filter: (r) => r.resourceType === RESOURCE_ENERGY })
+        .reduce((sum, r) => sum + r.amount, 0);
+      let container = 0;
+      const cinfo = Memory.colonyData?.[this.colony.name]?.remoteContainers?.[key];
+      if (cinfo && cinfo.hits != null) {
+        const c = new RoomPosition(cinfo.x, cinfo.y, s.room)
+          .lookFor(LOOK_STRUCTURES)
+          .find((st) => st.structureType === STRUCTURE_CONTAINER);
+        if (c) container = c.store[RESOURCE_ENERGY];
+      }
+      state = { dropped, container };
     }
-    return pending;
+    cache[key] = state;
+    return state;
+  }
+
+  // Total energy waiting at a source we can see (ground + container), 0 with no vision — the dispatch draw
+  // signal (the value tie-break carries the choice when blind). Mirrors the old role-side pickHaulTarget.
+  pendingAt(s) {
+    const st = this.drainState(s);
+    return st ? st.dropped + st.container : 0;
   }
 
   // Sources whose miner has actually ARRIVED at its source room (not spawning, crossing, or retreating)
