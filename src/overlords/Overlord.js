@@ -35,7 +35,7 @@ export class Overlord {
    * request and WAITS if it can't afford it — so this ladder IS a strict gate, lower tiers spawn only
    * when nothing higher wants spawning; each overlord documents its own rank). Current ladder:
    *   1 Mining(home)/Defense/Filler · 2 Work/RemoteMining/Warband · 3 Logistics/Scout · 4 Upgrade/Guard ·
-   *   5 Reserve/RemoteWork/RemoteLogistics.
+   *   5 Reserve/RemoteWork/RemoteLogistics/Claim(claimer+pioneer).
    * RemoteMining sits at 2 (above Scout at 3) so remote income isn't starved by the score-scout fleet
    * (#210); its expansionReady gate (home-economy health) keeps it from requesting before home is staffed.
    * New overlord: pick a tier, set it in super(colony, { priority }).

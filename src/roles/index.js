@@ -13,6 +13,8 @@ import { Scout } from "./Scout.js";
 import { Hunter } from "./Hunter.js";
 import { Filler } from "./Filler.js";
 import { Combatant } from "./Combatant.js";
+import { Claimer } from "./Claimer.js";
+import { Pioneer } from "./Pioneer.js";
 
 // ============================================================================
 //  Role registry — the one place that maps a creep's role STRING (as stored in
@@ -25,9 +27,9 @@ import { Combatant } from "./Combatant.js";
 //    1. Register it in the ROLES map below (role string → class).
 //    2. Set its static `movementPriority` (lower wins tile contention; each role documents
 //       its own rank). Current ladder: 1 miner · 2 hauler/harvester/filler ·
-//       3 guard/combatant/upgrader/worker/remoteHauler · 4 remoteWorker/(default) ·
-//       5 remoteMiner/reserver · 8 scout. Also set `static avoidHostiles = true` if it's a
-//       non-combat creep that traverses contested space (#145 — routes around kill-zones).
+//       3 guard/combatant/upgrader/worker/remoteHauler/pioneer · 4 remoteWorker/(default) ·
+//       5 remoteMiner/reserver/claimer · 8 scout. Also set `static avoidHostiles = true` if it's
+//       a non-combat creep that traverses contested space (#145 — routes around kill-zones).
 //    3. Wire an Overlord to spawn/run it in Colony.js (+ its spawn `priority` — ladder in
 //       Overlord.js).
 // ============================================================================
@@ -46,6 +48,8 @@ export const ROLES = {
   hunter: Hunter, // solo blocker-clearer → freeHunter (#187), a thin BehaviorMachine role (ScoutOverlord)
   filler: Filler,
   combatant: Combatant, // generic warband creep — conduct from its memory.behaviors set (#39)
+  claimer: Claimer, // CLAIM creep that takes a designated 2nd colony (#220, ClaimOverlord)
+  pioneer: Pioneer, // WORK/CARRY/MOVE seed that bootstraps the new colony's first spawn (#220)
 };
 
 // Resolve a role string to its class, defaulting to the base Role (so an unknown
