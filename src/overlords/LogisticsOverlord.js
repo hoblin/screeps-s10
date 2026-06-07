@@ -67,18 +67,18 @@ export class LogisticsOverlord extends Overlord {
     if (cached && cached.cap === cap && cached.carry === carry && Number.isFinite(cached.count)) {
       return cached.count;
     }
-    const count = this.computeFleet(cap);
+    const count = this.computeFleet(cap, carry);
     if (count == null) return this.colony.sources.length; // geometry not ready → baseline
     this.fleetCache = { cap, carry, count };
     return count;
   }
 
-  // The freight model. Returns null when the geometry isn't available yet (a
-  // missing or unreachable container), signalling desiredCount to use the baseline.
-  computeFleet(cap) {
+  // The freight model. `carry` (one hauler's capacity) is passed in from desiredCount, already computed
+  // for the cache key — building a body array isn't free, so we don't recompute it. Returns null when
+  // the geometry isn't available yet (a missing or unreachable container), so desiredCount uses the baseline.
+  computeFleet(cap, carry) {
     const dropoff = this.colony.controllerDropoffPos();
     if (!dropoff) return null;
-    const carry = Hauler.capacityAt(cap);
     if (!carry) return null;
 
     const ratePerSource = Miner.harvestRateAt(cap); // one static miner per source (v1)
