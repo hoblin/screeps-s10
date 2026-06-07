@@ -90,10 +90,15 @@ export class GuardOverlord extends Overlord {
   // in the owned child lives in Threat.assess (the +1-per-raser/declaimer in owned rooms).
   foundedChildTarget() {
     const t = Memory.expansion?.claimTarget;
-    if (!t || !t.room) return null;
+    if (!t || !t.room || !t.controller) return null; // not a fully-formed claim order (mirror ClaimOverlord)
     if ((t.home || this.colony.name) !== this.colony.name) return null; // not a child WE founded
     const child = t.room;
-    if (this.childSelfDefends(child)) return null; // it has its own tower now → its GuardOverlord covers it
+    const room = Game.rooms[child];
+    // Scope to the contract — a CLAIMED child colony WE OWN. No vision / not-yet-claimed (claimer's job) /
+    // a stale-or-unrelated claimTarget room → not ours to garrison (and with no vision there's no fresh
+    // threat intel to act on anyway). This is what stops a guard chasing an unowned room a scout flagged hot.
+    if (!room || !room.controller?.my) return null;
+    if (this.childSelfDefends(room)) return null; // it has its own tower now → its GuardOverlord covers it
     if (!Threat.isHot(child)) return null;
     const profile = Threat.killableProfile(child); // a mobile threat a guard can kill (incl. a dismantler)
     if (!profile) return null;
@@ -102,13 +107,10 @@ export class GuardOverlord extends Overlord {
   }
 
   // Can the founded child defend itself yet? True once it has a TOWER (its own auto-defense; by then it
-  // also fields its own guards) — the founder then stops covering it. No vision (no creep there) → assume
-  // NOT yet (keep covering); with no vision there's no fresh threat intel anyway, so isHot gates the
-  // actual dispatch. A tower (RCL3) is the capability line — stopping earlier (at first spawn) would just
-  // re-expose the colony to the spawn-raze cycle this feature exists to break.
-  childSelfDefends(child) {
-    const room = Game.rooms[child];
-    if (!room) return false;
+  // also fields its own guards) — the founder then stops covering it. A tower (RCL3) is the capability
+  // line; stopping earlier (at first spawn) would just re-expose the colony to the spawn-raze cycle this
+  // feature exists to break. Called only with vision (foundedChildTarget gates on an owned, visible child).
+  childSelfDefends(room) {
     return room.find(FIND_MY_STRUCTURES, { filter: (s) => s.structureType === STRUCTURE_TOWER }).length > 0;
   }
 
