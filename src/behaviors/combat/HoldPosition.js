@@ -1,6 +1,7 @@
 import { CombatBehaviour } from "./CombatBehaviour.js";
-import { shoot, meleeStrike, travelToRoom } from "./atoms/acts.js";
+import { shoot, meleeStrike } from "./atoms/acts.js";
 import { nearestHostile } from "./atoms/selectors.js";
+import { routeToRoom } from "../../lib/Transit.js";
 import { steer, enemyField, separation, attract, PRIORITY_HOLD, APPROACH_RANGE } from "./atoms/field.js";
 
 const HOLD_ZONE = 6; // only hostiles within this of the held point influence the squad — a lure darting
@@ -23,9 +24,10 @@ export class HoldPosition extends CombatBehaviour {
     const point = this.holdPos(creep);
     if (!point) return false; // unpinned → nothing to hold
     if (creep.room.name !== point.roomName) {
-      // Danger-aware transit to the theatre (#197 — route around what we can't beat); the field takes
-      // over in-room. No safe corridor → hold here rather than walk blind into a tower/unwinnable room.
-      if (travelToRoom(creep, point.roomName)) this.note(creep, "hold:to-room");
+      // Danger-aware, swamp-aware transit to the theatre (#197/#230 — route around what we can't beat, one
+      // committed engine path); the field takes over in-room. No safe corridor → hold here rather than walk
+      // blind into a tower/unwinnable room.
+      if (routeToRoom(creep, point.roomName, { allowUnscouted: false, clearer: creep })) this.note(creep, "hold:to-room");
       else this.note(creep, "hold:blocked");
       return true;
     }

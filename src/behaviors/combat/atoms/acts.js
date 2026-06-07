@@ -1,7 +1,5 @@
 import { KITE_RANGE } from "../../../lib/Movement.js";
-import { towerFreeRoute, routeRoomBlocked } from "../../../lib/Routing.js";
 import { steer, enemyField, separation, APPROACH_RANGE } from "./field.js";
-import { Debug } from "../../../lib/Debug.js";
 
 // ============================================================================
 //  Combat acts (#189) — the EXECUTION primitives: each takes a creep + an already
@@ -68,49 +66,6 @@ export function meleeHit(creep, target, opts = {}) {
 // Close to within `range` of a target (no attack — the caller fires separately).
 export function closeTo(creep, target, range, opts = {}) {
   creep.travelTo(target, { range, ...opts });
-}
-
-// Cross-room transit that ROUTES AROUND danger it can't beat — towered rooms and UNWINNABLE hot rooms —
-// while passing THROUGH a winnable hot room (clearing it in passing, judged against this creep's body).
-// COMMITS to the computed safe corridor (cached in creep.memory._transit) and walks it hop-by-hop by the
-// creep's current-room index, exactly like the Scout's cached route. It re-runs findRoute ONLY when there's
-// no forward hop, the creep was shoved off the corridor, the destination changed, or the committed next hop
-// turned dangerous (a cheap per-hop intel check) — NOT every tick. Per-tick recompute was the #213 border
-// yo-yo: findRoute from each side of a border disagrees across a hot-zone cost ridge (room A → B, B → A),
-// so a stateless mover ping-pongs on the border forever. Committing the corridor restores the economy-grade
-// stability (a stable moveTo target the engine's reusePath can cache) while keeping the tower-free safety.
-// Returns true if it has a leg to walk, false if already there OR no safe corridor exists (the caller
-// decides what a trapped unit does — hold, pick another target).
-export function travelToRoom(creep, room, { range = 20, allowUnscouted = false } = {}) {
-  if (creep.room.name === room) {
-    // Seed debug event (#215): reached the target room. Gate on _transit so it fires
-    // once on arrival (the corridor was still committed last tick), not every tick we
-    // sit in the destination. No-op unless this creep/role is debug-enabled.
-    if (creep.memory._transit) {
-      Debug.for(creep.memory.role, creep.name).event(() => ({ ev: "arrived", room }));
-    }
-    delete creep.memory._transit; // arrived — drop the committed corridor
-    return false;
-  }
-  const m = creep.memory;
-  const plan = m._transit;
-  // Our position along a still-valid committed corridor (same destination, current room on it).
-  const idx = plan && plan.dest === room ? plan.rooms.indexOf(creep.room.name) : -1;
-  let nextHop = idx >= 0 ? plan.rooms[idx + 1] : null;
-  // (Re)route only when we have no committed forward hop, or it just turned dangerous — not every tick.
-  if (!nextHop || routeRoomBlocked(nextHop, { allowUnscouted, clearer: creep })) {
-    // `clearer: creep` lets a winnable hot leg stay on-route (we clear it in passing); judged via winnableBy.
-    const route = towerFreeRoute(creep.room.name, room, { allowUnscouted, avoidHot: true, clearer: creep });
-    if (!route) {
-      delete m._transit;
-      return false; // no safe corridor — trapped; caller's fallback handles it
-    }
-    // Cache the corridor INCLUDING the current room, so the current-room index walks it forward.
-    m._transit = { dest: room, rooms: [creep.room.name, ...route.map((r) => r.room)] };
-    nextHop = m._transit.rooms[1] || room; // first hop after the current room (or the dest if adjacent)
-  }
-  creep.travelTo(new RoomPosition(25, 25, nextHop), { range });
-  return true;
 }
 
 // Damage a target by body, closing to reach — NO kite. For a target to kill outright rather than

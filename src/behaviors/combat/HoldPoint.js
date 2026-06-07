@@ -1,6 +1,7 @@
 import { CombatBehaviour } from "./CombatBehaviour.js";
 import { Engage } from "./Engage.js";
-import { holdAnchor, travelToRoom } from "./atoms/acts.js";
+import { holdAnchor } from "./atoms/acts.js";
+import { routeToRoom } from "../../lib/Transit.js";
 
 // ============================================================================
 //  HoldPoint — the DEFENCE archetype: garrison an assigned spot and keep it clear.
@@ -15,8 +16,9 @@ export class HoldPoint extends CombatBehaviour {
     if (!point) return false; // unassigned → nothing to hold
 
     if (creep.room.name !== point.roomName) {
-      // Danger-aware transit (#197): route around hot/towered rooms en route to the post.
-      if (travelToRoom(creep, point.roomName)) {
+      // Danger-aware, swamp-aware transit (#197/#230): route around hot/towered rooms en route to the post,
+      // one committed engine path so a swamp-penalised body can't yo-yo on a border.
+      if (routeToRoom(creep, point.roomName, { allowUnscouted: false, clearer: creep })) {
         this.note(creep, "hold:to-room");
         return true;
       }

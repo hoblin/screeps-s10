@@ -53,11 +53,12 @@ Combat creeps carry no hardcoded conduct: each is a **thin state machine** whose
   `raidRoom` (deny/raze a room), `freeHunter` (roam remotes + kill), `focusFire`, `healGroup`,
   `holdPosition`, `killClosest`, … composed via `fallback`/`sequence` combinators.
 - **Atoms** (`src/behaviors/combat/atoms/`) — shared `acts` (execution verbs: `shoot`, `meleeHit`,
-  `kiteStep`, `strike`, `travelToRoom`, …) and `selectors` (target policy), plus the magnet
+  `kiteStep`, `strike`, …) and `selectors` (target policy), plus the magnet
   **potential-field** steering (`field.js`) for close-combat micro.
-- **Danger-aware transit** — `travelToRoom` routes via `Routing.towerFreeRoute` (avoid towered and
-  unwinnable hot rooms; pass THROUGH a winnable hot room, clearing it in passing), so no mode walks
-  blind under a tower or into a losing fight.
+- **Danger-aware transit** — `Transit.routeToRoom` (shared with the economy claim/pioneer movers, #230)
+  routes via `Routing.towerFreeRoute` (avoid towered and unwinnable hot rooms; a combat unit passes
+  THROUGH a winnable hot room, clearing it in passing), one committed swamp-aware engine path, so no
+  mode walks blind under a tower, into a losing fight, or yo-yos on a swampy border.
 
 ## Build
 
