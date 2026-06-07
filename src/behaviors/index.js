@@ -12,6 +12,7 @@ import { Engage } from "./combat/Engage.js";
 import { FreeHunter } from "./combat/FreeHunter.js";
 import { RoamNeighbour } from "./combat/RoamNeighbour.js";
 import { HoldGround } from "./combat/HoldGround.js";
+import { SelfDefense } from "./combat/SelfDefense.js";
 import { RemoteHaul } from "./economy/RemoteHaul.js";
 
 // ============================================================================
@@ -53,6 +54,10 @@ import { RemoteHaul } from "./economy/RemoteHaul.js";
 //   • roamNeighbour — freeHunter's sweep leg: patrol the protected remotes in turn (danger-aware).
 //   • holdGround — the post-combat hold (#160): hold the contested spot for a few ticks after a fight
 //                  and re-engage returners, before walking back to the post. A node over holdPoint.
+//   • selfDefense — en-route survival OVERRIDE (#232): a TRANSITING unit preempts its route to fight an
+//                  ARMED hostile that gets close enough to hit it (in-range only — defend, don't chase),
+//                  then resumes. Entry/exit edges; scoped to transit so it never clobbers a destination's
+//                  own conduct. Place FIRST in a role's nodes (self-preservation preempts the mission).
 //
 //  ECONOMY (#204 — the first non-combat behavior; extends the neutral Behavior base directly):
 //   • remoteHaul — carry a remote source's energy home. Executes the source the
@@ -73,6 +78,7 @@ export const BEHAVIORS = {
   freeHunter: FreeHunter,
   roamNeighbour: RoamNeighbour,
   holdGround: HoldGround,
+  selfDefense: SelfDefense,
   remoteHaul: RemoteHaul,
 };
 
