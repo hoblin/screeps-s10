@@ -29,6 +29,11 @@ import { Threat } from "./Threat.js";
 //     blockers (the home economy is healthy enough to spend a few claimers — Женя).
 // ============================================================================
 
+// How long a TRAPPED unit (no tower-free corridor exists right now) holds before re-probing,
+// so it doesn't re-run Game.map.findRoute every tick — the per-tick churn this helper avoids.
+// Intel may reopen a path within the window (a tower decays out of intel, a blocker is cleared).
+const ROUTE_RETRY_BACKOFF = 25;
+
 // Drive `creep` toward `destRoom` along a committed tower-free corridor, walked leg-by-leg.
 // Returns true while still travelling, false once IN destRoom (the caller does the precise
 // in-room approach) OR when no safe corridor exists (a trapped unit — the caller's fallback).
@@ -53,13 +58,17 @@ export function routeToRoom(creep, destRoom, { range = 20 } = {}) {
   let next = idx >= 0 ? plan.rooms[idx + 1] : null;
   if (!next) {
     // No committed corridor, destination changed, or we were shoved off it → (re)plan ONCE.
+    // But hold off if we just failed: a trapped unit must not re-run findRoute every tick.
+    if (m._routeRetry && Game.time < m._routeRetry) return false;
     // Scout variant: allowUnscouted (probing the unscouted is fine), no avoidHot/clearer —
     // route around known towers + SK only, walk everything else directly.
     const route = towerFreeRoute(creep.room.name, destRoom, { allowUnscouted: true });
     if (!route) {
       delete m._route;
-      return false; // no tower-free corridor exists — trapped; caller decides (idle / recycle)
+      m._routeRetry = Game.time + ROUTE_RETRY_BACKOFF; // trapped — re-probe later, not every tick
+      return false; // no tower-free corridor exists; caller decides (idle / recycle)
     }
+    delete m._routeRetry;
     m._route = { dest: destRoom, rooms: [creep.room.name, ...route.map((r) => r.room)] };
     next = m._route.rooms[1] || destRoom;
   }

@@ -42,14 +42,16 @@ export class Claimer extends Role {
     }
     const { room: targetRoom, controller: cp } = target;
 
-    if (creep.room.name !== targetRoom) {
-      // Scout-style transit (#225): walk the committed tower/keeper-free corridor leg-by-leg
-      // (no per-tick re-route to yo-yo on) and bump scoutThreat on damage so the hunter clears
-      // a real blocker. routeToRoom returns false only when no tower-free corridor exists.
+    // Scout-style transit (#225): walk the committed tower/keeper-free corridor leg-by-leg (no
+    // per-tick re-route to yo-yo on) and bump scoutThreat on damage so the hunter clears a real
+    // blocker. Called UNCONDITIONALLY so the helper owns the route lifecycle (it clears _route on
+    // arrival); a `true` return means still travelling, `false` means arrived OR trapped.
+    if (routeToRoom(creep, targetRoom)) {
       this.note(creep, "claim:to-room");
-      if (!routeToRoom(creep, targetRoom)) {
-        this.note(creep, "claim:no-route"); // trapped — hold, intel may reopen a path
-      }
+      return;
+    }
+    if (creep.room.name !== targetRoom) {
+      this.note(creep, "claim:no-route"); // trapped — hold, intel may reopen a path
       return;
     }
 
