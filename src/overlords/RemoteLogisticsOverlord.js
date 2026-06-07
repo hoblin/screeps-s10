@@ -122,7 +122,13 @@ export class RemoteLogisticsOverlord extends Overlord {
   // interval we step the delta: UP when chronically spilling AND the fleet is already fully delivered (so we
   // KNOW the margin is short, not a spawn that hasn't caught up — the saturation trap, #220/#222), DOWN once
   // the spill clears. Slow + hysteretic so it calibrates rather than hunts; the feed-forward sizing formula is
-  // untouched, it just gets a per-colony-correct margin. Skipped during recovery (the fleet is zeroed anyway).
+  // untouched, it just gets a per-colony-correct margin.
+  //
+  // Recovery: we HOLD the delta, not reset it. desiredCount returns 0 while recovering so the delta has no
+  // effect anyway, and the geometry it encodes (haul inflation) doesn't change across a workforce crisis — so
+  // the calibration is still valid when the economy comes back. If a stale delta were left too high, it
+  // self-corrects: the rebuilt fleet won't be spilling, so the DOWN branch decays it back toward base. (No
+  // sudden over-spawn either — the target tracks active miners as they return, the delta just sizes it.)
   adaptFreightMargin() {
     if (this.colony.health.recovering) return;
 
@@ -258,20 +264,33 @@ export class RemoteLogisticsOverlord extends Overlord {
   // range 2) and the source container's store once built (#114). null with NO vision (Game.rooms[s.room]
   // absent) — the caller decides what no-observation means. Dispatch sums it (pendingAt); the spill calibration
   // reads the ground part on its own (#222), so the split lives here in one place rather than two scans.
+  //
+  // Memoized per tick: both the spill read (spillRatio) and every dispatch read (pendingAt) hit a source in the
+  // same run() — without the cache that's two FIND_DROPPED_RESOURCES + LOOK_STRUCTURES scans per mined source
+  // per tick. The overlord instance is rebuilt every tick (Colony rebuilds its overlords), so the field is
+  // naturally fresh each tick — same per-tick-memo pattern as Colony._health / _remoteSources.
   drainState(s) {
-    if (!Game.rooms[s.room]) return null;
-    const dropped = new RoomPosition(s.x, s.y, s.room)
-      .findInRange(FIND_DROPPED_RESOURCES, 2, { filter: (r) => r.resourceType === RESOURCE_ENERGY })
-      .reduce((sum, r) => sum + r.amount, 0);
-    let container = 0;
-    const cinfo = Memory.colonyData?.[this.colony.name]?.remoteContainers?.[this.sourceKey(s)];
-    if (cinfo && cinfo.hits != null) {
-      const c = new RoomPosition(cinfo.x, cinfo.y, s.room)
-        .lookFor(LOOK_STRUCTURES)
-        .find((st) => st.structureType === STRUCTURE_CONTAINER);
-      if (c) container = c.store[RESOURCE_ENERGY];
+    const key = this.sourceKey(s);
+    const cache = (this._drain ||= {});
+    if (key in cache) return cache[key];
+
+    let state = null;
+    if (Game.rooms[s.room]) {
+      const dropped = new RoomPosition(s.x, s.y, s.room)
+        .findInRange(FIND_DROPPED_RESOURCES, 2, { filter: (r) => r.resourceType === RESOURCE_ENERGY })
+        .reduce((sum, r) => sum + r.amount, 0);
+      let container = 0;
+      const cinfo = Memory.colonyData?.[this.colony.name]?.remoteContainers?.[key];
+      if (cinfo && cinfo.hits != null) {
+        const c = new RoomPosition(cinfo.x, cinfo.y, s.room)
+          .lookFor(LOOK_STRUCTURES)
+          .find((st) => st.structureType === STRUCTURE_CONTAINER);
+        if (c) container = c.store[RESOURCE_ENERGY];
+      }
+      state = { dropped, container };
     }
-    return { dropped, container };
+    cache[key] = state;
+    return state;
   }
 
   // Total energy waiting at a source we can see (ground + container), 0 with no vision — the dispatch draw
