@@ -1,12 +1,12 @@
 import { CombatBehaviour } from "./CombatBehaviour.js";
-import { travelToRoom } from "./atoms/acts.js";
+import { routeToRoom } from "../../lib/Transit.js";
 
 // ============================================================================
 //  RoamNeighbour (#187) — the sweep leg of freeHunter: with nothing to fight here, patrol the
 //  colony's protected remotes in turn so an idle combat unit denies the whole footprint instead
 //  of standing on one tile (or recycling). A cursor in memory cycles the sweep set; on arrival at
 //  the current target it advances to the next. Transit is danger-aware (skips hot/towered corridors
-//  via travelToRoom) — a roamer never walks blind into a tower or an Invader room.
+//  via routeToRoom) — a roamer never walks blind into a tower or an Invader room.
 //
 //  The sweep set is the colony's remote-mining rooms (the economy worth screening). A remote with no
 //  safe corridor right now is skipped to the next — the cursor moves on rather than the unit stalling.
@@ -32,7 +32,7 @@ export class RoamNeighbour extends CombatBehaviour {
     }
     creep.memory.roamIndex = i;
 
-    if (travelToRoom(creep, rooms[i])) {
+    if (routeToRoom(creep, rooms[i], { allowUnscouted: false, clearer: creep })) {
       this.note(creep, "roam:sweep");
       return true;
     }

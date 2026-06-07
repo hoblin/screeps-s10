@@ -1,7 +1,8 @@
 import { CombatBehaviour } from "./CombatBehaviour.js";
 import { Engage } from "./Engage.js";
-import { strike, holdAnchor, travelToRoom } from "./atoms/acts.js";
+import { strike, holdAnchor } from "./atoms/acts.js";
 import { priorityTarget } from "./atoms/selectors.js";
+import { routeToRoom } from "../../lib/Transit.js";
 
 // ============================================================================
 //  RaidRoom — the OFFENCE archetype: travel to memory.target room (hunting
@@ -37,8 +38,9 @@ export class RaidRoom extends CombatBehaviour {
       // along the corridor); otherwise press on. We never divert off-route to chase (#140).
       const owner = creep.memory.targetOwner;
       if (owner && Engage.run(creep, colony, { ownerFilter: owner })) return true;
-      // Danger-aware transit (#197): route around hot/towered rooms instead of walking blind into them.
-      if (travelToRoom(creep, room)) {
+      // Danger-aware, swamp-aware transit (#197/#230): route around hot/towered rooms (clearing a winnable
+      // hot room in passing), one committed engine path so a swamp-penalised body can't yo-yo on a border.
+      if (routeToRoom(creep, room, { allowUnscouted: false, clearer: creep })) {
         this.note(creep, "raid:to-room");
         return true;
       }
