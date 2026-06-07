@@ -27,7 +27,12 @@ const SPAWN_IDLE_SCALE = 20; // scouts per unit of spawn-idle EWMA (#170): a SEC
 // signal — when the spawn isn't continuously spawning, fill the spare cycles with score scouts.
 // ~0.5 idle → the cap; ~0 (busy spawn) → 0. Combined with the storage term via MAX, so whichever
 // spare-capacity signal is more permissive sets the count. Ship-and-observe.
-const SCAN_RADIUS = 6; // BFS room-radius from home to consider (a scout's reach)
+const SCAN_RADIUS = 10; // BFS room-radius from home — the reach of BOTH the scout candidate pool AND the
+// hunter's blocker scan. Widened 6→10: SCORE is the season win and it's banked per room a scout reaches, so a
+// larger pool = more Score grabbed (and the hunter covers the whole expansion corridor + beyond, #225). Each
+// scout leg is still ROUTE_CAP-capped, so scouts fan out further over successive legs rather than over-reaching
+// in one. CPU: roomsWithinRadius grows ~quadratically with radius, but it's memoized per tick (blocker) / only
+// runs on a route replan (candidateRooms) — affordable, and the count self-throttles on the economy.
 const ROUTE_CAP = 8; // max rooms per assigned leg (loose TTL cap; early death frees the tail)
 const STALE_MAX = 20000; // staleness cap; a never-seen room uses this as its age
 const CLAIMED_PENALTY = 0.1; // another scout's queued room: deprioritise, don't exclude
