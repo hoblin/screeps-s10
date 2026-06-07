@@ -33,13 +33,11 @@ export class Pioneer extends Work {
     if (!targetRoom) return; // unassigned — the role's lifecycle guard handles orphans (recycle home)
 
     // SK-safe, swamp-aware engine transit (#225/#227): one committed trip toward the child, routing
-    // around SK/towered/hot rooms. Returns true while travelling — hold off the work cycle until arrived.
+    // around SK/towered/hot rooms. In economy mode (no clearer) routeToRoom returns false ONLY on
+    // arrival, so a false return means we're in the child room — no "trapped" disambiguation needed
+    // (that path is combat-clearer-only); travel keeps the work cycle on hold until then.
     if (routeToRoom(creep, targetRoom)) {
       this.note(creep, "pioneer:to-room");
-      return;
-    }
-    if (creep.room.name !== targetRoom) {
-      this.note(creep, "pioneer:no-route"); // trapped en route (no safe corridor) — idle this tick
       return;
     }
 
