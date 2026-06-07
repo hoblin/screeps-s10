@@ -46,6 +46,17 @@ export const Threat = {
   assess(room, hostiles = room.find(FIND_HOSTILE_CREEPS)) {
     let threat = 0;
     for (const hostile of hostiles) threat += this.combatPower(hostile);
+    // A hostile DISMANTLER (WORK → razes our structures) or DECLAIMER (CLAIM → attacks our controller) has
+    // no combat parts → combatPower 0, so it's harmless to our CREEPS but lethal to our COLONY. In a room WE
+    // OWN (home or a founded child) that's a real threat worth a guard, so flag each like an invader core
+    // (+1) — enough to read hot and size a CHEAP melee guard (a defenseless raser/declaimer dies easily, so
+    // winnable stays trivially true). Scoped to owned rooms, so a harmless WORK/CLAIM economy creep in a
+    // neutral/remote room still scores 0 (the husk/economy invariant #105).
+    if (room.controller?.my) {
+      threat += hostiles.filter(
+        (h) => h.getActiveBodyparts(WORK) > 0 || h.getActiveBodyparts(CLAIM) > 0
+      ).length;
+    }
     const cores = room.find(FIND_HOSTILE_STRUCTURES, {
       filter: (s) => s.structureType === STRUCTURE_INVADER_CORE,
     });
@@ -63,12 +74,15 @@ export const Threat = {
   // scalar threat because the deciding creep (the overlord at home) usually has no
   // vision of the contested room when it sizes a guard.
   profile(room, hostiles = room.find(FIND_HOSTILE_CREEPS)) {
-    const p = { attack: 0, ranged: 0, heal: 0, tough: 0 };
+    const p = { attack: 0, ranged: 0, heal: 0, tough: 0, work: 0, claim: 0 };
     for (const hostile of hostiles) {
       p.attack += hostile.getActiveBodyparts(ATTACK);
       p.ranged += hostile.getActiveBodyparts(RANGED_ATTACK);
       p.heal += hostile.getActiveBodyparts(HEAL);
       p.tough += hostile.getActiveBodyparts(TOUGH);
+      // dismantlers (WORK) / declaimers (CLAIM) — guard-killable colony threats in our owned rooms (#233)
+      p.work += hostile.getActiveBodyparts(WORK);
+      p.claim += hostile.getActiveBodyparts(CLAIM);
     }
     return p;
   },
@@ -163,14 +177,15 @@ export const Threat = {
     return intel.profile || null;
   },
 
-  // The room's profile IF it holds a MOBILE threat a guard can KILL (fresh intel with attack/ranged
-  // parts), else null. A guard targets creeps, so a room whose only threat is a tower or invader core
-  // (no creep combat parts) yields null — it can't be cleared by dispatching a guard. The single gate
-  // the dispatch/blocker consumers share before sizing a counter-body, so "structural threats aren't
-  // guard-killable" lives in ONE place (paired with assess() folding tower danger into the threat).
+  // The room's profile IF it holds a MOBILE threat a guard can KILL (fresh intel with attack/ranged parts,
+  // OR a dismantler/declaimer — a WORK- or CLAIM-bearing hostile that razes our structures or attacks our
+  // controller, #233), else null. A guard targets creeps, so a room whose only threat is a tower or invader
+  // core (no killable creep) yields null — it can't be cleared by dispatching a guard. The single gate the
+  // dispatch/blocker consumers share before sizing a counter-body, so "structural threats aren't guard-
+  // killable" lives in ONE place (paired with assess() folding tower danger + the owned-room raser/declaimer +1).
   killableProfile(roomName) {
     const p = this.profileFor(roomName);
-    return p && p.attack + p.ranged > 0 ? p : null;
+    return p && p.attack + p.ranged + (p.work || 0) + (p.claim || 0) > 0 ? p : null;
   },
 
   // The fresh scalar threat of a room (or 0 if stale/unseen) — so the Guard layer can

@@ -15,7 +15,7 @@ const RETALIATE_SCAN_INTERVAL = 25; // ticks between target searches for an idle
 //  threat ladder; home defense added in #122). A cheap enemy harasser can deny a
 //  remote room and kill our static economy creeps; passive retreat (#105, Level 1)
 //  only reroutes and abandons the room. This controller dispatches dynamically-built
-//  Guards to clear contested rooms, HOME first, then remotes.
+//  Guards to clear contested rooms, HOME first, then a founded child colony, then remotes.
 //
 //  Singleton domain controller (mirrors RemoteMiningOverlord), reading the shared
 //  Threat intel. Priority ladder + gating (#122 — defense is the GATE for expansion,
@@ -24,6 +24,11 @@ const RETALIATE_SCAN_INTERVAL = 25; // ticks between target searches for an idle
 //     AFFORDABLE guard unconditionally — no winnability filter (never abandon the
 //     core; even a losing guard buys time + tower focus), no expansionReady gate, no
 //     recovering veto. Defending the core is the survival floor.
+//   • FOUNDED CHILD (#233): a colony WE founded (Memory.expansion.claimTarget.home) that can't yet
+//     defend itself (no tower) — an OWNED room outside the remote set. Defended WINNABLE-gated and
+//     ahead of remotes (losing a fresh claim wastes the whole founding effort), but it waits out a
+//     recovery. Includes razing dismantlers AND declaimers (Threat flags a hostile WORK/CLAIM creep
+//     in an owned room — harmless to creeps, lethal to the colony).
 //   • REMOTES: clear a contested remote only when WINNABLE (the guard we can afford
 //     out-guns the assessed threat — never feed a guard to a real army) and we're not
 //     in a workforce-collapse recovery (no economy to protect then). NOT gated on
@@ -75,16 +80,54 @@ export class GuardOverlord extends Overlord {
     return Threat.guardCombatPower(body) > 0 ? home : null;
   }
 
-  // Every room wanting a guard, HOME FIRST then winnable remotes. Memoized per tick.
+  // The founded CHILD colony as a guard target, or null (#233). A freshly-claimed colony in bootstrap
+  // can't field its own guard (no spawn) or auto-defend (no tower), and it's an OWNED room — OUTSIDE the
+  // remote set hotWinnableRooms scans — so its FOUNDER must cover it until it can defend itself. The link
+  // is Memory.expansion.claimTarget.home (the founder's colony name, the same coupling ClaimOverlord uses).
+  // WINNABLE-gated, UNLIKE home: a child is recoverable (re-found), so we don't feed a guard to an army
+  // camped on it — but a lone dismantler/harasser reads trivially winnable and gets cleared. The guard
+  // reaches it via the swamp-aware routeToRoom (#230). Threat detection for a hostile dismantler/declaimer
+  // in the owned child lives in Threat.assess (the +1-per-raser/declaimer in owned rooms).
+  foundedChildTarget() {
+    const t = Memory.expansion?.claimTarget;
+    if (!t || !t.room || !t.controller) return null; // not a fully-formed claim order (mirror ClaimOverlord)
+    if ((t.home || this.colony.name) !== this.colony.name) return null; // not a child WE founded
+    const child = t.room;
+    const room = Game.rooms[child];
+    // Scope to the contract — a CLAIMED child colony WE OWN. No vision / not-yet-claimed (claimer's job) /
+    // a stale-or-unrelated claimTarget room → not ours to garrison (and with no vision there's no fresh
+    // threat intel to act on anyway). This is what stops a guard chasing an unowned room a scout flagged hot.
+    if (!room || !room.controller?.my) return null;
+    if (this.childSelfDefends(room)) return null; // it has its own tower now → its GuardOverlord covers it
+    if (!Threat.isHot(child)) return null;
+    const profile = Threat.killableProfile(child); // a mobile threat a guard can kill (incl. a dismantler)
+    if (!profile) return null;
+    const body = Guard.bodyFor(this.colony.spawnEnergyBudget(), profile);
+    return Threat.guardCombatPower(body) > 0 && Threat.winnable(body, child) ? child : null;
+  }
+
+  // Can the founded child defend itself yet? True once it has a TOWER (its own auto-defense; by then it
+  // also fields its own guards) — the founder then stops covering it. A tower (RCL3) is the capability
+  // line; stopping earlier (at first spawn) would just re-expose the colony to the spawn-raze cycle this
+  // feature exists to break. Called only with vision (foundedChildTarget gates on an owned, visible child).
+  childSelfDefends(room) {
+    return room.find(FIND_MY_STRUCTURES, { filter: (s) => s.structureType === STRUCTURE_TOWER }).length > 0;
+  }
+
+  // Every room wanting a guard, HOME FIRST, then the founded child, then winnable remotes. Memoized per tick.
   targets() {
     if (this._targets !== undefined) return this._targets;
     const out = [];
     const home = this.homeTarget();
     if (home) out.push(home);
-    // Remotes wait out a workforce-collapse recovery (nothing to protect then), but
-    // are NOT expansionReady-gated — remote defense precedes expansion.
+    // The founded child and contested remotes both wait out a workforce-collapse recovery (the founder has
+    // no spare guard then) and are NOT expansionReady-gated. The child precedes remotes: losing a fresh
+    // claim wastes the whole founding effort, so it's defended ahead of remote economy (defense gates
+    // expansion, #122).
     if (!this.colony.health.recovering) {
-      for (const room of this.hotWinnableRooms()) if (room !== home) out.push(room);
+      const child = this.foundedChildTarget();
+      if (child && child !== home) out.push(child);
+      for (const room of this.hotWinnableRooms()) if (room !== home && room !== child) out.push(room);
     }
     this._targets = out;
     return out;
