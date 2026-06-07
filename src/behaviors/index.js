@@ -15,6 +15,7 @@ import { HoldGround } from "./combat/HoldGround.js";
 import { SelfDefense } from "./combat/SelfDefense.js";
 import { RemoteHaul } from "./economy/RemoteHaul.js";
 import { Work } from "./economy/Work.js";
+import { Pioneer } from "./economy/Pioneer.js";
 
 // ============================================================================
 //  Behavior registry (#39) — maps a behavior NAME (as stored in a creep's
@@ -70,6 +71,10 @@ import { Work } from "./economy/Work.js";
 //                  (it stamps memory.buildTarget, fleet-concentrated + per-trip latched) — the
 //                  Build atom only executes the stamp. The atoms (fillStructures/build/repair/
 //                  upgrade) are composed internally, not assignable by name, so they're not registered.
+//   • pioneer    — the bootstrap conduct (#242): the `work` cycle wrapped with a transit prefix and run
+//                  on a remote child room with a NULL colony (colony-optional atoms target creep.room).
+//                  Builds a freshly-claimed colony's first spawn, then fills + upgrades it toward RCL3.
+//                  ClaimOverlord stamps its build targets over the child's sites (the same command pattern).
 // ============================================================================
 export const BEHAVIORS = {
   raidRoom: RaidRoom,
@@ -88,6 +93,7 @@ export const BEHAVIORS = {
   selfDefense: SelfDefense,
   remoteHaul: RemoteHaul,
   work: Work,
+  pioneer: Pioneer,
 };
 
 // Resolve a behavior name to its class, or null (an unknown/typo'd name is a no-op

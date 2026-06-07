@@ -13,14 +13,22 @@ import { stageAtLeast } from "../../lib/Stages.js";
 //  no rotating between extensions mid-transit; travelTo keeps its cached path to the stable
 //  target. Selection passes `ignoreCreeps:true` (#63) so a clustered worker WITH energy still
 //  fills instead of concluding "nothing reachable" and idling.
+//
+//  COLONY-OPTIONAL (#242): a pioneer serving a bootstrapping child has no served-colony context
+//  (colony null) — that room has no haulers and no stage, so the hand-off gate is skipped and the
+//  pioneer always fills creep.room's spawn/extensions (the cold-start lifeline). Everything below
+//  is already creep.room-scoped (FIND_MY_STRUCTURES), so it serves both tenants unchanged.
 // ============================================================================
 export class FillStructures extends Behavior {
   static run(creep, colony) {
     // Hand-off doctrine: from 2b on, haulers fill — but only while a FILL-CAPABLE one is alive (#37).
     // A still-spawning hauler can't fill yet, so it must NOT gate the worker off (else the spawn starves
     // through the hauler's whole spawn window). Mirrors the non-spawning check in Role.gatherEnergy.
-    const haulerCanFill = colony.creepsWithRole("hauler").some((h) => !h.spawning);
-    if (stageAtLeast(colony, "2b:Hauling") && haulerCanFill) return false;
+    // No served colony (a pioneer): no haulers exist there, so never gate off — always fill.
+    if (colony) {
+      const haulerCanFill = colony.creepsWithRole("hauler").some((h) => !h.spawning);
+      if (stageAtLeast(colony, "2b:Hauling") && haulerCanFill) return false;
+    }
 
     const fillable = (s) =>
       (s.structureType === STRUCTURE_SPAWN || s.structureType === STRUCTURE_EXTENSION) &&

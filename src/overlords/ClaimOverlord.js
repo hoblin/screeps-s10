@@ -1,6 +1,8 @@
 import { Overlord } from "./Overlord.js";
 import { Claimer } from "../roles/Claimer.js";
 import { Pioneer } from "../roles/Pioneer.js";
+import { behaviorClass } from "../behaviors/index.js";
+import { assignBuildTargets } from "./buildTargets.js";
 
 // ============================================================================
 //  ClaimOverlord — the expansion directive: claim a designated 2nd colony and
@@ -17,8 +19,10 @@ import { Pioneer } from "../roles/Pioneer.js";
 //  roles (like ScoutOverlord owning scout+hunter):
 //    1. CLAIM — while the target is unowned, keep one claimer heading to it.
 //    2. BOOTSTRAP — once it's ours (the Kernel auto-discovers it as a Colony), stream
-//       pioneers from home to build its first spawn; stop the instant that spawn
-//       stands and the new colony spawns for itself.
+//       pioneers from home to build its first spawn AND fill/upgrade it through the whole
+//       fragile RCL1→3 cold start (#242), concentrating them on the child's sites (the same
+//       command pattern WorkOverlord uses); stop once the child reaches RCL3 and can field
+//       its own towers + economy.
 //
 //  Gated like the other expansion overlords on home-economy health (expansionReady),
 //  plus GCL headroom (can't claim past Game.gcl.level) and "target still unowned".
@@ -29,9 +33,9 @@ import { Pioneer } from "../roles/Pioneer.js";
 //  claimer from starving behind a saturated single spawn (#220 follow-up).
 // ============================================================================
 
-// Seed crew that builds the first spawn and keeps the new controller from
-// downgrading during the cold start. A handful is plenty — they self-harvest a
-// fresh room's two sources and the work is finite (stops once the spawn stands).
+// Seed crew that builds the first spawn and accelerates the new colony through its RCL1→3 cold
+// start (#242). A handful is plenty — they self-harvest a fresh room's two sources, and the work is
+// finite (stops once the child reaches RCL3 and stands on its own towers + economy).
 const PIONEER_COUNT = 3;
 
 export class ClaimOverlord extends Overlord {
@@ -82,20 +86,15 @@ export class ClaimOverlord extends Overlord {
     return !!(room && room.controller && room.controller.my);
   }
 
-  // Has the new colony stood its own economy up? The hand-off line: its first spawn is
-  // built AND it has begun spawning its OWN creeps (≥2, for margin), so the pioneer seed
-  // can stop and the room runs Stage-1 bootstrap by itself. A built-but-empty spawn with
-  // no local creeps yet is NOT self-sufficient — pioneers keep priming it. Needs vision
-  // (a pioneer is there); without it we assume not-yet and keep seeding.
-  targetSelfSufficient() {
+  // The bootstrap hand-off line: the child has reached RCL3. By then it can build a tower and run a
+  // basic economy with its own miners/haulers/workers, so the imported pioneer seed can stop — the
+  // colony stands on its own. Streaming pioneers through the WHOLE RCL1→3 climb (not just to first-
+  // spawn) is the #242 accelerator: a rich home compounds the new colony fast over its slowest phase.
+  // Needs vision (a pioneer is there); without it we assume not-yet and keep seeding.
+  childReachedRcl3() {
     const t = this.target();
     const room = t && Game.rooms[t.room];
-    if (!room || room.find(FIND_MY_SPAWNS).length === 0) return false;
-    // Count by colony tag across ALL creeps, not just those currently in-room — a
-    // local that steps out (or a bootstrap worker fetching from a neighbour tile)
-    // must not drop the count and restart the pioneer seed.
-    const locals = Object.values(Game.creeps).filter((c) => c.memory.colony === t.room).length;
-    return locals >= 2;
+    return !!(room && room.controller && room.controller.level >= 3);
   }
 
   // Claimers: one until the room is ours (and we have GCL headroom + a healthy home),
@@ -105,11 +104,11 @@ export class ClaimOverlord extends Overlord {
     return this.hasGclHeadroom() ? 1 : 0;
   }
 
-  // Pioneers: a fixed seed crew once the room is ours and until its spawn stands. NOT
+  // Pioneers: a fixed seed crew once the room is ours and until the child reaches RCL3. NOT
   // gated on expansionReady — once we've claimed we're committed, so bootstrap flows
   // even if the readiness dial dips; it yields only to a home crisis (recovering).
   pioneerCount() {
-    if (!this.target() || !this.targetClaimed() || this.targetSelfSufficient()) return 0;
+    if (!this.target() || !this.targetClaimed() || this.childReachedRcl3()) return 0;
     if (this.colony.health.recovering) return 0;
     return PIONEER_COUNT;
   }
@@ -137,17 +136,42 @@ export class ClaimOverlord extends Overlord {
     if (this.colony.creepsWithRole("pioneer").length < this.pioneerCount()) {
       return {
         priority: this.priority,
+        // Body lives on the conduct (the model owns it, #239): read it off the pioneer behaviour
+        // rather than the role, and stamp the behaviour set so the BehaviorMachine drives it.
         role: "pioneer",
-        body: Pioneer.bodyFor(this.colony.spawnEnergyBudget()),
+        body: behaviorClass(Pioneer.behaviors.default).bodyFor(this.colony.spawnEnergyBudget()),
         memory: {
           role: "pioneer",
           colony: this.colony.name,
           overlord: this.identifier,
           bootstrapRoom: t.room,
+          behaviors: Pioneer.behaviors,
         },
       };
     }
     return null;
+  }
+
+  // Concentrate the pioneer seed on the child's construction sites BEFORE driving them, so each
+  // Build atom sees a fresh memory.buildTarget the same tick — the same command pattern WorkOverlord
+  // runs over its home room (shared assignBuildTargets), here over the bootstrapping child (#242).
+  run() {
+    this.assignPioneerBuildTargets();
+    super.run();
+  }
+
+  // Stamp build targets across the pioneers standing in the child room. Vision-guarded: we only see
+  // the child's sites once a pioneer has arrived — until then Build no-ops and BuildSpawn still self-
+  // scans the spawn site, so the cold start is never blocked on assignment. (The spawn site is excluded
+  // from assignment — it's BuildSpawn's job; pioneers converge on it naturally as the singular target.)
+  assignPioneerBuildTargets() {
+    const t = this.target();
+    const room = t && Game.rooms[t.room];
+    if (!room) return;
+    const pioneers = this.assignedCreeps.filter(
+      (c) => c.memory.role === "pioneer" && !c.spawning && c.room.name === t.room
+    );
+    assignBuildTargets(pioneers, room.find(FIND_MY_CONSTRUCTION_SITES));
   }
 
   runCreep(creep) {
