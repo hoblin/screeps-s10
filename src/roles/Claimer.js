@@ -6,11 +6,11 @@ import { routeToRoom } from "../lib/Transit.js";
 //  Claimer — a CLAIM creep that takes a designated 2nd-colony room (#220).
 //
 //  The first half of the expansion directive: travel SK-safe to the target room
-//  (routeToRoom — the scout's plan-once-and-walk transit, #225: a committed
-//  tower/keeper-free corridor walked leg-by-leg, no per-tick re-route to yo-yo on,
-//  and a scoutThreat bump on damage so the ScoutOverlord hunter clears any persistent
-//  blocker) and claimController it. One claim flips controller.my; the Kernel then
-//  discovers the room as a Colony on its own and the pioneer bootstrap takes over.
+//  (routeToRoom, #225 — one committed engine-pathed trip that's swamp-aware and routes
+//  around SK/towered/hot rooms, with a scoutThreat bump on damage so the ScoutOverlord
+//  hunter clears any persistent blocker) and claimController it. One claim flips
+//  controller.my; the Kernel then discovers the room as a Colony on its own and the
+//  pioneer bootstrap takes over.
 //
 //  The target room + controller tile are stamped by ClaimOverlord at spawn from the
 //  armed expansion target. The role is a dumb executor: it does NOT pick where to
@@ -42,10 +42,9 @@ export class Claimer extends Role {
     }
     const { room: targetRoom, controller: cp } = target;
 
-    // Scout-style transit (#225): walk the committed tower/keeper-free corridor leg-by-leg (no
-    // per-tick re-route to yo-yo on) and bump scoutThreat on damage so the hunter clears a real
-    // blocker. Called UNCONDITIONALLY so the helper owns the route lifecycle (it clears _route on
-    // arrival); a `true` return means still travelling, `false` means arrived OR trapped.
+    // SK-safe, swamp-aware engine transit (#225): one committed trip toward the target, routing
+    // around SK/towered/hot rooms, bumping scoutThreat on damage so the hunter clears a real blocker.
+    // `true` = still travelling, `false` = in the target room (arrived).
     if (routeToRoom(creep, targetRoom)) {
       this.note(creep, "claim:to-room");
       return;
