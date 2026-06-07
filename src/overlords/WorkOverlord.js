@@ -1,6 +1,7 @@
 import { Overlord } from "./Overlord.js";
 import { Worker } from "../roles/Worker.js";
 import { behaviorClass } from "../behaviors/index.js";
+import { assignBuildTargets } from "./buildTargets.js";
 
 // Builder-count tuning (#81). One builder per this many sites, floored so a
 // backlog is never under-staffed and capped so we don't overspawn — the rich cap
@@ -48,56 +49,13 @@ export class WorkOverlord extends Overlord {
   }
 
   // Assign build targets fleet-wide BEFORE driving the creeps, so each Build atom sees a fresh
-  // memory.buildTarget the same tick.
+  // memory.buildTarget the same tick. The concentration policy is the shared command-pattern helper
+  // (assignBuildTargets) — we own only WHICH sites (this colony's home room); it owns HOW the fleet
+  // divides among them, the same policy ClaimOverlord reuses over a bootstrapping child (#242).
   run() {
-    this.assignBuildTargets();
-    super.run();
-  }
-
-  // Fleet-level build-target assignment (#239) — the command pattern. The overlord owns site
-  // SELECTION (tier order + concentration) and stamps each worker's memory.buildTarget; the Build
-  // atom only executes it. Per-trip latch (#86): a worker keeps its site while it's still a leader,
-  // so there's no per-tick re-pick (the oscillation #86 fixed for haulers). Selection ignores
-  // creeps (#63), so a worker clustered away from the site is still assigned one (travelTo routes in).
-  assignBuildTargets() {
     const workers = this.assignedCreeps.filter((c) => !c.spawning);
-    if (!workers.length) return;
-    const sites = this.colony.room.find(FIND_MY_CONSTRUCTION_SITES);
-    if (!sites.length) {
-      for (const c of workers) if (c.memory.buildTarget) c.memory.buildTarget = null;
-      return;
-    }
-    const leaders = this.buildLeaders(sites);
-    const leaderIds = new Set(leaders.map((s) => s.id));
-    for (const c of workers) {
-      if (c.memory.buildTarget && leaderIds.has(c.memory.buildTarget)) continue; // latch: still a leader
-      const site = c.pos.findClosestByPath(leaders, { ignoreCreeps: true });
-      c.memory.buildTarget = site ? site.id : null;
-    }
-  }
-
-  // The sites worth building NOW: the most-advanced sites within the highest-priority non-empty
-  // tier (containers > other structural > roads — #72 containers gate hauling, #14 roads last), with
-  // ~10 build-actions of epsilon slack so a fresh batch (all near 0) stays a flat pool chosen by
-  // distance, and only a site that pulls a clear lead becomes the magnet the whole fleet converges
-  // on (#33). Lifted from the per-creep Worker.selectBuildTarget so ONE decision concentrates the fleet.
-  // SPAWN sites are excluded — they're the top-priority BuildSpawn atom's job (built before everything,
-  // even filling), and singular, so they need no fleet concentration.
-  buildLeaders(sites) {
-    const epsilon = BUILD_POWER * 10;
-    const buildable = sites.filter((s) => s.structureType !== STRUCTURE_SPAWN);
-    if (!buildable.length) return [];
-    const containers = [];
-    const structural = [];
-    const roads = [];
-    for (const s of buildable) {
-      if (s.structureType === STRUCTURE_CONTAINER) containers.push(s);
-      else if (s.structureType === STRUCTURE_ROAD) roads.push(s);
-      else structural.push(s);
-    }
-    const pool = [containers, structural, roads].find((tier) => tier.length) || buildable;
-    const maxProgress = Math.max(...pool.map((s) => s.progress));
-    return pool.filter((s) => s.progress >= maxProgress - epsilon);
+    assignBuildTargets(workers, this.colony.room.find(FIND_MY_CONSTRUCTION_SITES));
+    super.run();
   }
 
   runCreep(creep) {
