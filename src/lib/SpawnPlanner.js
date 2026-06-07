@@ -1,15 +1,21 @@
 import { log } from "./Logger.js";
 
 // ============================================================================
-//  SpawnPlanner — places a freshly-claimed colony's FIRST spawn (#220).
+//  SpawnPlanner — places a colony's spawns: the FIRST spawn for a freshly-claimed
+//  colony (#220), AND additional spawns as RCL unlocks them (#22 — a 2nd at RCL7,
+//  a 3rd at RCL8). Generic to the spawn count: the Hatchery drives it off the RCL
+//  cap (CONTROLLER_STRUCTURES[STRUCTURE_SPAWN][rcl]), so there's no hardcoded "2nd".
 //
-//  A claimed room has a controller but no spawn; the pioneers that bootstrap it
-//  need a spawn construction site to build. There's no full base-layout planner
-//  yet, so this picks a single sensible anchor live from terrain + game state
-//  (CLAUDE.md: compute positions, never hardcode): an open tile roughly central to
-//  the room's sources and controller, with elbow room for the extension
-//  checkerboard the Hatchery later grows around it. The choice is cached in colony
-//  memory (deterministic from static geometry) so the search runs once.
+//  There's no full base-layout planner yet, so each spawn tile is picked live from
+//  terrain + game state (CLAUDE.md: compute positions, never hardcode): an open tile
+//  roughly central to the room's sources and controller, with a clear 3×3 (elbow room
+//  for the extension checkerboard the Hatchery grows around it). Additional spawns are
+//  kept SEPARATED from the existing spawns so they spread across the base — redundancy
+//  if one is destroyed, and unobstructed creep egress for parallel spawning. The choice
+//  is cached per slot in colony memory (deterministic from static geometry) so the
+//  search runs once. Reference bots (Overmind/hivemind) bake spawn tiles into a fixed
+//  base template; lacking one, we approximate that "planned, separated slot" with this
+//  centroid + separation search.
 //
 //  Mirrors the other planners (ContainerPlanner/ExtensionPlanner): geometry here,
 //  the owning HiveCluster handles the per-tick lifecycle.
@@ -20,43 +26,62 @@ import { log } from "./Logger.js";
 // plenty of candidates without scanning the whole 50×50 room on every claim.
 const SEARCH_RADIUS = 10;
 
-export const SpawnPlanner = {
-  // Keep the first spawn's construction site alive until it's built; no-op once a
-  // spawn (or its site) already exists. Safe to call every tick for a spawnless
-  // owned room — it only does real work during the brief bootstrap window.
-  ensureFirstSpawn(room) {
-    if (room.find(FIND_MY_SPAWNS).length > 0) return; // already has a spawn
-    const hasSite = room.find(FIND_MY_CONSTRUCTION_SITES, {
-      filter: (s) => s.structureType === STRUCTURE_SPAWN,
-    }).length > 0;
-    if (hasSite) return; // site already placed — let the pioneers build it
+// Additional spawns sit MORE than this range from every existing spawn, so the spawns
+// spread across the base (redundancy + each gets its own open egress tiles for parallel
+// spawning) instead of clustering and sharing a congested exit.
+const SPAWN_SEPARATION = 2;
 
-    const anchor = this.anchor(room);
+export const SpawnPlanner = {
+  // Keep spawn construction sites alive up to the RCL cap: place the FIRST spawn for a spawnless
+  // colony, then an additional spawn whenever the cap rises (RCL7→2, RCL8→3). One site per call (the
+  // next slot); no-op once built + queued reaches the cap. Safe to call every tick — it only does real
+  // work while below the cap (the brief windows after founding and after an RCL milestone).
+  ensureSpawns(room, cap) {
+    if (cap <= 0) return;
+    const spawns = room.find(FIND_MY_SPAWNS);
+    const sites = room.find(FIND_MY_CONSTRUCTION_SITES, {
+      filter: (s) => s.structureType === STRUCTURE_SPAWN,
+    });
+    if (spawns.length + sites.length >= cap) return; // at the cap — nothing to place
+
+    const taken = [...spawns.map((s) => s.pos), ...sites.map((s) => s.pos)];
+    const anchor = this.nextTile(room, taken);
     if (!anchor) return; // no buildable tile found (compute() logged it)
     const result = room.createConstructionSite(anchor, STRUCTURE_SPAWN);
     if (result === ERR_INVALID_TARGET) {
-      // The cached anchor turned unbuildable (a road/structure/site landed on it
-      // since we picked it) — else we'd retry it fruitlessly every tick. Drop the
-      // cache so compute() re-picks a clear tile next tick.
-      if (Memory.colonyData?.[room.name]) delete Memory.colonyData[room.name].spawnAnchor;
+      // The cached tile turned unbuildable (a road/structure/site landed on it since we picked it) —
+      // else we'd retry it fruitlessly every tick. Drop this slot's cache so compute() re-picks next tick.
+      this.dropCache(room, taken.length);
       return;
     }
-    // ERR_FULL (100-site global cap) / ERR_RCL_NOT_ENOUGH (>1 spawn before RCL7) are
+    // ERR_FULL (100-site global cap) / ERR_RCL_NOT_ENOUGH (cap-gated, shouldn't fire) are
     // expected/transient — only log a genuinely unexpected failure.
     if (result !== OK && result !== ERR_FULL && result !== ERR_RCL_NOT_ENOUGH) {
-      log.warn(`[${room.name}] first-spawn site at ${anchor} failed: ${result}`);
+      log.warn(`[${room.name}] spawn site at ${anchor} failed: ${result}`);
     }
   },
 
-  // The chosen anchor tile (cached). Computed once from static geometry, then read
-  // back from colony memory — same Memory.colonyData pattern the other planners use.
-  anchor(room) {
-    const cached = Memory.colonyData?.[room.name]?.spawnAnchor;
-    if (cached) return new RoomPosition(cached.x, cached.y, room.name);
-    const pos = this.compute(room);
+  // The next spawn tile, given the tiles already taken by built spawns + spawn sites. Cached per slot
+  // (slot index = how many spawns/sites already exist), so the search runs once per slot. Slot 0 (a
+  // founding colony) is the centroid-best tile; later slots are the best tile separated from the
+  // existing spawns. For the home colony — spawn[0] placed manually at game start — slot 0 is never
+  // computed (a spawn already exists), so the first computed slot is the RCL7 2nd spawn.
+  nextTile(room, taken) {
+    const slot = taken.length;
+    const cached = Memory.colonyData?.[room.name]?.spawnAnchors?.[slot];
+    if (cached) {
+      const pos = new RoomPosition(cached.x, cached.y, room.name);
+      // Re-validate against the CURRENT spawns, not just buildability: if a spawn was
+      // destroyed/rebuilt elsewhere the cached tile could now sit too close to one, so re-check the
+      // separation it was chosen for and recompute if it's stale.
+      const separated = taken.every((p) => p.getRangeTo(pos) > SPAWN_SEPARATION);
+      if (separated && this.buildable(room, pos.x, pos.y)) return pos;
+    }
+    const pos = this.compute(room, taken);
     if (pos) {
       Memory.colonyData ||= {};
-      (Memory.colonyData[room.name] ||= {}).spawnAnchor = {
+      Memory.colonyData[room.name] ||= {};
+      (Memory.colonyData[room.name].spawnAnchors ||= {})[slot] = {
         x: pos.x,
         y: pos.y,
         roomName: room.name,
@@ -65,12 +90,18 @@ export const SpawnPlanner = {
     return pos;
   },
 
-  // Pick the open tile nearest the centroid of (sources + controller) that has a
-  // clear 3×3 around it (room for the spawn + its first extensions) and isn't hugging
-  // a source or the controller (those tiles are reserved for mining / upgrading).
-  // Scored by summed range to the served objects so the spawn sits central and the
-  // bootstrap's hauls/fills stay short.
-  compute(room) {
+  // Forget a slot's cached tile (it turned unbuildable) so the next tick re-computes a clear one.
+  dropCache(room, slot) {
+    const anchors = Memory.colonyData?.[room.name]?.spawnAnchors;
+    if (anchors) delete anchors[slot];
+  },
+
+  // Pick the open tile nearest the centroid of (sources + controller) that has a clear 3×3 around it
+  // (room for the spawn + its first extensions), isn't hugging a source or the controller (those tiles
+  // are reserved for mining / upgrading), and is well clear of any spawn already placed (so additional
+  // spawns spread). Scored by summed range to the served objects so the spawn sits central and the
+  // hauls/fills stay short.
+  compute(room, taken = []) {
     const terrain = room.getTerrain();
     const served = [...room.find(FIND_SOURCES), room.controller].filter(Boolean);
     if (!served.length) return null;
@@ -87,6 +118,7 @@ export const SpawnPlanner = {
         if (!this.clear3x3(terrain, x, y)) continue;
         const pos = new RoomPosition(x, y, room.name);
         if (served.some((o) => o.pos.getRangeTo(pos) <= 2)) continue; // don't crowd them
+        if (taken.some((p) => p.getRangeTo(pos) <= SPAWN_SEPARATION)) continue; // spread the spawns
         if (!this.buildable(room, x, y)) continue; // terrain-clear but occupied (road/structure/site)
         const score = served.reduce((s, o) => s + o.pos.getRangeTo(pos), 0);
         if (score < bestScore) {
@@ -95,7 +127,7 @@ export const SpawnPlanner = {
         }
       }
     }
-    if (!best) log.warn(`[${room.name}] SpawnPlanner found no clear anchor`);
+    if (!best) log.warn(`[${room.name}] SpawnPlanner found no clear spawn tile (slot ${taken.length})`);
     return best;
   },
 
