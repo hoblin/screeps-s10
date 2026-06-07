@@ -38,9 +38,8 @@ export class Pioneer extends Role {
     const targetRoom = creep.memory.bootstrapRoom;
     if (!targetRoom) return this.recycleAtHome(creep, colony);
 
-    // Scout-style transit (#225): plan-once tower/keeper-free corridor, walked leg-by-leg, with a
-    // scoutThreat bump on damage so the hunter clears a persistent blocker. Called unconditionally
-    // so the helper owns the route lifecycle (clears _route on arrival).
+    // SK-safe, swamp-aware engine transit (#225): one committed trip toward the target, routing
+    // around SK/towered/hot rooms, with a scoutThreat bump on damage so the hunter clears a blocker.
     if (routeToRoom(creep, targetRoom)) {
       this.note(creep, "pioneer:to-room");
       return;

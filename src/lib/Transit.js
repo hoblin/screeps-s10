@@ -1,77 +1,57 @@
-import { towerFreeRoute } from "./Routing.js";
 import { Threat } from "./Threat.js";
+import { routeRoomBlocked } from "./Routing.js";
+import { Movement } from "./Movement.js";
 
 // ============================================================================
-//  Transit — stable, SK-safe cross-room travel for VULNERABLE (non-combat) units
-//  (#225). The scout's proven pattern, lifted for reuse by the expansion roles.
+//  Transit — SK/tower-safe, SWAMP-AWARE cross-room travel for vulnerable (non-combat)
+//  units like the Claimer/Pioneer (#225).
 //
-//  travelToRoom (the combat atom) re-runs findRoute every tick and YO-YOS at a
-//  border when the route cost field disagrees across a hot-zone ridge (the #213
-//  residual — a claimer bounced one border for 30+ ticks, made zero progress, and
-//  was killed). Scouts never hit that: they plan a tower-free corridor ONCE and walk
-//  it leg-by-leg with plain travelTo(roomCentre, range 20), advancing only on
-//  arrival — the engine's reusePath caches the multi-room path and the generous range
-//  "arrives" the instant the border is crossed, so there is no per-tick re-evaluation
-//  to flip. routeToRoom packages exactly that:
+//  The first cut copied the scout: plan a tower-free ROOM corridor once, then walk it
+//  leg-by-leg toward each room's CENTRE. That works for a scout — a [MOVE]-only body is
+//  swamp-IMMUNE (zero fatigue), so the engine paths it dead straight. But a CLAIM/WORK-
+//  bearing unit is swamp-PENALISED, so the engine's cheapest tile-path WINDS toward the
+//  clean (non-swamp) exits of a room. Targeting each room's centre fought that winding
+//  path: where a room had a near SWAMPY exit and a far CLEAN one, the engine wanted the
+//  far exit while the leg-walk dragged the creep back toward the centre/near exit — and it
+//  YO-YO'd on the border for 30+ ticks, never progressing (live, and it got killed there).
 //
-//   • Plan the corridor ONCE via towerFreeRoute (scout variant: allowUnscouted, NO
-//     clearer/avoidHot — a claimer can't fight, so it routes around KNOWN TOWERS and
-//     Source-Keeper rooms (RoomType, inside safeRouteCost) and walks everything else
-//     DIRECTLY). Re-plan only when shoved OFF the committed corridor or the destination
-//     changes — NEVER per tick (that re-validation is exactly what yo-yos).
-//   • Walk leg-by-leg to the next ADJACENT vetted room. travelTo itself is SK-blind, but
-//     each leg is to an adjacent non-SK room, so the engine's path never enters keeper
-//     space — the safety lives entirely in the pre-planned corridor.
-//   • On damage, bump the room's scoutThreat — the SAME casualty signal scouts raise, so
-//     the existing ScoutOverlord hunter is dispatched to clear a persistent blocker and
-//     re-open the route for the next unit (#147/#187). Cheaper than escorting or arming an
-//     expensive CLAIM body: we accept the odd loss and let the clearer handle real
-//     blockers (the home economy is healthy enough to spend a few claimers — Женя).
+//  Fix: don't fight the engine. Let it compute the WHOLE swamp-aware multi-room path in ONE
+//  travelTo and COMMIT to it (the project's foreign-room travelTo uses reusePath, so the path
+//  is followed tile-by-tile, not re-decided each tick → it can't yo-yo). Safety (towerFreeRoute's
+//  job: never path through Source-Keeper / hostile-towered / unwinnable-hot rooms) is preserved
+//  by BLOCKING those rooms in the pathfinder's room callback — so the engine does free swamp-aware
+//  TILE pathing only WITHIN the safe room set, and naturally takes the clean far exits. On damage,
+//  bump the room's scoutThreat so the ScoutOverlord hunter clears a persistent blocker and re-opens
+//  the route for the next unit (#147/#187) — cheaper than escorting or arming a fragile CLAIM body.
 // ============================================================================
 
-// How long a TRAPPED unit (no tower-free corridor exists right now) holds before re-probing,
-// so it doesn't re-run Game.map.findRoute every tick — the per-tick churn this helper avoids.
-// Intel may reopen a path within the window (a tower decays out of intel, a blocker is cleared).
-const ROUTE_RETRY_BACKOFF = 25;
-
-// Drive `creep` toward `destRoom` along a committed tower-free corridor, walked leg-by-leg.
-// Returns true while still travelling, false once IN destRoom (the caller does the precise
-// in-room approach) OR when no safe corridor exists (a trapped unit — the caller's fallback).
+// Drive `creep` toward `destRoom`, letting the engine path swamp-aware within SK/tower/hot-safe rooms.
+// Returns true while travelling, false once IN destRoom (the caller does the precise in-room approach).
 export function routeToRoom(creep, destRoom, { range = 20 } = {}) {
-  // Casualty signal: took damage since last tick → a (maybe persistent) blocker sits on the
-  // route. Bump this room's scoutThreat so the ScoutOverlord hunter clears it and the next
-  // unit walks through (the same signal Scout.enterFlee raises). Cheap and role-agnostic.
+  // Casualty signal: took damage since last tick → a (maybe persistent) blocker is on the route. Bump
+  // this room's scoutThreat so the hunter clears it and the next unit gets through (same signal scouts raise).
   if (creep.hits < (creep.memory.lastHits ?? creep.hitsMax)) {
     Threat.bumpScoutThreat(creep.room.name);
   }
   creep.memory.lastHits = creep.hits;
 
-  if (creep.room.name === destRoom) {
-    delete creep.memory._route; // arrived — caller takes over the in-room approach
-    return false;
-  }
+  if (creep.room.name === destRoom) return false; // arrived — caller takes over the in-room approach
 
-  const m = creep.memory;
-  const plan = m._route;
-  // Our position along a still-valid committed corridor (same dest, current room on it).
-  const idx = plan && plan.dest === destRoom ? plan.rooms.indexOf(creep.room.name) : -1;
-  let next = idx >= 0 ? plan.rooms[idx + 1] : null;
-  if (!next) {
-    // No committed corridor, destination changed, or we were shoved off it → (re)plan ONCE.
-    // But hold off if we just failed: a trapped unit must not re-run findRoute every tick.
-    if (m._routeRetry && Game.time < m._routeRetry) return false;
-    // Scout variant: allowUnscouted (probing the unscouted is fine), no avoidHot/clearer —
-    // route around known towers + SK only, walk everything else directly.
-    const route = towerFreeRoute(creep.room.name, destRoom, { allowUnscouted: true });
-    if (!route) {
-      delete m._route;
-      m._routeRetry = Game.time + ROUTE_RETRY_BACKOFF; // trapped — re-probe later, not every tick
-      return false; // no tower-free corridor exists; caller decides (idle / recycle)
-    }
-    delete m._routeRetry;
-    m._route = { dest: destRoom, rooms: [creep.room.name, ...route.map((r) => r.room)] };
-    next = m._route.rooms[1] || destRoom;
-  }
-  creep.travelTo(new RoomPosition(25, 25, next), { range });
+  creep.travelTo(new RoomPosition(25, 25, destRoom), {
+    range,
+    // We supply the cost callback ourselves (SK/danger), so don't let travelTo overwrite it with the
+    // plain danger overlay (it only sets that when avoidHostiles resolves truthy).
+    avoidHostiles: false,
+    pathOpts: {
+      // Block the rooms towerFreeRoute would (Source-Keeper by coordinate, hostile-towered, unwinnable-hot)
+      // as a PathFinder ROOM block — so the engine paths swamp-aware at the TILE level only within the safe
+      // set (and uses the clean far exit a swamp-penalised unit needs). The destination is never blocked.
+      // Everything else keeps the in-room hostile kill-zone overlay. allowUnscouted: probing the dark is fine.
+      costCallback: (roomName, matrix) =>
+        roomName !== destRoom && routeRoomBlocked(roomName, { allowUnscouted: true })
+          ? false
+          : Movement.dangerCallback(roomName, matrix),
+    },
+  });
   return true;
 }
