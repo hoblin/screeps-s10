@@ -20,11 +20,12 @@ export class Filler extends Role {
   static movementPriority = 2;
 
   // A plain hauler body (CARRY+MOVE, scaled to the budget) — just like our other haulers;
-  // a bigger filler refills more of the cluster per short trip. (If it dies while the spawn
-  // is starved, the Hatchery spawns the cheaper affordable requests first to trickle-fill,
-  // then this once it's affordable — no deadlock.)
+  // a bigger filler refills more of the cluster per short trip. Scales to 10×CARRY (500) so one
+  // filler tops a larger RCL6+ extension field in fewer trips (#248) — the count is fixed at 1, so
+  // capacity is the only lever. (If it dies while the spawn is starved, the Hatchery spawns the
+  // cheaper affordable requests first to trickle-fill, then this once it's affordable — no deadlock.)
   static bodyFor(energyBudget) {
-    return bodyFromTemplate([CARRY, MOVE], { extra: [CARRY, MOVE], max: 4, energy: energyBudget });
+    return bodyFromTemplate([CARRY, MOVE], { extra: [CARRY, MOVE], max: 9, energy: energyBudget });
   }
 
   static run(creep, colony) {

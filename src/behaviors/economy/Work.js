@@ -30,9 +30,13 @@ import { Upgrade } from "./Upgrade.js";
 //  build latch survives the gather↔work boundary untouched (the worker returns to its site).
 // ============================================================================
 export class Work extends Behavior {
-  // The worker body (the model owns it; WorkOverlord reads this off the default behavior).
+  // The worker body (the model owns it; WorkOverlord reads this off the default behavior). Scales to
+  // 10×WORK (2000e) so a worker uses the RCL6+ spawn capacity instead of stalling at 6 WORK (#248):
+  // bigger workers clear the build backlog faster, and the count model (#81, sites/SITES_PER_BUILDER)
+  // self-limits — when the backlog is empty the surplus workers fall back to upgrading, so the extra
+  // body is never wasted, just redirected to the controller.
   static bodyFor(energyBudget) {
-    return bodyFromTemplate([WORK, CARRY, MOVE], { extra: [WORK, CARRY, MOVE], max: 5, energy: energyBudget });
+    return bodyFromTemplate([WORK, CARRY, MOVE], { extra: [WORK, CARRY, MOVE], max: 9, energy: energyBudget });
   }
 
   // Drive the gather↔work cycle with THIS class as the conduct (collect/deliver below).

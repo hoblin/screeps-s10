@@ -18,6 +18,14 @@ const UPGRADE_STORAGE_RESERVE = 20000; // bank this cushion before adding any ex
 const ENERGY_PER_UPGRADER = 30000; // surplus above the reserve that justifies one extra upgrader
 const UPGRADE_EXTRA_MAX = 4; // ceiling on the bonus so the single spawn isn't swamped
 
+// A maxed (RCL8) controller accepts at most 15 energy/tick, and each WORK upgrades 1/tick
+// (UPGRADE_CONTROLLER_POWER), so 15 WORK saturates it. Beyond that, extra WORK is dead weight, so it
+// caps both the body (one upgrader never needs more than 15 WORK) and, at RCL8, the total fielded
+// WORK across the fleet (#248).
+// Below RCL8 there is NO per-tick controller cap, so the surplus-driven count stands and bigger
+// upgraders just drain the storage hoard into RCL faster (the #137 intent).
+const RCL8_UPGRADE_CAP = 15;
+
 // ============================================================================
 //  UpgradeOverlord — keeps the room controller leveling.
 //
@@ -44,7 +52,17 @@ export class UpgradeOverlord extends Overlord {
   }
 
   desiredCount() {
-    return this.baseCount() + this.storageDelta();
+    return this.workCappedCount(this.baseCount() + this.storageDelta());
+  }
+
+  // At RCL8 the controller accepts ≤15 energy/tick, so fielding more than 15 WORK total wastes spawn
+  // energy on parts it ignores — cap the count so count × WORK-per-upgrader ≤ 15. Below RCL8 there's no
+  // such cap (the surplus-driven count stands; bigger upgraders drain the hoard faster). (#248)
+  workCappedCount(count) {
+    if (this.colony.controller.level < 8) return count;
+    const perBody = this.bodyFor(this.colony.spawnEnergyBudget()).filter((p) => p === WORK).length;
+    if (!perBody) return count;
+    return Math.max(1, Math.min(count, Math.floor(RCL8_UPGRADE_CAP / perBody)));
   }
 
   // The #81 baseline, unchanged: burn idle energy into the controller when sources
@@ -74,8 +92,12 @@ export class UpgradeOverlord extends Overlord {
     return Math.min(Math.max(Math.floor(surplus / ENERGY_PER_UPGRADER), 0), UPGRADE_EXTRA_MAX);
   }
 
+  // Scales to 15×WORK (the RCL8 controller saturation, RCL8_UPGRADE_CAP) so an upgrader uses the
+  // available spawn capacity instead of stalling at 5 WORK (#248) — pre-RCL8 a big upgrader drains the
+  // storage hoard into RCL fast; at RCL8 a single 15-WORK upgrader alone maxes the controller (the
+  // count cap above then fields just one). Budget caps it lower at low RCL (≈11 WORK at 2300).
   bodyFor(energy) {
-    return bodyFromTemplate([WORK, CARRY, MOVE], { extra: [WORK, CARRY, MOVE], max: 4, energy });
+    return bodyFromTemplate([WORK, CARRY, MOVE], { extra: [WORK, CARRY, MOVE], max: 14, energy });
   }
 
   runCreep(creep) {
