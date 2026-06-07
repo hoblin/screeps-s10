@@ -1,6 +1,6 @@
 import { Role } from "./Role.js";
 import { bodyFromTemplate } from "../lib/BodyGenerator.js";
-import { travelToRoom } from "../behaviors/combat/atoms/acts.js";
+import { routeToRoom } from "../lib/Transit.js";
 
 // ============================================================================
 //  Pioneer — bootstraps a freshly-claimed 2nd colony (#220).
@@ -38,11 +38,14 @@ export class Pioneer extends Role {
     const targetRoom = creep.memory.bootstrapRoom;
     if (!targetRoom) return this.recycleAtHome(creep, colony);
 
-    if (creep.room.name !== targetRoom) {
+    // Scout-style transit (#225): plan-once tower/keeper-free corridor, walked leg-by-leg, with a
+    // scoutThreat bump on damage so the hunter clears a persistent blocker. Called unconditionally
+    // so the helper owns the route lifecycle (clears _route on arrival).
+    if (routeToRoom(creep, targetRoom)) {
       this.note(creep, "pioneer:to-room");
-      travelToRoom(creep, targetRoom, { allowUnscouted: true });
       return;
     }
+    if (creep.room.name !== targetRoom) return; // trapped en route — idle this tick
 
     // In the target room, act as a self-sufficient bootstrap worker on the LOCAL
     // room. gatherEnergy with no colony self-harvests (the pre-spawn lifeline this

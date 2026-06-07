@@ -1,15 +1,16 @@
 import { Role } from "./Role.js";
 import { bodyFromTemplate } from "../lib/BodyGenerator.js";
-import { travelToRoom } from "../behaviors/combat/atoms/acts.js";
+import { routeToRoom } from "../lib/Transit.js";
 
 // ============================================================================
 //  Claimer — a CLAIM creep that takes a designated 2nd-colony room (#220).
 //
-//  The first half of the expansion directive: travel danger-aware to the target
-//  room (travelToRoom routes AROUND Source-Keeper / hostile rooms, never through —
-//  the E12S5 corridor crosses keeper space the router must avoid) and
-//  claimController it. One claim flips controller.my; the Kernel then discovers the
-//  room as a Colony on its own and the pioneer bootstrap takes over.
+//  The first half of the expansion directive: travel SK-safe to the target room
+//  (routeToRoom — the scout's plan-once-and-walk transit, #225: a committed
+//  tower/keeper-free corridor walked leg-by-leg, no per-tick re-route to yo-yo on,
+//  and a scoutThreat bump on damage so the ScoutOverlord hunter clears any persistent
+//  blocker) and claimController it. One claim flips controller.my; the Kernel then
+//  discovers the room as a Colony on its own and the pioneer bootstrap takes over.
 //
 //  The target room + controller tile are stamped by ClaimOverlord at spawn from the
 //  armed expansion target. The role is a dumb executor: it does NOT pick where to
@@ -21,7 +22,8 @@ export class Claimer extends Role {
   // a foreign controller, never on the home critical path.
   static movementPriority = 5;
 
-  // Route around hostile kill-zones (it also travels via the danger-aware corridor).
+  // Route around hostile ranged kill-zones in-room (#145) — routeToRoom keeps it off
+  // towered/keeper rooms; avoidHostiles skirts a live kill-zone within a room it does cross.
   static avoidHostiles = true;
 
   // One CLAIM claims a controller — extra CLAIM buys nothing (claimController needs a
@@ -40,14 +42,16 @@ export class Claimer extends Role {
     }
     const { room: targetRoom, controller: cp } = target;
 
-    if (creep.room.name !== targetRoom) {
-      // Danger-aware transit: a committed tower/keeper-free corridor (#220 routes
-      // around SK rooms). allowUnscouted so a not-recently-seen corridor room doesn't
-      // freeze a vetted expansion — travelToRoom re-routes per-hop if one turns hot.
+    // Scout-style transit (#225): walk the committed tower/keeper-free corridor leg-by-leg (no
+    // per-tick re-route to yo-yo on) and bump scoutThreat on damage so the hunter clears a real
+    // blocker. Called UNCONDITIONALLY so the helper owns the route lifecycle (it clears _route on
+    // arrival); a `true` return means still travelling, `false` means arrived OR trapped.
+    if (routeToRoom(creep, targetRoom)) {
       this.note(creep, "claim:to-room");
-      if (!travelToRoom(creep, targetRoom, { allowUnscouted: true })) {
-        this.note(creep, "claim:no-route"); // trapped — hold, intel may reopen a path
-      }
+      return;
+    }
+    if (creep.room.name !== targetRoom) {
+      this.note(creep, "claim:no-route"); // trapped — hold, intel may reopen a path
       return;
     }
 
