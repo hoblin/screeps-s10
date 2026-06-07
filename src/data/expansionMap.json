@@ -89,5 +89,95 @@
       }
     ],
     "excluded": []
+  },
+  "E12S5": {
+    "generatedAt": "2026-06-06T19:59:46.369Z",
+    "shard": "shardSeason",
+    "home": "E12S5",
+    "remotes": [
+      {
+        "room": "E12S4",
+        "dir": "N",
+        "controller": {
+          "x": 11,
+          "y": 44
+        },
+        "mineral": "Z",
+        "reservedByOther": false,
+        "score": 54,
+        "sources": [
+          {
+            "x": 10,
+            "y": 30,
+            "dist": 42,
+            "value": 28,
+            "reachable": true
+          },
+          {
+            "x": 45,
+            "y": 38,
+            "dist": 47,
+            "value": 26,
+            "reachable": true
+          }
+        ]
+      },
+      {
+        "room": "E11S5",
+        "dir": "W",
+        "controller": {
+          "x": 23,
+          "y": 28
+        },
+        "mineral": "K",
+        "reservedByOther": false,
+        "score": 53.7,
+        "sources": [
+          {
+            "x": 13,
+            "y": 25,
+            "dist": 49,
+            "value": 25.3,
+            "reachable": true
+          },
+          {
+            "x": 32,
+            "y": 45,
+            "dist": 41,
+            "value": 28.4,
+            "reachable": true
+          }
+        ]
+      },
+      {
+        "room": "E13S5",
+        "dir": "E",
+        "controller": {
+          "x": 26,
+          "y": 5
+        },
+        "mineral": "O",
+        "reservedByOther": false,
+        "score": 23.1,
+        "sources": [
+          {
+            "x": 13,
+            "y": 3,
+            "dist": 56,
+            "value": 23.1,
+            "reachable": true
+          }
+        ]
+      }
+    ],
+    "avoid": [],
+    "excluded": [
+      {
+        "room": "E12S6",
+        "dir": "S",
+        "reason": "unreachable",
+        "sources": 1
+      }
+    ]
   }
 }

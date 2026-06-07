@@ -55,6 +55,7 @@ function arg(name, def) {
 }
 const SHARD = arg("shard", "shardSeason"); // report label only — no API access
 const OUT = arg("out", "tmp/season-region.json");
+const ME = arg("me", null); // our own username/id — excluded from the enemy-threat field (we don't threaten ourselves)
 
 // Data source: the SQLite mirror. Analytics is read-only and 100% offline by
 // design — the dedicated crawler (collect.mjs) is the sole owner of API access
@@ -66,9 +67,18 @@ const db = () => (_db ??= openDb());
 
 // ---- tuning constants ------------------------------------------------------
 // Economy core (v1): a source's bankable value, distance-decayed.
-const BASE_HOME = 100; // value of a perfectly-adjacent own source
-const BASE_REMOTE = 55; // remote source worth ~half: reserver + risk + road
-const K = 0.04; // distance decay; at 25 tiles a source keeps 1/(1+1)=50%
+// Resource lever: a colony is worth the SOURCE NODES it can work — home (owned, 10 e/t) plus reachable
+// neutral remotes (reserved, 10 e/t each). COUNT is the lever; distance is haul OVERHEAD, not a value
+// cliff (you build roads — a 50-tile remote still nets ~8 e/t, not ~1). So the taper is GENTLE: a remote
+// source counts nearly as much as a home one, and a room with more workable sources wins. A remote is
+// weighted a bit below home (reserver cost + raid risk + longer road).
+const BASE_HOME = 100;  // a worked home source
+const BASE_REMOTE = 75; // a reserved remote source — ~75% of a home source, still a full 10 e/t node
+const K = 0.02; // distance decay (round-trip tiles, terrain-weighted via crossBorderDist so SWAMP costs
+                // 5×). Middle ground: count still drives the score, but a far / swampy remote is properly
+                // discounted (a swamp-maze neighbour is NOT worth a clean adjacent one). 0.04 was a cliff
+                // (distance killed value), 0.008 was too soft (swamp/distance ignored).
+const ONE_SOURCE_PENALTY = 0.4; // a 1-source room is a weak main (half the income) — heavily deprioritised.
 const MINERAL_BONUS = { U: 18, X: 18, K: 14, L: 14, Z: 12, O: 8, H: 8 };
 
 // Additive v2 terms — all in the same ~100-per-source units as the economy
@@ -82,9 +92,22 @@ const BASE_SK = 40;        // a Source-Keeper source: fat (4000e/regen, ~33% ove
                            // ~70% of BASE_REMOTE: the fatness partly offsets the
                            // clearing cost, the discount books the late-game delay.
 const SK_MINERAL_BONUS = 10;  // an SK room's mineral is a free late-game extractor site.
-const ENEMY_BASE_PENALTY = 18; // any hostile neighbour costs you map control...
-const ENEMY_PER_LEVEL = 6;     // ...scaled by their RCL: an L1 squatter ≠ an L8 fortress.
+// Enemy-threat FIELD: a rival threatens a candidate by PROXIMITY × their PEAK
+// capability — their MAIN room's RCL, NOT the RCL of a forward outpost they pushed
+// at you. A veteran's RCL-2 forward base is backed by an RCL-8 main that can field a
+// boosted army; a noob's RCL-2 sole base can't. So weight every one of a player's
+// presences by their empire-wide ceiling (main RCL), and discount with room distance.
+const THREAT_RADIUS = 6;       // room-hops beyond which a rival barely projects force at a fresh colony
+const THREAT_PER_RCL = 14;     // threat weight per level of the rival's MAIN room (peak capability)
+const THREAT_PER_EMPIRE = 5;   // extra threat per ADDITIONAL base — a sprawling empire fields more army
+// Threat is a RISK DISCOUNT on the resource value, NOT a subtraction (subtracting let a safe-but-empty
+// room outrank a rich contested one — forgetting a 2nd base exists to MINE). It scales economy by a
+// factor in [THREAT_FLOOR, 1]: a fresh colony next to a strong veteran is worth a fraction, never zero
+// (claim it anyway if it's rich enough), and a resource-poor room ranks low on its own merit regardless.
+const THREAT_FULL = 200;       // threat at which the discount bottoms out at THREAT_FLOOR
+const THREAT_FLOOR = 0.25;     // a maximally-threatened room still keeps this fraction of its resource value
 const RESERVED_REMOTE_FACTOR = 0.35; // a neighbour reserved by someone else isn't a free remote.
+const NO_CONTROLLER_FACTOR = 0.5;    // a controller-less neutral remote can't be reserved → sources at 5 e/t, not 10.
 const CHOKE_MAX_BONUS = 20;    // a near-sealed room (few open border tiles) is cheap to wall.
 const CHOKE_OPEN_REF = 160;    // open-exit-tile count at which the choke bonus fades to zero.
 const HIGHWAY_ACCESS_BONUS = 6; // adjacency to a highway = deposit/power/portal reach later.
@@ -132,6 +155,25 @@ function distField(g, sx, sy) {
       }
   }
   return dist;
+}
+
+// Distance to a SOURCE/controller as a creep actually experiences it: the min field
+// value over the object's own tile AND its walkable neighbours. A source or controller
+// may LEGALLY sit on a wall tile (#111 — natural objects can) — you can't stand on it,
+// so its own tile never gets a finite distField value; the real cost is to the adjacent
+// tile a miner/hauler stands on. Reading the object tile directly returned Infinity for
+// every wall-mounted source, zeroing home value (the home=0 bug). Mirrors how the remote
+// path already floods FROM the source's surroundings rather than the source tile.
+function accessDist(g, field, x, y) {
+  let best = Infinity;
+  for (let dx = -1; dx <= 1; dx++)
+    for (let dy = -1; dy <= 1; dy++) {
+      const nx = x + dx, ny = y + dy;
+      if (isWall(g, nx, ny)) continue; // can't stand on a wall
+      const d = field[idx(nx, ny)];
+      if (d < best) best = d;
+    }
+  return best;
 }
 
 // ---- room name math --------------------------------------------------------
@@ -209,10 +251,154 @@ function chokeBonus(g) {
   return CHOKE_MAX_BONUS * Math.max(0, 1 - open / CHOKE_OPEN_REF);
 }
 
+// The current player landscape, built ONCE from the SQLite mirror (lazy + cached):
+//   • byRoom   — name -> { owner, uname, level }: who holds each room and at what
+//                level. level >= 1 = a CLAIMED base; level 0 = a RESERVATION (a
+//                remote, not a base). Prefers the fresh `ownership` sweep
+//                (collect.mjs --owners), falling back to the pre-season room scan's
+//                controller owner for rooms not yet re-swept. We key on `own` only —
+//                a controller `sign` is cosmetic map graffiti (one player can sign
+//                the whole map) and is NEVER read here.
+//   • profiles — one per RIVAL: { owner, name, mainRcl, empire, bases:[{sx,sy}] }.
+//                A rival's THREAT weight is their MAIN room RCL (peak capability) and
+//                empire size, not the local RCL of any one base. Reservations (level
+//                0) do NOT raise mainRcl — only claimed bases do. `me` is excluded.
+const NPC_OWNERS = new Set(["Invader", "Source Keeper"]); // NPC owners — local hazards (the in-game guard
+// handles them), NOT rival empires; excluded from the player-threat field so their map-wide cores don't
+// inflate an "empire" term and swamp every candidate.
+function buildLandscape(database, me) {
+  const isMe = (owner, uname) => me && (owner === me || uname === me);
+  const rows = database.prepare(
+    `SELECT name, owner, owner_name AS uname, level FROM ownership WHERE owner IS NOT NULL`,
+  ).all();
+  const seen = new Set(rows.map((r) => r.name));
+  // Fallback: rooms the cheap --owners sweep hasn't covered keep their pre-season
+  // scanned controller owner (better stale than blind).
+  for (const r of database.prepare(
+    `SELECT name, controller_owner AS owner, controller_owner_name AS uname, controller_level AS level
+       FROM rooms WHERE controller_owner IS NOT NULL`,
+  ).all()) if (!seen.has(r.name)) rows.push(r);
+
+  const byRoom = new Map();
+  const byOwner = new Map();
+  for (const r of rows) {
+    const level = r.level || 0;
+    byRoom.set(r.name, { owner: r.owner, uname: r.uname, level });
+    // Skip: reservations (level 0), our own bases, and NPC owners (Invader / Source
+    // Keeper — local hazards the in-game guard handles, not rival empires to avoid).
+    if (level < 1 || isMe(r.owner, r.uname) || NPC_OWNERS.has(r.uname)) continue;
+    const p = byOwner.get(r.owner) || { owner: r.owner, name: r.uname, mainRcl: 0, empire: 0, bases: [] };
+    p.bases.push(r.name); // the room NAME — the threat field walks the real room graph, not grid offsets
+    p.empire++;
+    if (level > p.mainRcl) p.mainRcl = level;
+    if (!p.name && r.uname) p.name = r.uname;
+    byOwner.set(r.owner, p);
+  }
+  return { byRoom, profiles: [...byOwner.values()] };
+}
+let _land = null;
+const land = () => (_land ??= buildLandscape(db(), ME));
+
+// Two ortho-adjacent rooms CONNECT when the shared border has at least one tile pair
+// passable on both sides (a creep can actually cross). Reuses the same border/mirror
+// primitives the remote haul-distance model uses — geography, not grid offsets.
+function bordersConnect(ag, dir, bg) {
+  for (const [hx, hy] of borderTiles(ag, dir)) {
+    const [mx, my] = mirror(dir, hx, hy);
+    if (!isWall(bg, mx, my)) return true;
+  }
+  return false;
+}
+
+// Room-graph BFS from `start`, flooding only ACTUALLY-CONNECTED, scanned rooms up to
+// `maxHops`. Returns Map(room -> hop distance). This is the real "can a creep march
+// here" metric: a base that is grid-near but walled off / behind unscanned space is
+// correctly far or unreachable, NOT the lie a Manhattan offset tells. An unscanned room
+// breaks the path (unknown terrain isn't trusted as a route).
+//
+// `blocked(name, facts)` (optional) marks a room IMPASSABLE for this traversal, so the
+// BFS routes AROUND it. Two callers, two semantics: the enemy-threat field passes none
+// (an enemy ARMY marches through SK/enemy rooms — they stay passable), while the home-
+// support distance passes `supportBlocked` (OUR economy creeps die in SK/invader/enemy
+// rooms, so the safe supply route goes around them — the E12S5 "4 hops through 2 SK" vs
+// the real 5 safe hops lesson).
+function connectedDist(start, maxHops, blocked = null) {
+  const dist = new Map([[start, 0]]);
+  let frontier = [start];
+  for (let h = 0; h < maxHops && frontier.length; h++) {
+    const next = [];
+    for (const room of frontier) {
+      let a; try { a = requireRoom(room); } catch { continue; }
+      for (const { dir, room: nb } of orthoNeighbours(room)) {
+        if (dist.has(nb)) continue;
+        let b; try { b = requireRoom(nb); } catch { continue; } // unscanned => not a trusted route
+        if (!bordersConnect(a.g, dir, b.g)) continue;
+        if (blocked && blocked(nb, b)) continue; // impassable for this traversal → route around
+        dist.set(nb, h + 1);
+        next.push(nb);
+      }
+    }
+    frontier = next;
+  }
+  return dist;
+}
+
+// Rooms OUR economy creeps (claimer, pioneers, haulers) can't safely march THROUGH when
+// supporting a forward base: Source-Keeper rooms (keepers kill non-combat creeps),
+// invader-core rooms, and enemy CLAIMED bases. Mirrors the live bot's danger-aware
+// corridor (src/lib/Routing.js blocks SK by room-coordinate). Our own bases/reservations
+// stay passable — we hold them.
+function supportBlocked(name, facts) {
+  if (facts.keeperLairs?.length > 0) return true;
+  if (facts.invaderCore) return true;
+  const occ = land().byRoom.get(name);
+  return !!(occ && occ.level >= 1 && !(ME && (occ.owner === ME || occ.uname === ME)));
+}
+
+// Safe support distance: connected hops from `start` that route AROUND danger — the real
+// "how far to send a claimer + pioneer seed, and to haul back from" metric for a forward
+// base. The honest replacement for the SK-blind hop count.
+function supportDist(start, maxHops) {
+  return connectedDist(start, maxHops, supportBlocked);
+}
+
+// Enemy-threat at a candidate: Σ over rivals of weight × distance-decay, where weight
+// = THREAT_PER_RCL · mainRcl + THREAT_PER_EMPIRE · (empire-1) — the rival's PEAK
+// capability — and decay falls from 1 at an adjacent base to 0 at THREAT_RADIUS. The
+// distance is REAL connected room-hops to the rival's nearest reachable base (BFS over
+// the passable room graph), so a base he can't actually march an army from — walled
+// off, or beyond the radius — doesn't threaten this candidate.
+function enemyThreat(nm, profiles) {
+  const dmap = connectedDist(nm, THREAT_RADIUS);
+  let threat = 0;
+  const contributors = [];
+  for (const p of profiles) {
+    let near = Infinity;
+    for (const room of p.bases) {
+      const d = dmap.get(room);
+      if (d != null && d < near) near = d;
+    }
+    if (!isFinite(near) || near < 1) continue; // unreachable within radius
+    const decay = 1 - (near - 1) / THREAT_RADIUS;
+    if (decay <= 0) continue;
+    const weight = THREAT_PER_RCL * p.mainRcl + THREAT_PER_EMPIRE * (p.empire - 1);
+    const t = weight * decay;
+    if (t <= 0) continue;
+    threat += t;
+    contributors.push({ player: p.name || p.owner, mainRcl: p.mainRcl, empire: p.empire, dist: near, threat: round(t) });
+  }
+  contributors.sort((a, b) => b.threat - a.threat);
+  return { threat, contributors };
+}
+
 async function scoreRoom(nm) {
   const home = requireRoom(nm);
   if (!home.controller) return { room: nm, error: "no controller (unclaimable)" };
-  if (home.owner) return { room: nm, error: "already owned" };
+  // Unclaimable only if it's a CLAIMED base (level >= 1). A room merely RESERVED
+  // (level 0 — including our own remotes) is a perfectly valid claim candidate, so we
+  // key on the fresh ownership level, not loadRoom's reservation-conflated `owner`.
+  const occHome = land().byRoom.get(nm);
+  if (occHome && occHome.level >= 1) return { room: nm, error: `already owned (${occHome.uname || occHome.owner})` };
 
   // spawn proxy = controller tile (planner will place spawn nearby; relative
   // haul cost from controller is a stable proxy pre-planning).
@@ -220,7 +406,7 @@ async function scoreRoom(nm) {
 
   // -- home sources --
   const homeSrc = home.sources.map((s) => {
-    const oneWay = homeField[idx(s.x, s.y)];
+    const oneWay = accessDist(home.g, homeField, s.x, s.y); // to the miner's standable tile, not the (maybe-wall) source tile
     const rt = oneWay * 2;
     return { ...s, dist: round(oneWay), value: round(valueOf(BASE_HOME, rt)) };
   });
@@ -230,22 +416,22 @@ async function scoreRoom(nm) {
   const remotes = [];   // immediately mineable neutral remotes
   const skRemotes = []; // guarded Source-Keeper rooms (discounted, late-game)
   const skNeighbours = [];
-  let enemyNeighbours = 0, enemyPenalty = 0, nearestEnemyRcl = null;
+  let enemyNeighbours = 0;
   let reservedNeighbours = 0, highwayAccess = false;
+  const neighbours = []; // per-ortho-exit classification so the top-N display shows WHY a room is
+                         // good/bad — e.g. all exits into invader rooms = a boxed-in trap.
 
   for (const { dir, room } of orthoNeighbours(nm)) {
     if (isHighway(room)) highwayAccess = true;
     let nb;
-    try { nb = requireRoom(room); } catch { continue; } // skip un-collected neighbours
+    try { nb = requireRoom(room); } catch { neighbours.push({ dir, room, type: "?" }); continue; } // un-collected
 
-    // Enemy-owned: can't remote-mine, and they cost map control scaled by RCL.
-    if (nb.owner) {
-      enemyNeighbours++;
-      const lvl = nb.controller?.level ?? 0;
-      enemyPenalty += ENEMY_BASE_PENALTY + ENEMY_PER_LEVEL * lvl;
-      if (nearestEnemyRcl == null || lvl > nearestEnemyRcl) nearestEnemyRcl = lvl;
-      continue;
-    }
+    const occ = land().byRoom.get(room);
+    // An invader stronghold (NPC) is a TRAP exit — you path into hostiles, never a remote. A CLAIMED
+    // player base can't be remote-mined either; it's the enemy-threat field's input (scored by main-RCL
+    // × distance below), so a base merely BORDERING us is just one dist-1 contributor there.
+    if (nb.invaderCore || (occ && NPC_OWNERS.has(occ.uname))) { neighbours.push({ dir, room, type: "invader" }); continue; }
+    if (occ && occ.level >= 1) { enemyNeighbours++; neighbours.push({ dir, room, type: `base:${occ.uname || occ.owner}` }); continue; }
 
     // Source-Keeper room (keeper lairs present): a fat late-game remote, not a
     // free one. Value its sources at the discounted BASE_SK plus its mineral,
@@ -257,15 +443,22 @@ async function scoreRoom(nm) {
       if (nb.mineral) skVal += SK_MINERAL_BONUS;
       skRemotes.push({ room, sources: nb.sources.length, mineral: nb.mineral?.t || null, value: round(skVal) });
       skNeighbours.push(room);
+      neighbours.push({ dir, room, type: "sk", srcs: nb.sources.length });
       continue;
     }
 
-    if (nb.sources.length === 0) continue;
+    if (nb.sources.length === 0) { neighbours.push({ dir, room, type: nb.controller ? "empty" : "highway" }); continue; }
 
-    // Reserved by someone else => contested, discount the remote (not yet free).
-    const reservedByOther = !!nb.reservation?.owner;
+    // Reserved by ANOTHER player (level 0 with an owner that isn't us) => contested,
+    // discount the remote. Our OWN reservation is a remote we already work — full value.
+    const reservedByOther = !!(occ && occ.owner && !(ME && (occ.owner === ME || occ.uname === ME)));
     if (reservedByOther) reservedNeighbours++;
-    const factor = reservedByOther ? RESERVED_REMOTE_FACTOR : 1;
+    // A remote's sources only yield the full 10 e/t if we can RESERVE the room — which
+    // needs a controller. A controller-less neutral room can't be reserved, so its
+    // sources sit at the unreserved 5 e/t (half value). (SK rooms are handled above.)
+    const reservable = !!nb.controller;
+    let factor = reservedByOther ? RESERVED_REMOTE_FACTOR : 1;
+    if (!reservable) factor *= NO_CONTROLLER_FACTOR;
 
     for (const s of nb.sources) {
       const best = crossBorderDist(home, homeField, nb, dir, s);
@@ -280,6 +473,7 @@ async function scoreRoom(nm) {
         value: reachable ? round(valueOf(BASE_REMOTE, best * 2) * factor) : 0,
       });
     }
+    neighbours.push({ dir, room, type: reservedByOther ? `resv:${occ.uname || occ.owner}` : occ ? "mine" : "free", srcs: nb.sources.length });
   }
   const remoteValue = remotes.reduce((a, s) => a + s.value, 0);
   const skValue = skRemotes.reduce((a, s) => a + s.value, 0);
@@ -287,8 +481,18 @@ async function scoreRoom(nm) {
   const mineralBonus = home.mineral ? (MINERAL_BONUS[home.mineral.t] || 6) : 0;
   const choke = chokeBonus(home.g);
   const highwayBonus = highwayAccess ? HIGHWAY_ACCESS_BONUS : 0;
-  const safety = -enemyPenalty;
-  const total = round(homeValue + remoteValue + skValue + mineralBonus + choke + highwayBonus + safety);
+  // RESOURCES are the lever — a 2nd base exists to MINE. The backbone is the WORKABLE source value:
+  // home (owned) + reachable neutral remotes, count-dominant via the gentle taper. SK sources are NOT
+  // in it (un-minable until Stage-4 boosted clearers) — they're reported separately, not banked here. A
+  // 1-source room is a weak main, penalised. Threat DISCOUNTS the backbone (a risk multiplier in
+  // [FLOOR,1]) rather than subtracting — a contested-but-rich room still beats a safe-but-empty one.
+  // Mineral (late-game asset), defensibility (choke) and highway access are small flat add-ons: they
+  // help, but never manufacture a colony out of a room with nothing to mine.
+  const { threat, contributors } = enemyThreat(nm, land().profiles);
+  const oneSrc = home.sources.length >= 2 ? 1 : ONE_SOURCE_PENALTY;
+  const economy = (homeValue + remoteValue) * oneSrc;
+  const risk = Math.max(THREAT_FLOOR, 1 - threat / THREAT_FULL);
+  const total = round(economy * risk + mineralBonus + choke + highwayBonus);
 
   return {
     room: nm,
@@ -301,8 +505,10 @@ async function scoreRoom(nm) {
     highwayBonus,
     mineral: home.mineral?.t || null,
     enemyNeighbours,
-    enemyPenalty: round(enemyPenalty),
-    nearestEnemyRcl,
+    threat: round(threat),
+    risk: round(risk, 2), // resource-value multiplier in [THREAT_FLOOR, 1] (1 = safe)
+    threats: contributors, // top rival contributors: { player, mainRcl, empire, dist, threat }
+    neighbours, // per-ortho-exit classification: free/mine/resv/sk/base/invader/empty/highway/?
     reservedNeighbours,
     highwayAccess,
     skNeighbours,
@@ -334,18 +540,20 @@ async function main() {
   }
   out.sort((a, b) => (b.total ?? -1e9) - (a.total ?? -1e9));
 
-  console.log("room      TOTAL   home   remote  sk     choke  hw   mineral  enemy(rcl)  | SK-neigh / topRemote(dist)");
+  console.log("room      TOTAL   src    home   remote  sk     choke  hw   mineral  threat(rival·mainRCL@hops)  | SK-neigh / topRemote(dist)");
   for (const r of out) {
     if (r.error) { console.log(`${r.room.padEnd(8)}  ERROR: ${r.error}`); continue; }
     const reach = r.remoteSources.filter((s) => s.reachable);
     const cut = r.remoteSources.length - reach.length;
     const sk = r.skNeighbours.length ? `SK:${r.skNeighbours.join(",")}  ` : "";
     const tr = reach.slice(0, 3).map((s) => `${s.room}:${s.dist}`).join(" ") + (cut ? `  (+${cut} walled)` : "");
-    const enemy = `${r.enemyNeighbours}${r.nearestEnemyRcl != null ? `(L${r.nearestEnemyRcl})` : ""}`;
+    const src = `${r.homeSources.length}+${reach.length}`; // home source nodes + reachable remote source nodes
+    const top = r.threats?.[0];
+    const threatStr = `${r.threat || 0}${top ? ` ${top.player}·L${top.mainRcl}@${top.dist}` : ""}`;
     console.log(
-      `${r.room.padEnd(8)}  ${String(r.total).padEnd(6)}  ${String(r.homeValue).padEnd(5)}  ${String(r.remoteValue).padEnd(6)}  ` +
+      `${r.room.padEnd(8)}  ${String(r.total).padEnd(6)}  ${src.padEnd(5)}  ${String(r.homeValue).padEnd(5)}  ${String(r.remoteValue).padEnd(6)}  ` +
       `${String(r.skValue).padEnd(5)}  ${String(r.chokeBonus).padEnd(5)}  ${String(r.highwayBonus).padEnd(3)}  ` +
-      `${String(r.mineral || "-").padEnd(7)}  ${enemy.padEnd(10)}  | ${sk}${tr}`,
+      `${String(r.mineral || "-").padEnd(7)}  ${threatStr.padEnd(16)}  | ${sk}${tr}`,
     );
   }
   mkdirSync(dirname(OUT), { recursive: true });
@@ -358,7 +566,7 @@ async function main() {
 // value an OWNED home room's remotes — scoreRoom itself refuses owned rooms (it
 // scores claim candidates), but the underlying model is the same (extract-and-
 // share per CLAUDE.md, not copy-paste).
-export { scoreRoom, distField, crossBorderDist, valueOf, orthoNeighbours, BASE_REMOTE, K };
+export { scoreRoom, distField, crossBorderDist, valueOf, orthoNeighbours, connectedDist, supportDist, BASE_REMOTE, K };
 
 // Only run the CLI when invoked directly, not when imported as a module.
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
