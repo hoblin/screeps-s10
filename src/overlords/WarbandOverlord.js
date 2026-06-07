@@ -16,9 +16,11 @@ const FLAG_PREFIX = "warband"; // a flag whose name starts with this marks the w
 // each unit is a behavior SET + how many to field. The BODY is NOT specified here — it's read off the
 // unit's default behavior (the model owns it, see spawnRequest). Overridable LIVE via Memory.warband
 // without a redeploy. For OPERATION SUFFOCATE: 3 skirmishers (raidRoom + focusFire override) + 2 medics.
+// Skirmishers carry selfDefense (#232) FIRST so a unit jumped en route fights back then resumes; medics
+// (healGroup) omit it — they stay glued to the squad, which screens them (a lone kiting medic desyncs).
 const DEFAULT_SPEC = {
   units: [
-    { default: "raidRoom", nodes: ["focusFire"], count: 3 },
+    { default: "raidRoom", nodes: ["selfDefense", "focusFire"], count: 3 },
     { default: "healGroup", nodes: [], count: 2 },
   ],
   targetOwner: null, // username raidRoom hunts en route (e.g. "Robalian")

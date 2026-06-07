@@ -9,9 +9,11 @@ import { combatBody } from "../lib/CombatBody.js";
 //  GuardOverlord stamps at spawn and driven each tick by the per-creep BehaviorMachine; the overlord
 //  steers it purely by writing memory.target / memory.targetOwner (the WarbandOverlord.command pattern).
 //
-//  The guard's machine is `{ default: "holdPoint", nodes: ["raidRoom", "holdGround"] }`:
+//  The guard's machine is `{ default: "holdPoint", nodes: ["selfDefense", "raidRoom", "holdGround"] }`:
 //   • holdPoint  — DEFAULT: travel to the assigned room (danger-aware) and garrison it, engaging
 //                  intruders and holding the controller for life (#128).
+//   • selfDefense — en-route survival (#232): while travelling, fight an armed hostile that gets close
+//                  enough to hit it, then resume the route. FIRST node = preempts the mission to survive.
 //   • holdGround — after a fight, hold the contested ground for a few ticks and re-engage returners
 //                  before walking back to the post (#160) — entered on a fresh contact in the room.
 //   • raidRoom   — RETALIATION (#140): with an attacker locked (targetOwner), deny HIS remote and STAY,
@@ -30,8 +32,9 @@ export class Guard extends Role {
 
   // The role's behaviour set — the role OWNS its conduct composition (GuardOverlord stamps this into
   // each guard's memory.behaviors at spawn). Default holdPoint (garrison the assigned room), with
-  // raidRoom (retaliation deny) and holdGround (#160 post-combat hold) as conditional override nodes.
-  static behaviors = { default: "holdPoint", nodes: ["raidRoom", "holdGround"] };
+  // selfDefense (#232 en-route survival, first = highest priority), raidRoom (retaliation deny) and
+  // holdGround (#160 post-combat hold) as conditional override nodes.
+  static behaviors = { default: "holdPoint", nodes: ["selfDefense", "raidRoom", "holdGround"] };
 
   // The guard's body — sized by the shared combat sizer to the threat profile (#189). Used by GuardOverlord.
   static bodyFor(energyBudget, profile) {
