@@ -16,9 +16,11 @@ import { stageAtLeast } from "../../lib/Stages.js";
 // ============================================================================
 export class FillStructures extends Behavior {
   static run(creep, colony) {
-    // Hand-off doctrine: from 2b on, haulers fill — but only while one is actually alive (#37).
-    const haulersAlive = colony.creepsWithRole("hauler").length > 0;
-    if (stageAtLeast(colony, "2b:Hauling") && haulersAlive) return false;
+    // Hand-off doctrine: from 2b on, haulers fill — but only while a FILL-CAPABLE one is alive (#37).
+    // A still-spawning hauler can't fill yet, so it must NOT gate the worker off (else the spawn starves
+    // through the hauler's whole spawn window). Mirrors the non-spawning check in Role.gatherEnergy.
+    const haulerCanFill = colony.creepsWithRole("hauler").some((h) => !h.spawning);
+    if (stageAtLeast(colony, "2b:Hauling") && haulerCanFill) return false;
 
     const fillable = (s) =>
       (s.structureType === STRUCTURE_SPAWN || s.structureType === STRUCTURE_EXTENSION) &&
