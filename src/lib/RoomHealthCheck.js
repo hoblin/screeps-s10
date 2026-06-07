@@ -20,17 +20,21 @@ import { Threat } from "./Threat.js";
 //  Same Memory.colonyData pattern the overlords use for cached positions.
 // ============================================================================
 
-// `energyRich` is the surplus signal — true when energy is going to waste and we
-// should spend it (more builders if there's a backlog, else more upgraders).
-// It's a Schmitt trigger (two thresholds) so it doesn't chatter tick-to-tick as
-// saturation wobbles: it latches ON at HIGH, OFF at LOW, and holds in between.
+// `energyRich` is the surplus signal — true when energy is backing up and we should spend it (lifts
+// the builder cap when there's a backlog; gates the RCL5 link investment). It's a Schmitt trigger (two
+// thresholds) so it doesn't chatter as the buffer wobbles: it latches ON at HIGH, OFF at LOW, holds between.
 //
-// Saturation is the terminal waste indicator: when we under-consume, energy
-// backs up the whole chain (spawn full -> containers full -> miners overflow)
-// and the sources stop being drained, so they sit near cap. One stable signal
-// captures "nowhere for energy to go".
-const SATURATION_RICH_ON = 0.7; // avg source fill at/above which income is clearly wasted
-const SATURATION_RICH_OFF = 0.4; // ...and below which mining has caught up with consumption
+// `saturation` is that surplus, measured as the fill of the colony's ACTIVE energy buffer (#253). The
+// old measure — average SOURCE fill — went blind under static mining: a static miner keeps its source
+// drained BY DESIGN, so the source sits near-empty while the surplus pools DOWNSTREAM. So we read where
+// the surplus actually accumulates, mirroring UpgradeOverlord.bufferDelta's buffer selection (see
+// bufferSaturation): storage depth if storage exists, else the source CONTAINERS' fill, else (pre-
+// container) the raw source fill. One stable 0..1 signal that captures "energy is backing up" in every regime.
+const SATURATION_RICH_ON = 0.7; // active-buffer fill at/above which surplus is clearly backing up
+const SATURATION_RICH_OFF = 0.4; // ...and below which consumption has caught up with income
+// Storage capacity is huge (≥1M), so a raw fill ratio would never cross the thresholds — normalise
+// storage DEPTH to this "fully rich" mark instead (energyRich latches ON ≈35k, OFF ≈20k of banked storage).
+const STORAGE_RICH_FULL = 50000;
 
 // Spawn-idle EWMA — the smoothed fraction of recent ticks the spawn sat idle. NO LONGER gates
 // expansion (#210): tying expansion to spawn-idle was self-defeating — the ScoutOverlord (#170) fills
@@ -69,12 +73,9 @@ export const RoomHealthCheck = {
     const energyCap = room.energyCapacityAvailable;
     const prior = this.state(colony); // last tick's latched signals (cross-tick via Memory)
 
-    // Average source saturation: high means miners harvest slower than the
-    // source regenerates, so the surplus regen burns unused.
-    const saturation = colony.sources.length
-      ? colony.sources.reduce((sum, s) => sum + s.energy / s.energyCapacity, 0) /
-        colony.sources.length
-      : 0;
+    // Surplus level: the fill of the colony's ACTIVE energy buffer (#253) — high means consumption is
+    // lagging income, so energy is backing up. Reads where the surplus actually pools (see bufferSaturation).
+    const saturation = this.bufferSaturation(colony);
 
     // Schmitt-triggered surplus latch (hysteresis via Memory — the instance is
     // rebuilt each tick and can't hold last tick's state).
@@ -121,6 +122,35 @@ export const RoomHealthCheck = {
         controllerContainerMissing: this.controllerContainerMissing(colony),
       },
     };
+  },
+
+  // The surplus level feeding `saturation`/`energyRich` — the fill of the colony's ACTIVE energy buffer,
+  // so it tracks where surplus actually pools under static mining (#253). Mirrors the buffer selection of
+  // UpgradeOverlord.bufferDelta:
+  //  • STORAGE (RCL4+): its DEPTH normalised to STORAGE_RICH_FULL (a raw ratio would never cross the
+  //    thresholds — storage holds ≥1M). Post-storage the source containers are kept drained INTO storage,
+  //    so storage depth is the true surplus there.
+  //  • SOURCE CONTAINERS (pre-storage): pooled fill (Σenergy / Σcapacity) — the downstream backup a static
+  //    miner's overflow lands in. Capacity-pooled so one missing/empty container can't skew the ratio.
+  //  • SOURCES (pre-container, early 2a): raw fill — mining isn't static yet, so the source level is still meaningful.
+  bufferSaturation(colony) {
+    const storage = colony.room.storage;
+    if (storage) {
+      return Math.min(1, storage.store[RESOURCE_ENERGY] / STORAGE_RICH_FULL);
+    }
+    const containers = colony.sourceContainers();
+    if (containers.length) {
+      let energy = 0;
+      let capacity = 0;
+      for (const c of containers) {
+        energy += c.store[RESOURCE_ENERGY];
+        capacity += c.store.getCapacity(RESOURCE_ENERGY);
+      }
+      return capacity ? energy / capacity : 0;
+    }
+    return colony.sources.length
+      ? colony.sources.reduce((sum, s) => sum + s.energy / s.energyCapacity, 0) / colony.sources.length
+      : 0;
   },
 
   // Home-crisis flags both readiness latches gate off on (`{ decaying, attacked }`),
