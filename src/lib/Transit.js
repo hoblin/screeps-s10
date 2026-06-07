@@ -29,8 +29,8 @@ import { Debug } from "./Debug.js";
 //   • `clearer` — a COMBAT unit passes itself, so a WINNABLE hot room stays passable (it clears
 //     it in passing rather than detouring, denying along the way) while SK/towered/unwinnable
 //     rooms stay blocked. Economy passes none → all hot rooms are routed around. With a clearer
-//     we also probe corridor EXISTENCE (a room-level findRoute) so a boxed-in combat unit can
-//     fall back to fighting instead of freezing at a sealed border — travelTo is purely
+//     we also probe corridor EXISTENCE (a throttled room-level findRoute) so a boxed-in combat unit
+//     can fall back to fighting instead of freezing at a sealed border — travelTo is purely
 //     side-effectful (no ERR_NO_PATH return) so it can't report "no path" on its own.
 //   • `allowUnscouted` — economy (default true) may probe the dark toward a known target; combat
 //     (false) never transits BLIND through an unknown room that could hide a tower.
@@ -39,6 +39,23 @@ import { Debug } from "./Debug.js";
 //  persistent blocker and re-opens the route for the next fragile unit (#147/#187) — cheaper than
 //  escorting a CLAIM body. A combat unit IS that responder, so it re-routes itself (no bump).
 // ============================================================================
+
+const PROBE_TTL = 10; // throttle the combat corridor-existence findRoute to once per N ticks
+
+// Throttled corridor-existence probe for combat transit (true = a safe corridor to destRoom exists).
+// findRoute is not free, so the verdict is cached per destination for PROBE_TTL ticks — a corridor's
+// open/closed state changes only on new tower/threat intel (slowly), so a stale verdict at worst delays
+// the give-up-and-fight trigger by a few ticks (the PathFinder costCallback still avoids known-bad rooms
+// every tick regardless). The cache lives on the creep, so it is implicitly per-clearer (winnability is
+// body-specific to this unit).
+function corridorOpen(creep, destRoom, allowUnscouted, clearer) {
+  const p = creep.memory._probe;
+  if (!p || p.dest !== destRoom || Game.time - p.t >= PROBE_TTL) {
+    const open = !!towerFreeRoute(creep.room.name, destRoom, { allowUnscouted, avoidHot: true, clearer });
+    creep.memory._probe = { dest: destRoom, t: Game.time, open };
+  }
+  return creep.memory._probe.open;
+}
 
 // Drive `creep` toward `destRoom`, letting the engine path swamp-aware within SK/tower/hot-safe rooms.
 // Returns true while travelling; false once IN destRoom OR (combat mode) when no safe corridor exists —
@@ -55,8 +72,8 @@ export function routeToRoom(creep, destRoom, { range = 20, allowUnscouted = true
   creep.memory.lastHits = creep.hits;
 
   if (creep.room.name === destRoom) {
-    // Arrival event boundary (#215) — fires once on arrival, gated on the en-route flag set while
-    // travelling, then cleared so it won't re-fire while the caller sits in the destination.
+    // Arrival event boundary (#215) — fires once on arrival, gated on the en-route flag (set only while
+    // Debug watches this creep), then cleared so it won't re-fire while the caller sits in the destination.
     if (creep.memory._enroute) {
       Debug.for(creep.memory.role, creep.name).event(() => ({ ev: "arrived", room: destRoom }));
       delete creep.memory._enroute;
@@ -66,15 +83,16 @@ export function routeToRoom(creep, destRoom, { range = 20, allowUnscouted = true
 
   // Combat (clearer) mode: a unit that must FIGHT when boxed in needs to know a safe corridor still
   // exists. travelTo is purely side-effectful (it returns no ERR_NO_PATH), so probe corridor existence
-  // with a room-level findRoute and signal "trapped" (false) when none — the caller engages locally
-  // rather than freeze at a sealed border. Economy callers pass no clearer and skip this probe: a
-  // claimer simply keeps trying (its prior behaviour, unchanged — no extra findRoute on the economy path).
-  if (clearer && !towerFreeRoute(creep.room.name, destRoom, { allowUnscouted, avoidHot: true, clearer })) {
+  // (throttled findRoute, see corridorOpen) and signal "trapped" (false) when none — the caller engages
+  // locally rather than freeze at a sealed border. Economy callers pass no clearer and skip the probe.
+  if (clearer && !corridorOpen(creep, destRoom, allowUnscouted, clearer)) {
     delete creep.memory._enroute;
     return false; // no safe corridor — trapped; caller's fallback handles it
   }
 
-  creep.memory._enroute = true;
+  // Mark en route so the arrival event fires once — but only when Debug is actually watching this creep,
+  // so the common (Debug-off) path writes no Memory at all (economy callers stay byte-identical at rest).
+  if (Debug.level(creep.memory.role, creep.name)) creep.memory._enroute = true;
   creep.travelTo(new RoomPosition(25, 25, destRoom), {
     range,
     // We supply the cost callback ourselves (SK/danger), so don't let travelTo overwrite it with the
