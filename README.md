@@ -163,7 +163,10 @@ spawn was chosen this way: **E15S7**.
 - [x] Priority traffic layer + multi-room creep movement (`creep.travelTo`)
 - [x] Economy-driven creep counts (`RoomHealthCheck`) + freight-model hauler fleet
 - [x] Remote mining (reserve + harvest adjacent rooms) — MVP, gated on `expansionReady`
+- [x] Expansion directive: claim + pioneer-bootstrap a 2nd colony (`ClaimOverlord`, #220/#242)
+- [x] Combat behaviour layer (`BehaviorMachine` + composable behaviours, #39/#187)
+- [x] CommandCenter HiveCluster — storage + link network (#16/#17), live & operating
+- [x] Score collection via scout diversion (#24 — the score fleet IS the scout fleet)
 - [ ] Remote-mining refinements (multi-source, self-built remote container)
-- [ ] CommandCenter HiveCluster (storage/links/terminal)
-- [ ] Labs + boosts, terminal logistics (Stage 4)
-- [ ] Score collection fleet (Stage 5 — S10 win condition)
+- [ ] Stage 4 industry: 2nd spawn (RCL7), extractor + mineral economy, terminal, labs/boosts
+- [ ] `LinkNetwork` greedy matcher (deferred until a 2nd source link at RCL6+)
