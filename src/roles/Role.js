@@ -194,4 +194,18 @@ export class Role {
     if (!colony || container.structureType !== STRUCTURE_CONTAINER) return false;
     return colony.sources.some((source) => source.pos.getRangeTo(container.pos) <= 1);
   }
+
+  // Commit to a target across ticks (the anti-rotation latch, generalised from Hauler.committedPickup).
+  // Returns the object cached under `creep.memory[key]` while it's still VALID per `isValid`; otherwise
+  // (re)picks via `find` (a fresh, ignoreCreeps selection), caches its id, and returns it (null if none).
+  // This is what keeps a worker from re-selecting — and so travelTo from re-pathing — every tick while it
+  // heads to a still-valid target: it sticks to the chosen one until that target is satisfied or gone.
+  static committedTarget(creep, key, isValid, find) {
+    const id = creep.memory[key];
+    const cached = id ? Game.getObjectById(id) : null;
+    if (cached && isValid(cached)) return cached;
+    const picked = find();
+    creep.memory[key] = picked ? picked.id : null;
+    return picked;
+  }
 }

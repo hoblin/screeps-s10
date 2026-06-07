@@ -14,6 +14,7 @@ import { RoamNeighbour } from "./combat/RoamNeighbour.js";
 import { HoldGround } from "./combat/HoldGround.js";
 import { SelfDefense } from "./combat/SelfDefense.js";
 import { RemoteHaul } from "./economy/RemoteHaul.js";
+import { Work } from "./economy/Work.js";
 
 // ============================================================================
 //  Behavior registry (#39) — maps a behavior NAME (as stored in a creep's
@@ -59,10 +60,16 @@ import { RemoteHaul } from "./economy/RemoteHaul.js";
 //                  then resumes. Entry/exit edges; scoped to transit so it never clobbers a destination's
 //                  own conduct. Place FIRST in a role's nodes (self-preservation preempts the mission).
 //
-//  ECONOMY (#204 — the first non-combat behavior; extends the neutral Behavior base directly):
+//  ECONOMY (#204 — the first non-combat behaviors; extend the neutral Behavior base directly):
 //   • remoteHaul — carry a remote source's energy home. Executes the source the
 //                  RemoteLogisticsOverlord stamps (command pattern); the overlord balances
 //                  the fleet across containers (rate-matched tonne-km, no swarm).
+//   • work       — the general builder/filler/repairer/upgrader (#239). Gather↔work cycle
+//                  (shared Hauler.runCycle); when spending, a `fallback` of self-gating atoms
+//                  fill > build > repair > upgrade. Build SITE selection is the WorkOverlord's
+//                  (it stamps memory.buildTarget, fleet-concentrated + per-trip latched) — the
+//                  Build atom only executes the stamp. The atoms (fillStructures/build/repair/
+//                  upgrade) are composed internally, not assignable by name, so they're not registered.
 // ============================================================================
 export const BEHAVIORS = {
   raidRoom: RaidRoom,
@@ -80,6 +87,7 @@ export const BEHAVIORS = {
   holdGround: HoldGround,
   selfDefense: SelfDefense,
   remoteHaul: RemoteHaul,
+  work: Work,
 };
 
 // Resolve a behavior name to its class, or null (an unknown/typo'd name is a no-op
