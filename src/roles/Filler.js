@@ -41,6 +41,7 @@ export class Filler extends Role {
 
     // Carrying → top up the nearest hungry spawn/extension (the colony's ability to spawn).
     const target = creep.pos.findClosestByPath(FIND_MY_STRUCTURES, {
+      ignoreCreeps: true, // select as if no creeps; travelTo routes around them (#63)
       filter: (s) =>
         (s.structureType === STRUCTURE_SPAWN || s.structureType === STRUCTURE_EXTENSION) &&
         s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,

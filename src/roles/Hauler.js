@@ -154,6 +154,7 @@ export class Hauler extends Role {
   static deliver(creep, colony) {
     // 1. Spawns & extensions (keep the colony able to spawn).
     const spawnOrExtension = creep.pos.findClosestByPath(FIND_MY_STRUCTURES, {
+      ignoreCreeps: true, // select as if no creeps; travelTo routes around them (#63)
       filter: (s) =>
         (s.structureType === STRUCTURE_SPAWN ||
           s.structureType === STRUCTURE_EXTENSION) &&
@@ -169,6 +170,7 @@ export class Hauler extends Role {
 
     // 2. Towers (defense) — keep them above a working reserve.
     const tower = creep.pos.findClosestByPath(FIND_MY_STRUCTURES, {
+      ignoreCreeps: true, // select as if no creeps; travelTo routes around them (#63)
       filter: (s) =>
         s.structureType === STRUCTURE_TOWER &&
         s.store.getFreeCapacity(RESOURCE_ENERGY) > 0,

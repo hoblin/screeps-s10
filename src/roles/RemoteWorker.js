@@ -95,6 +95,7 @@ export class RemoteWorker extends Role {
       return;
     }
     const pile = creep.pos.findClosestByPath(FIND_DROPPED_RESOURCES, {
+      ignoreCreeps: true, // select as if no creeps; travelTo routes around them (#63)
       filter: (r) => r.resourceType === RESOURCE_ENERGY,
     });
     if (pile) {
@@ -102,6 +103,7 @@ export class RemoteWorker extends Role {
       return;
     }
     const store = creep.pos.findClosestByPath(FIND_STRUCTURES, {
+      ignoreCreeps: true, // select as if no creeps; travelTo routes around them (#63)
       filter: (s) => s.structureType === STRUCTURE_CONTAINER && s.store[RESOURCE_ENERGY] > 0,
     });
     if (store) {
