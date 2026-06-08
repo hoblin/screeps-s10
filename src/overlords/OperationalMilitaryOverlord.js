@@ -6,6 +6,7 @@ import { DefendHomeMission } from "../missions/DefendHomeMission.js";
 import { DefendChildMission } from "../missions/DefendChildMission.js";
 import { ClearRemoteMission } from "../missions/ClearRemoteMission.js";
 import { BustCoreMission } from "../missions/BustCoreMission.js";
+import { RaidMission } from "../missions/RaidMission.js";
 
 const OPS_PRIORITY = 4; // defence / remote-clearing precedes the remote economy — same tier the old Guard held.
 
@@ -23,14 +24,15 @@ const RETALIATE_SCAN_INTERVAL = 25;
 //  (overlord-is-a-domain-controller), NOT one overlord per threat: the spawn + lead machinery is identical
 //  across missions — only the recogniser and target differ — so missions are typed objects inside one
 //  owner. As of Slice 2 it owns all of reactive defence (home / child / clear-remote / retaliate, migrated
-//  off the retired GuardOverlord) plus bust-core; it runs alongside WarbandOverlord until Slice 3 folds the
-//  manual offensive in as a second activation source.
+//  off the retired GuardOverlord) plus bust-core, AND the human-commanded raid (the manual activation
+//  source) — the whole military domain in one owner; GuardOverlord and WarbandOverlord are both retired.
 //
 //  THE GROUP SPINE — this overlord is the TYPE-AGNOSTIC backbone; each mission owns its composition and
 //  lifecycle:
-//   • autonomousMissions() aggregates each mission TYPE's recogniser factory, in the home > child >
-//     clear-remote > bust-core PRIORITY order (generateSpawnRequest fields the first under-count slot in
-//     that order, so home defence wins the spawn first).
+//   • missions() = autonomousMissions() ⊕ manualMissions() — the same mission classes from two SOURCES
+//     (threat intel vs a human order). Manual is a SOURCE, not a peer type. Concatenated in home > child >
+//     clear-remote > bust-core > raid PRIORITY order (generateSpawnRequest fields the first under-count slot
+//     in that order, so reactive defence always wins the spawn ahead of a commanded offensive).
 //   • a mission's force is a ROSTER (unit-types × counts); generateSpawnRequest fields it by COUNT-COVERAGE
 //     (per-roster-slot headcount), honouring each mission's replacement policy — so a mission musters a
 //     whole GROUP, not one creep.
@@ -48,11 +50,12 @@ export class OperationalMilitaryOverlord extends Overlord {
     return "soldier";
   }
 
-  // Every active mission this tick (memoised — overlord instances are rebuilt each tick). Slice 3 appends
-  // the manual source here: missions() = autonomous ⊕ manual.
+  // Every active mission this tick (memoised — overlord instances are rebuilt each tick): the AUTONOMOUS
+  // source (threat recognisers) plus the MANUAL source (a human order), the same mission classes from two
+  // entry points. Manual last → reactive defence preempts a commanded offensive for the spawn.
   missions() {
     if (this._missions !== undefined) return this._missions;
-    this._missions = this.autonomousMissions();
+    this._missions = [...this.autonomousMissions(), ...this.manualMissions()];
     return this._missions;
   }
 
@@ -65,6 +68,12 @@ export class OperationalMilitaryOverlord extends Overlord {
       ...ClearRemoteMission.autoMissions(this.colony),
       ...BustCoreMission.autoMissions(this.colony),
     ];
+  }
+
+  // The MANUAL source: a human raid order (Memory.warband / a warband* flag), hosted by ONE colony (#235).
+  // [] when there is no order or this colony isn't the host — so the missions() spread stays safe.
+  manualMissions() {
+    return RaidMission.fromOrder(this.colony);
   }
 
   // Members fielding a given mission, grouped by the mission key stamped on each at spawn.
@@ -90,7 +99,8 @@ export class OperationalMilitaryOverlord extends Overlord {
   }
 
   // Build a member of a roster slot: stamp the mission key (for grouping + count-coverage), the target
-  // room, and the slot's behaviour set (BehaviorMachine drives it; mission.drive re-steers target per tick).
+  // room, the slot's behaviour set (BehaviorMachine drives it; mission.drive re-steers per tick), and — for
+  // a raid — the squad tag so healGroup/groupAnchor coordinate the group (undefined on a defence mission).
   spawnRequest(mission, slot) {
     return {
       priority: this.priority,
@@ -103,6 +113,7 @@ export class OperationalMilitaryOverlord extends Overlord {
         mission: mission.key,
         target: mission.room,
         behaviors: slot.behaviors,
+        warband: mission.tag,
       },
     };
   }
@@ -119,7 +130,12 @@ export class OperationalMilitaryOverlord extends Overlord {
     }
     for (const creep of this.assignedCreeps) {
       if (driven.has(creep.name)) continue;
-      if (!this.retaliate(creep)) creep.memory.target = this.colony.name; // retaliate, else recall home
+      if (this.retaliate(creep)) continue; // fought an attacker → off to deny its remote (keeps targetOwner)
+      // No mission, nothing to retaliate → full stand-down: recall home and clear the offensive steering so
+      // a stood-down raider's raidRoom node doesn't fire on a stale objective.
+      creep.memory.target = this.colony.name;
+      creep.memory.point = null;
+      creep.memory.targetOwner = null;
     }
     super.run();
   }
