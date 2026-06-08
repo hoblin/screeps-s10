@@ -17,8 +17,9 @@ const RAID_BEHAVIORS = { default: "raidRoom", nodes: ["selfDefense", "focusFire"
 //  SOURCE). The same compose → spawn → lead spine drives it past the entry point — the only difference is
 //  `fromOrder` reads a human order instead of Threat intel.
 //
-//  Order shape (Memory.warband, or a `warband*` flag): { room, point?, composition?, targetOwner?, colony? }.
-//  composition supplied → honoured as the roster; omitted → auto-derived from the room's threat profile (the
+//  Order (Memory.warband, or a `warband*` flag for the objective): `{ objective:{roomName,x,y}, composition?,
+//  targetOwner?, tag?, colony? }` — the exact shape `bin/sapi warband go/set` writes; a flag supplies only
+//  the objective. composition supplied → honoured as the roster; omitted → auto-derived from the threat profile (the
 //  shared counterRoster), so the manual and autonomous paths are identical. Muster-once falls out of the
 //  RemoteMission lifecycle (assemble at home, deploy as one, no mid-flight replacement) — no special latch.
 //  Identity is the SQUAD TAG, not the room, so moving the objective RE-TASKS the same live group rather than
@@ -57,7 +58,9 @@ export class RaidMission extends RemoteMission {
   // colony with the highest spawn-energy capacity fields the biggest force. One host, never a pile-on.
   static hostColony(order) {
     if (order.colony) return order.colony;
-    const owned = Object.values(Game.rooms).filter((r) => r.controller?.my);
+    // Only colonies that can actually MUSTER it — a spawnless owned room (a destroyed/under-construction
+    // spawn) with high energy capacity must not "host" an order it can never field.
+    const owned = Object.values(Game.rooms).filter((r) => r.controller?.my && r.find(FIND_MY_SPAWNS).length);
     if (!owned.length) return null;
     return owned.reduce((best, r) => (r.energyCapacityAvailable > best.energyCapacityAvailable ? r : best)).name;
   }
@@ -76,10 +79,24 @@ export class RaidMission extends RemoteMission {
     return `${this.type}:${this.tag}`;
   }
 
-  // Supplied composition honoured as the roster; omitted → a threat-derived offensive counter (the shared
-  // sizer, with the raider behaviour set). An undefended target → a single cheap raider (threatOf 0 → count 1).
+  // Supplied composition honoured as the roster; omitted (or malformed) → a threat-derived offensive counter
+  // (the shared sizer, with the raider behaviour set). An undefended target → a single cheap raider (threatOf
+  // 0 → count 1).
   roster() {
-    return this.composition || this.counterRoster(Threat.profileFor(this.room), RAID_BEHAVIORS);
+    return this.validComposition() ? this.composition : this.counterRoster(Threat.profileFor(this.room), RAID_BEHAVIORS);
+  }
+
+  // Memory.warband.composition is hand-written, untrusted input — only honour it if it's a well-formed roster
+  // (an array of { body:[], count:number, behaviors.default }). Anything malformed falls back to the
+  // auto-derived counter rather than throwing in the overlord's generateSpawnRequest and crashing the tick.
+  validComposition() {
+    return (
+      Array.isArray(this.composition) &&
+      this.composition.length > 0 &&
+      this.composition.every(
+        (s) => s && Array.isArray(s.body) && typeof s.count === "number" && s.behaviors?.default
+      )
+    );
   }
 
   // Steer the group: the RemoteMission lifecycle sets target (objective room once launched, else home), and
