@@ -17,6 +17,7 @@ import { Filler } from "./Filler.js";
 import { Combatant } from "./Combatant.js";
 import { Claimer } from "./Claimer.js";
 import { Pioneer } from "./Pioneer.js";
+import { Soldier } from "./Soldier.js";
 
 // ============================================================================
 //  Role registry — the one place that maps a creep's role STRING (as stored in
@@ -54,6 +55,7 @@ export const ROLES = {
   combatant: Combatant, // generic warband creep — conduct from its memory.behaviors set (#39)
   claimer: Claimer, // CLAIM creep that takes a designated 2nd colony (#220, ClaimOverlord)
   pioneer: Pioneer, // WORK/CARRY/MOVE seed that bootstraps the new colony's first spawn (#220)
+  soldier: Soldier, // operational military unit — conduct from its memory.behaviors set (#259)
 };
 
 // Resolve a role string to its class, defaulting to the base Role (so an unknown
