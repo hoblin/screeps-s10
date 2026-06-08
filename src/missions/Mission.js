@@ -1,9 +1,12 @@
 import { Threat } from "../lib/Threat.js";
 import { combatBody } from "../lib/CombatBody.js";
 
-// Max defenders fielded against ONE threat — the 1.5× margin plus three bodies covers an NPC raid; precise
-// heal-aware out-DPS sizing is #250. Caps spawn drain on a single hot room.
-export const DEFENSE_COUNT_CAP = 3;
+// Defenders ONE spawn can sustain against a single threat alongside the economy (a combat body lives
+// ~1500 ticks and spawns in tens of ticks; ~5 is a conservative share of one spawn). The fielded group is
+// bounded by `spawns.length × this` — it SCALES with the colony's spawn capacity, not a flat magic cap
+// (#268). When even the sustainable group can't win, that is the safe-mode / escalation seam (#259), not
+// "field a fixed few and hope".
+export const SUSTAINABLE_PER_SPAWN = 5;
 
 // The guard behaviour set every defence/clear mission stamps: garrison a post (holdPoint), fight back
 // en route (selfDefense), chase the attacker's remote once the post cools (raidRoom — the retaliation
@@ -49,26 +52,29 @@ export class Mission {
   }
 
   // Shared threat-counter roster: one budget-scaled counter body (the existing combatBody, type chosen by
-  // the enemy profile), fielded in enough copies to beat the room's threat scalar with the 1.5× margin —
-  // one body for a normal threat (= the old single guard), a sized GROUP when one body can't win.
-  //   • survivalFloor (home): ALWAYS field, capped — we must defend home even against a superior force, the
-  //     towers carry the overflow.
-  //   • otherwise (child/remote): field the winning group, or NOTHING if even the capped group loses — don't
-  //     feed a losing fight (pull/wait). So `count > 0` is the single "winnable as a group" gate the
-  //     recognisers read, replacing a separate one-body winnable() check (which could never let count exceed 1).
+  // the enemy profile), fielded in enough copies to win — sized against BOTH the enemy's offence AND its
+  // HEALING (#268). A healer makes a group un-killable below a DPS floor, so a heal-blind power gate would
+  // under-size against a healed force; `need` takes the max of the power term (threatOf — incl. towers/cores)
+  // and the out-heal term (enemyHeal), each with the 1.5× margin.
+  //   • survivalFloor (home): ALWAYS field, bounded only by what we can sustain (towers carry the overflow; a
+  //     need beyond sustainable is the safe-mode escalation, #259).
+  //   • otherwise (child/remote): field the winning group only if we can SUSTAIN it, else NOTHING — don't
+  //     feed a losing fight (pull/wait). `count > 0` is the single "winnable as a sustainable group" gate the
+  //     recognisers read.
   // A null profile (a cold proactive guard) yields the default body and count 1. A weaponless body (power 0,
   // a too-poor budget falling back to a worker) yields count 0 → no spawn (a defender is armed or not born,
-  // #234). Heal-aware out-DPS sizing (the enemyHeal term of the doctrine formula) stays #250.
+  // #234).
   counterRoster(profile, behaviors, { survivalFloor = false } = {}) {
     const body = combatBody(this.colony.spawnEnergyBudget(), profile);
     const power = Threat.guardCombatPower(body);
     if (!power) return [{ body, count: 0, behaviors }];
-    const need = Math.ceil((Threat.threatOf(this.room) * Threat.WIN_MARGIN) / power);
-    const count = survivalFloor
-      ? Math.min(Math.max(need, 1), DEFENSE_COUNT_CAP)
-      : need <= DEFENSE_COUNT_CAP
-        ? Math.max(need, 1)
-        : 0;
+    const need = Math.max(
+      Math.ceil((Threat.threatOf(this.room) * Threat.WIN_MARGIN) / power),
+      Math.ceil((Threat.enemyHeal(this.room) * Threat.WIN_MARGIN) / power),
+      1
+    );
+    const sustainable = this.colony.spawns.length * SUSTAINABLE_PER_SPAWN;
+    const count = survivalFloor ? Math.min(need, sustainable) : need <= sustainable ? need : 0;
     return [{ body, count, behaviors }];
   }
 }
