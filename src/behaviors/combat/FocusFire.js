@@ -33,8 +33,13 @@ export class FocusFire extends CombatBehaviour {
 
     groupHeal(creep); // pool the squad's heal onto whoever's taking fire while we burst the focus
     // Burst the focus pick; KITE from ALL armed threats so we hold reach from every shooter, not just the
-    // focus (#276). Melee takes the tile (priority:1) so the squad's burst lands same-tick.
-    this.note(creep, `focus:${skirmish(creep, target, armedOf(hostiles), { meleeOpts: { priority: 1 } })}`);
+    // focus (#276). ALWAYS include the focus in the kite set — else a lone/disarmed HEALER focus leaves an
+    // empty threats list and the unit never closes to shooting range (it'd stall out of reach while
+    // focus-fire stays active); with the healer in the set the field closes on it. Melee takes the tile
+    // (priority:1) so the squad's burst lands same-tick.
+    const armed = armedOf(hostiles);
+    const threats = armed.includes(target) ? armed : [...armed, target];
+    this.note(creep, `focus:${skirmish(creep, target, threats, { meleeOpts: { priority: 1 } })}`);
     return true;
   }
 }
