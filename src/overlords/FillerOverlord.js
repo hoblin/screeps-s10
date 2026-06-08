@@ -20,8 +20,11 @@ export class FillerOverlord extends Overlord {
     return "filler";
   }
 
-  // One filler per built storage (0 or 1). The storage's existence is the whole gate.
+  // One filler per built storage (0 or 1) — but NONE while recovering: a collapsed colony's storage is
+  // empty, so the filler has nothing to load, and the spawn energy it costs is exactly what the worker-only
+  // bootstrap needs (workers self-fill the spawn until the economy is back, #282).
   desiredCount() {
+    if (this.colony.health.recovering) return 0;
     return this.colony.room.storage ? 1 : 0;
   }
 

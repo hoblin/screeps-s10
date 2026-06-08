@@ -10,6 +10,10 @@ import { Threat } from "../lib/Threat.js";
 // ============================================================================
 export class ClearRemoteMission extends RemoteMission {
   static autoMissions(colony) {
+    // A colony in recovery can't mine the remote this mission would re-open, and every spawn it burns
+    // delays clawing the HOME economy back — so don't defend remotes while collapsed (#282). Home defence
+    // (DefendHomeMission) is NOT gated; only the remote tier waits for recovery to clear.
+    if (colony.health.recovering) return [];
     const rooms = [...new Set(colony.remoteSources().map((s) => s.room))];
     return rooms
       .filter((room) => Threat.isHot(room) && Threat.killableProfile(room))

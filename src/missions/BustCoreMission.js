@@ -18,6 +18,10 @@ export class BustCoreMission extends RemoteMission {
   // AUTONOMOUS recogniser: one mission per remote of OURS seized by a core and worth busting. Recognition
   // is co-located with the mission so each TYPE owns "where do I apply"; the overlord only aggregates.
   static autoMissions(colony) {
+    // No remote ops while the home economy has collapsed: a recovering colony can't mine the remote a
+    // busted core would re-open, and the spawn is needed to claw the home back out (#282). Home defence
+    // stays ungated; only the remote tier waits for recovery to clear.
+    if (colony.health.recovering) return [];
     const budget = colony.spawnEnergyBudget();
     const rooms = [...new Set(colony.remoteSources().map((s) => s.room))];
     return rooms

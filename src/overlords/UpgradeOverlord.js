@@ -58,6 +58,10 @@ export class UpgradeOverlord extends Overlord {
   }
 
   desiredCount() {
+    // Recovery is WORKERS-ONLY: drop upgraders entirely so every joule funds the climb-out. The base count
+    // (1–2) was ungated before — only bufferDelta() zeroed — so 1–2 upgraders kept burning energy a collapsed
+    // colony can't spare; the controller-downgrade timer (~40k ticks) far outlasts a recovery (#282).
+    if (this.colony.health.recovering) return 0;
     return this.workCappedCount(this.baseCount() + this.bufferDelta());
   }
 
@@ -85,13 +89,12 @@ export class UpgradeOverlord extends Overlord {
   // containers — both the LOWEST hauler-delivery priority, so a rising level means the controller
   // container is already kept fed and the extra upgraders are guaranteed energy. As they consume the
   // surplus the level stops climbing and the count settles at equilibrium (consumption ≈ source
-  // surplus). Reserve-gated (bank a cushion first), capped, and zeroed during recovery (no EXTRA burn
-  // while clawing out of a workforce collapse — the floor still runs; NOT gated on `decaying`, since
-  // upgrading is the FIX for a decaying controller).
+  // surplus). Reserve-gated (bank a cushion first) and capped. Recovery is handled UPSTREAM in
+  // desiredCount (the WHOLE count → 0, workers-only #282), so there's no recovery guard here; NOT gated on
+  // `decaying` either, since upgrading is the FIX for a decaying controller.
   // Read live, not smoothed: the per-upgrader granularity dwarfs per-tick buffer jitter, so the count
   // can't chatter (same live-read sizing idiom as WorkOverlord's backlog).
   bufferDelta() {
-    if (this.colony.health.recovering) return 0;
     const storage = this.colony.room.storage;
     if (storage) {
       return this.surplusUpgraders(storage.store[RESOURCE_ENERGY], UPGRADE_STORAGE_RESERVE, ENERGY_PER_UPGRADER);
