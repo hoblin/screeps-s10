@@ -22,14 +22,14 @@ export class CombatBehaviour extends Behavior {
     return combatBody(energyBudget, { attack: 0, ranged: 1, heal: 0, tough: 0 });
   }
 
-  // Fellow warband members — my live creeps sharing this creep's `memory.warband`
-  // group tag (excluding itself). The lightweight grouping the squad behaviors
-  // coordinate through; absent tag → no group.
+  // Fellow squad members — my live creeps sharing this creep's squad key (excluding itself). The squad is
+  // `memory.warband || memory.mission`, so BOTH a manually-tagged warband AND an autonomous mission group
+  // (skirmishers + medics under one `memory.mission`) cohere through the same helper; absent → no group.
   static warbandMates(creep) {
-    const tag = creep.memory.warband;
-    if (!tag) return [];
+    const squad = creep.memory.warband || creep.memory.mission;
+    if (!squad) return [];
     return Object.values(Game.creeps).filter(
-      (c) => c.memory.warband === tag && c.name !== creep.name
+      (c) => (c.memory.warband || c.memory.mission) === squad && c.name !== creep.name
     );
   }
 

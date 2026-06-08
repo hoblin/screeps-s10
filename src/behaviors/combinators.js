@@ -13,12 +13,15 @@
 //     `fallback(Kite, Regroup)` kites when an enemy is present, else regroups —
 //     because Kite returns false exactly when there's nothing to kite.
 //   • sequence — run children in order until one returns false; true iff all ran.
+//   • compound (parallel) — run EVERY child; each emits to its OWN intent channel
+//     (a Screeps creep moves + shoots + heals in ONE tick), returns true if any
+//     acted. The kite tree `compound(Shoot, Reposition, GroupHeal)`: the shot is a
+//     SIBLING of the retreat step, never gated by it — we fire AND step back the same
+//     tick instead of throwing away damage while fleeing (#280).
 //
 //  These are plain functions (not a data-driven BT VM with Sequence/Parallel node
 //  types as data) — a deliberate over-engineering guardrail: a creep makes a
-//  shallow per-tick decision, so CODE composites + these two helpers are enough.
-//  `compound` (several intents in one tick) is deferred until a real consumer
-//  (a kiting medic) exists.
+//  shallow per-tick decision, so CODE composites + these helpers are enough.
 //
 //  `ctx` is an OPTIONAL context (an explicit target/anchor) threaded to every
 //  child: absent → each atom self-selects (nearest enemy / squad anchor); present
@@ -40,4 +43,16 @@ export function sequence(creep, colony, behaviors, ctx) {
     if (!behavior.run(creep, colony, ctx)) return false;
   }
   return true;
+}
+
+// Run EVERY child (parallel) — each emits to its own intent channel (move + attack + heal coexist in one
+// Screeps tick), so no child short-circuits the rest. Returns true if ANY child acted. The composing node
+// owns the engaged/clear decision via its own scan + machine edges, so an idle GroupHeal returning true
+// here never masks a "room clear" signal.
+export function compound(creep, colony, behaviors, ctx) {
+  let acted = false;
+  for (const behavior of behaviors) {
+    if (behavior.run(creep, colony, ctx)) acted = true;
+  }
+  return acted;
 }

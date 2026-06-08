@@ -1,26 +1,24 @@
 import { CombatBehaviour } from "./CombatBehaviour.js";
 import { holdAnchor } from "./atoms/acts.js";
 import { armedOf } from "./atoms/selectors.js";
-import { bodyFromTemplate } from "../../lib/BodyGenerator.js";
-
-const HEAL_MAX = 6; // [HEAL,MOVE] repeats cap — at ecap 1800 the budget caps it here anyway
+import { healerBody } from "../../lib/CombatBody.js";
 
 // ============================================================================
-//  HealGroup — the dedicated HEALER archetype (no offence). Sustains the squad:
-//  each tick it heals the most-hurt ally (preferring fellow warband members),
-//  full-heal when adjacent, ranged-heal on the move; with nobody hurt it tails the
-//  ARMED element (the skirmishers it must keep alive). This is the piece a lone
-//  guard structurally can't be — and the reason a HEALING enemy squad beats single
-//  guards. Pair it with FocusFire members and the warband out-sustains AND out-bursts
-//  that squad.
+//  HealGroup — the dedicated HEALER archetype (no offence). Sustains the squad: each tick it heals the
+//  most-hurt squadmate (room-wide, crossing to a hurt mate out of reach — broader than the range-3
+//  `groupHeal` a skirmisher pools), full-heal when adjacent, ranged-heal on the move; with nobody hurt it
+//  tails the ARMED element (the skirmishers it must keep alive). This is the piece a lone guard structurally
+//  can't be — and the reason a HEALING enemy squad beats single guards. Pair it with FocusFire members and
+//  the group out-sustains AND out-bursts that squad. The medic NODE = follow-or-tend ⊕ heal (the move
+//  channel picks tend-the-hurt over follow-the-lead; the heal channel fires alongside).
 //
-//  Assignment: memory.warband — the group tag it heals + follows (set by #174).
+//  Assignment: memory.warband || memory.mission — the squad it heals + follows (manual tag or auto mission).
 // ============================================================================
 export class HealGroup extends CombatBehaviour {
-  // A healer's body (MVC: the behavior owns its body) — 1:1 HEAL:MOVE so it keeps full road speed
-  // with the skirmishers it escorts. Overrides the base ranged-combat default.
+  // A healer's body (MVC: the behavior owns its body) — delegated to the shared sizer so the medic body is
+  // single-sourced with the mission roster that fields it. 1:1 HEAL:MOVE, full road speed with its escort.
   static bodyFor(energyBudget) {
-    return bodyFromTemplate([HEAL, MOVE], { extra: [HEAL, MOVE], max: HEAL_MAX, energy: energyBudget });
+    return healerBody(energyBudget);
   }
 
   static run(creep, _colony) {
@@ -33,7 +31,7 @@ export class HealGroup extends CombatBehaviour {
         creep.rangedHeal(hurt);
         creep.travelTo(hurt, { range: 1 });
       }
-      return;
+      return true;
     }
     // Nobody hurt — glue to the ARMED element (the skirmishers), following it across rooms. Anchoring
     // on the combat creeps (not just the nearest mate) is what keeps the medic IN the fight: it never
@@ -45,6 +43,7 @@ export class HealGroup extends CombatBehaviour {
     } else {
       this.note(creep, "heal:idle");
     }
+    return true;
   }
 
   // The squadmate to follow: prefer an ARMED mate (a skirmisher — the muscle the medic exists to
@@ -59,14 +58,14 @@ export class HealGroup extends CombatBehaviour {
     return here.length ? creep.pos.findClosestByRange(here) : pool[0];
   }
 
-  // The most-hurt ally to mend: prefer fellow warband members, else any of my creeps
-  // in the room; lowest hits-ratio first. Healing is room-local, so only consider
-  // creeps in this room (cross-room mates are reached via groupAnchor regroup).
+  // The most-hurt ally to mend: prefer fellow squadmates (warband || mission), else any of my creeps in
+  // the room; lowest hits-ratio first. Healing is room-local, so only consider creeps in this room
+  // (cross-room mates are reached via the follow-lead regroup).
   static mostHurtInRoom(creep) {
     const pool = creep.room.find(FIND_MY_CREEPS).filter((c) => c.hits < c.hitsMax);
     if (!pool.length) return null;
-    const tag = creep.memory.warband;
-    const mates = tag ? pool.filter((c) => c.memory.warband === tag) : [];
+    const squad = creep.memory.warband || creep.memory.mission;
+    const mates = squad ? pool.filter((c) => (c.memory.warband || c.memory.mission) === squad) : [];
     const choose = mates.length ? mates : pool;
     return choose.sort((a, b) => a.hits / a.hitsMax - b.hits / b.hitsMax)[0];
   }

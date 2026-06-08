@@ -1,5 +1,5 @@
 import { Threat } from "../lib/Threat.js";
-import { combatBody } from "../lib/CombatBody.js";
+import { combatBody, healerBody } from "../lib/CombatBody.js";
 
 // Defenders ONE spawn can sustain against a single threat alongside the economy (a combat body lives
 // ~1500 ticks and spawns in tens of ticks; ~5 is a conservative share of one spawn). The fielded group is
@@ -12,6 +12,16 @@ export const SUSTAINABLE_PER_SPAWN = 5;
 // en route (selfDefense), chase the attacker's remote once the post cools (raidRoom — the retaliation
 // carrier), park after a fight (holdGround). Conduct lives in these behaviours; missions only stamp the set.
 export const DEFENSE_BEHAVIORS = { default: "holdPoint", nodes: ["selfDefense", "raidRoom", "holdGround"] };
+
+// The dedicated-MEDIC set: tail the armed element and heal the most-hurt squadmate (healGroup); flee, don't
+// fight, when caught alone in transit (selfDefense → a weaponless body just kites away). The medic shares
+// the skirmishers' memory.mission, so it follows + heals its mission-mates with no extra wiring (#280).
+export const MEDIC_BEHAVIORS = { default: "healGroup", nodes: ["selfDefense"] };
+
+// Medics per skirmisher in a fielded group — the old warband's 3:2 shape (#280): dedicated sustain is what
+// lets a stacked group out-live a healing enemy instead of being picked off one by one. Conduct lives in
+// the behaviours; the roster only sets the body + count + set.
+const MEDIC_RATIO = 0.5;
 
 // ============================================================================
 //  Mission (#259) — the abstract base of the operational military domain. A mission owns its own force
@@ -65,7 +75,8 @@ export class Mission {
   // a too-poor budget falling back to a worker) yields count 0 → no spawn (a defender is armed or not born,
   // #234).
   counterRoster(profile, behaviors, { survivalFloor = false } = {}) {
-    const body = combatBody(this.colony.spawnEnergyBudget(), profile);
+    const budget = this.colony.spawnEnergyBudget();
+    const body = combatBody(budget, profile);
     const power = Threat.guardCombatPower(body);
     if (!power) return [{ body, count: 0, behaviors }];
     const need = Math.max(
@@ -75,6 +86,18 @@ export class Mission {
     );
     const sustainable = this.colony.spawns.length * SUSTAINABLE_PER_SPAWN;
     const count = survivalFloor ? Math.min(need, sustainable) : need <= sustainable ? need : 0;
-    return [{ body, count, behaviors }];
+
+    const slots = [{ body, count, behaviors }];
+    // Field dedicated medics ALONGSIDE the skirmishers (the 3:2 warband shape) once the group is ≥2 — the
+    // sustain that wins the heal race against a healing enemy. Medics come OUT of the same `sustainable`
+    // budget (don't blow the documented bound, #281 review): at the ceiling the colony can't afford extra
+    // bodies, so a maxed skirmisher group (home under a big threat — towers carry it) fields none, while a
+    // remote op (count < sustainable) gets its escort. A lone skirmisher (count 1, trivial threat) needs none.
+    // Medics share the mission tag, so they follow + heal their mission-mates unwired.
+    const wantMedics = count >= 2 ? Math.max(1, Math.round(count * MEDIC_RATIO)) : 0;
+    const medics = Math.min(wantMedics, Math.max(0, sustainable - count));
+    const medicBody = healerBody(budget);
+    if (medics > 0 && medicBody.length) slots.push({ body: medicBody, count: medics, behaviors: MEDIC_BEHAVIORS });
+    return slots;
   }
 }
