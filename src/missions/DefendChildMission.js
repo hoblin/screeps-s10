@@ -26,7 +26,7 @@ export class DefendChildMission extends GarrisonMission {
     const mission = new DefendChildMission(colony, child);
     if (!Threat.isHot(child)) return [mission]; // #241: cold proactive standing guard (default body, count 1)
     if (!Threat.killableProfile(child)) return []; // hot but nothing guard-killable
-    if (!Threat.winnable(mission.roster()[0].body, child)) return []; // don't feed a losing fight
+    // count > 0 means a counter group within the cap wins; 0 means even a capped group loses → don't feed.
     return mission.roster()[0].count > 0 ? [mission] : [];
   }
 

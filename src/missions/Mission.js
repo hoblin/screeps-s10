@@ -49,16 +49,26 @@ export class Mission {
   }
 
   // Shared threat-counter roster: one budget-scaled counter body (the existing combatBody, type chosen by
-  // the enemy profile), fielded in enough copies to beat the room's threat scalar with the 1.5× margin.
-  // One body for a normal threat (= the old single guard, no regression); a sized GROUP only when one
-  // max-body can't win, capped. A null profile (a cold proactive guard) yields the default body and count 1.
-  // An unaffordable budget yields an empty body → the overlord skips the spawn (a defender is armed or not
-  // born, #234). Heal-aware out-DPS sizing (the enemyHeal term of the doctrine formula) stays #250.
-  counterRoster(profile, behaviors) {
+  // the enemy profile), fielded in enough copies to beat the room's threat scalar with the 1.5× margin —
+  // one body for a normal threat (= the old single guard), a sized GROUP when one body can't win.
+  //   • survivalFloor (home): ALWAYS field, capped — we must defend home even against a superior force, the
+  //     towers carry the overflow.
+  //   • otherwise (child/remote): field the winning group, or NOTHING if even the capped group loses — don't
+  //     feed a losing fight (pull/wait). So `count > 0` is the single "winnable as a group" gate the
+  //     recognisers read, replacing a separate one-body winnable() check (which could never let count exceed 1).
+  // A null profile (a cold proactive guard) yields the default body and count 1. A weaponless body (power 0,
+  // a too-poor budget falling back to a worker) yields count 0 → no spawn (a defender is armed or not born,
+  // #234). Heal-aware out-DPS sizing (the enemyHeal term of the doctrine formula) stays #250.
+  counterRoster(profile, behaviors, { survivalFloor = false } = {}) {
     const body = combatBody(this.colony.spawnEnergyBudget(), profile);
     const power = Threat.guardCombatPower(body);
     if (!power) return [{ body, count: 0, behaviors }];
     const need = Math.ceil((Threat.threatOf(this.room) * Threat.WIN_MARGIN) / power);
-    return [{ body, count: Math.min(Math.max(need, 1), DEFENSE_COUNT_CAP), behaviors }];
+    const count = survivalFloor
+      ? Math.min(Math.max(need, 1), DEFENSE_COUNT_CAP)
+      : need <= DEFENSE_COUNT_CAP
+        ? Math.max(need, 1)
+        : 0;
+    return [{ body, count, behaviors }];
   }
 }

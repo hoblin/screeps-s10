@@ -24,6 +24,6 @@ export class DefendHomeMission extends GarrisonMission {
   }
 
   roster() {
-    return this.counterRoster(Threat.profileFor(this.room), DEFENSE_BEHAVIORS);
+    return this.counterRoster(Threat.profileFor(this.room), DEFENSE_BEHAVIORS, { survivalFloor: true });
   }
 }
