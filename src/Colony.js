@@ -17,9 +17,17 @@ import { FillerOverlord } from "./overlords/FillerOverlord.js";
 import { WarbandOverlord } from "./overlords/WarbandOverlord.js";
 import { RoomHealthCheck } from "./lib/RoomHealthCheck.js";
 import { Miner } from "./roles/Miner.js";
+import { Hauler } from "./roles/Hauler.js";
 import { bodyCost } from "./lib/BodyGenerator.js";
 import expansionMap from "./data/expansionMap.json";
 import { log } from "./lib/Logger.js";
+
+// Freight-fleet sizing (#84) lives HERE so the home hauler target is single-sourced — both LogisticsOverlord
+// (it sizes its fleet) and RoomHealthCheck.expansionReadiness (it gates expansion on the home demand being
+// met) read the SAME number, so they can't drift the way the old per-source count drifted from the freight
+// model (#272). One hauler's idealised turnover is C·v/2 (capacity × speed, halved for the empty return leg).
+const HAULER_SPEED = 1; // tiles/tick: a 1:1 CARRY:MOVE body at full speed on roads/plains
+const FREIGHT_MARGIN = 1.3; // headroom over the ideal turnover (load/unload waits, detours, traffic) — #84
 
 // ============================================================================
 //  Colony — everything owned around a single room controller.
@@ -275,6 +283,44 @@ export class Colony {
     if (built) return built.pos;
     const planned = Memory.colonyData?.[this.name]?.controllerContainerPos;
     return planned ? new RoomPosition(planned.x, planned.y, planned.roomName) : null;
+  }
+
+  // The home freight-HAULER target — how many haulers the room's PRODUCTION needs to move its output home
+  // (the #84 freight model: demand = Σ source-rate × container→drop-off distance, ÷ one hauler's turnover).
+  // Owned HERE because the colony owns the geometry (d) the model needs, so LogisticsOverlord sizes its fleet
+  // from it AND expansionReadiness gates on it through ONE number — "are the home haulers staffed to the
+  // home DEMAND" — not a per-source count the freight model long ago outgrew (#272). Cached in Memory keyed
+  // on the spawn cap + hauler capacity (the only inputs that move it), recomputed on a deploy.
+  freightHaulers() {
+    const cap = this.room.energyCapacityAvailable;
+    const carry = Hauler.capacityAt(cap);
+    const cached = Memory.colonyData?.[this.name]?.haulerFleet;
+    if (cached && cached.cap === cap && cached.carry === carry && Number.isFinite(cached.count)) {
+      return cached.count;
+    }
+    const count = this.computeFreightHaulers(cap, carry);
+    if (count == null) return this.sources.length; // geometry not ready → baseline, don't cache (retry next tick)
+    Memory.colonyData ||= {};
+    Memory.colonyData[this.name] ||= {};
+    Memory.colonyData[this.name].haulerFleet = { cap, carry, count };
+    return count;
+  }
+
+  // The freight model itself (#84). Returns null when the container geometry isn't known yet (a missing or
+  // unreachable container), so freightHaulers falls back to the one-per-source baseline.
+  computeFreightHaulers(cap, carry) {
+    const dropoff = this.controllerDropoffPos();
+    if (!dropoff || !carry) return null;
+    const ratePerSource = Miner.harvestRateAt(cap); // one static miner per source (v1)
+    let demand = 0; // tonne-tiles/tick
+    for (const source of this.sources) {
+      const containerPos = this.sourceContainerPos(source);
+      if (!containerPos) return null;
+      const distance = this.pathLength(containerPos, dropoff);
+      if (!isFinite(distance)) return null;
+      demand += ratePerSource * distance;
+    }
+    return Math.max(1, Math.ceil((demand * FREIGHT_MARGIN) / ((carry * HAULER_SPEED) / 2)));
   }
 
   // A container tile is a source container iff it's adjacent to one of our sources.
