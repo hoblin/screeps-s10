@@ -14,7 +14,6 @@ import { DefenseOverlord } from "./overlords/DefenseOverlord.js";
 import { ScoutOverlord } from "./overlords/ScoutOverlord.js";
 import { ClaimOverlord } from "./overlords/ClaimOverlord.js";
 import { FillerOverlord } from "./overlords/FillerOverlord.js";
-import { WarbandOverlord } from "./overlords/WarbandOverlord.js";
 import { RoomHealthCheck } from "./lib/RoomHealthCheck.js";
 import { Miner } from "./roles/Miner.js";
 import { bodyCost } from "./lib/BodyGenerator.js";
@@ -85,13 +84,12 @@ export class Colony {
       new RemoteMiningOverlord(this), // one miner per safe remote source
       new RemoteWorkOverlord(this), // builds + maintains each remote source's container (#114)
       new RemoteLogisticsOverlord(this), // one shared fleet hauls them all home
-      // Unified military domain (#259): threat → counter-composition → spawn → lead. Owns all reactive
-      // defence (home / child / clear-remote / retaliate, migrated off the retired GuardOverlord) plus
-      // bust-core. Runs alongside WarbandOverlord until Slice 3 folds the manual offensive in (#263).
+      // Unified military domain (#259): threat → counter-composition → spawn → lead. Owns the WHOLE military
+      // domain — reactive defence (home / child / clear-remote / retaliate) + bust-core + the human-commanded
+      // raid (the manual activation source) — GuardOverlord and WarbandOverlord both retired into it.
       new OperationalMilitaryOverlord(this),
       new DefenseOverlord(this), // places + operates towers (no-op until RCL3)
       new ScoutOverlord(this), // roams cheap scouts to keep map intel fresh (#142)
-      new WarbandOverlord(this), // commander's manual offence: flag-commanded warband (#174)
     ];
   }
 

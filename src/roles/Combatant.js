@@ -2,6 +2,11 @@ import { Role } from "./Role.js";
 import { BehaviorMachine } from "../behaviors/BehaviorMachine.js";
 
 // ============================================================================
+//  LEGACY (#263): WarbandOverlord is retired — manual offence is now the RaidMission (the manual activation
+//  source) on OperationalMilitaryOverlord, which spawns the "soldier" role. Nothing spawns "combatant" any
+//  more; this role is kept registered only so in-flight combatants run out their lives gracefully (attrition).
+//  Remove it once none remain.
+//
 //  Combatant — the generic warband creep (#39). It has NO hardcoded conduct of
 //  its own: its behaviour is entirely COMPOSED from the behavior set declared in
 //  creep.memory.behaviors, driven each tick by the per-creep BehaviorMachine.
