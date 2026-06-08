@@ -161,12 +161,13 @@ print(json.dumps(data))" | out ;;
     esac ;;
 
   warband)
-    # Commander's composition lever (#174): show/set/clear the warband spec (Memory.warband). set takes
-    # a JSON object, e.g. warband set '{"units":[{"default":"raidRoom","nodes":["focusFire"],"count":3}],"targetOwner":"Robalian"}'
+    # Commander's manual raid order (#259/#263): show/set/clear Memory.warband — the RaidMission source on
+    # OperationalMilitaryOverlord. set takes a JSON object; omit composition to auto-derive the counter, e.g.
+    # warband set '{"targetOwner":"Robalian"}' or '{"composition":[{"body":["ranged_attack","move"],"count":3,"behaviors":{"default":"raidRoom","nodes":["selfDefense","focusFire"]}}]}'
     sub="${1:-show}"
     case "$sub" in
       show)
-        console_eval "JSON.stringify({spec:Memory.warband||'(default)',combatants:Object.values(Game.creeps).filter(c=>c.memory.role==='combatant').map(c=>({u:c.memory.behaviors&&c.memory.behaviors.default,room:c.room.name,act:c.memory.behavior,launched:!!c.memory.launched}))})" ;;
+        console_eval "JSON.stringify({order:Memory.warband||'(none)',raiders:Object.values(Game.creeps).filter(c=>c.memory.mission&&c.memory.mission.indexOf('raid:')===0).map(c=>({u:c.memory.behaviors&&c.memory.behaviors.default,room:c.room.name,act:c.memory.behavior,launched:!!c.memory.launched}))})" ;;
       set)
         console_eval "Memory.warband=$2;'set warband: '+JSON.stringify(Memory.warband)" ;;
       go)
@@ -176,7 +177,7 @@ print(json.dumps(data))" | out ;;
       stop)
         console_eval "Memory.warband&&delete Memory.warband.objective;'objective cleared (stand down — flag, if any, still applies)'" ;;
       clear)
-        console_eval "delete Memory.warband;'cleared warband spec (code defaults apply)'" ;;
+        console_eval "delete Memory.warband;'cleared the warband order (raiders stand down + recall home)'" ;;
     esac ;;
 
   log)
