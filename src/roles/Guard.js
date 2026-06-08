@@ -3,6 +3,12 @@ import { BehaviorMachine } from "../behaviors/BehaviorMachine.js";
 import { combatBody } from "../lib/CombatBody.js";
 
 // ============================================================================
+//  LEGACY (#262): GuardOverlord is retired — its reactive-defence + retaliation responsibilities moved to
+//  OperationalMilitaryOverlord's mission framework, which spawns the "soldier" role. Nothing spawns "guard"
+//  any more; this role is kept only so in-flight guards run out their lives gracefully (attrition). The
+//  defence missions reuse this exact behaviour set (DEFENSE_BEHAVIORS in src/missions/Mission.js). Remove
+//  this role once no live guards remain.
+//
 //  Guard — the colony's combat creep: clears a contested room so the economy can flow back
 //  (#118, Levels 2-3 of the threat ladder; home defence #122). Like Combatant, it is now a THIN
 //  STATE MACHINE — no bespoke conduct of its own. All behaviour is COMPOSED from the behavior set
