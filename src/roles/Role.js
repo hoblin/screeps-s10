@@ -127,6 +127,19 @@ export class Role {
       }).length > 0;
     const reserveSourceContainers = haulerCanDrain && !unbuiltContainers;
 
+    // In RECOVERY the normal pipeline is dead (containers/storage drained), so let a worker ALSO drain a
+    // LINK to bootstrap the spawn back — links are off-limits in normal play (they feed the controller/
+    // storage net), but a collapsed colony needs every reachable joule (#282). Off outside recovery → zero
+    // blast radius. A drainable store = a container/storage (or a link only while recovering) with energy
+    // that isn't a hauler-reserved source container.
+    const drainLinks = !!(colony && colony.health.recovering);
+    const isDrainableStore = (s) =>
+      (s.structureType === STRUCTURE_CONTAINER ||
+        s.structureType === STRUCTURE_STORAGE ||
+        (drainLinks && s.structureType === STRUCTURE_LINK)) &&
+      s.store[RESOURCE_ENERGY] > 0 &&
+      !(reserveSourceContainers && Role.isSourceContainer(s, colony));
+
     // 1+2. The committed PICKUP: dropped energy, else a container/storage with energy (a source
     //    container excluded while a hauler owns it — the miner→container→hauler→consumer pipeline,
     //    fair game only in the #37 emergency / #74 unbuilt-container window when reserveSourceContainers
@@ -145,21 +158,14 @@ export class Role {
       (t) =>
         t.amount != null
           ? t.amount > 0 // a dropped pile — finish it once committed, even below the 50 start threshold
-          : t.store[RESOURCE_ENERGY] > 0 &&
-            !(reserveSourceContainers && Role.isSourceContainer(t, colony)),
+          : isDrainableStore(t), // tick-fresh: a committed link releases the instant recovery clears
       () => {
         const dropped = creep.pos.findClosestByPath(FIND_DROPPED_RESOURCES, {
           ignoreCreeps: true,
           filter: (r) => r.resourceType === RESOURCE_ENERGY && r.amount >= 50,
         });
         if (dropped) return dropped;
-        return creep.pos.findClosestByPath(FIND_STRUCTURES, {
-          ignoreCreeps: true,
-          filter: (s) =>
-            (s.structureType === STRUCTURE_CONTAINER || s.structureType === STRUCTURE_STORAGE) &&
-            s.store[RESOURCE_ENERGY] > 0 &&
-            !(reserveSourceContainers && Role.isSourceContainer(s, colony)),
-        });
+        return creep.pos.findClosestByPath(FIND_STRUCTURES, { ignoreCreeps: true, filter: isDrainableStore });
       }
     );
     if (pickup) {
