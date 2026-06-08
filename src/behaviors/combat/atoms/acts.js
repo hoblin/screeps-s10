@@ -1,5 +1,6 @@
 import { KITE_RANGE } from "../../../lib/Movement.js";
 import { steer, enemyField, separation, APPROACH_RANGE } from "./field.js";
+import { mostHurtAlly } from "./selectors.js";
 
 // ============================================================================
 //  Combat acts (#189) — the EXECUTION primitives: each takes a creep + an already
@@ -13,9 +14,17 @@ import { steer, enemyField, separation, APPROACH_RANGE } from "./field.js";
 //  + heal), so an act fires its intent and returns — composition is the caller's job.
 // ============================================================================
 
-// Heal self when hurt (a HEAL-bearing body); a no-op otherwise. Safe to call every tick.
-export function selfHeal(creep) {
-  if (creep.getActiveBodyparts(HEAL) > 0 && creep.hits < creep.hitsMax) creep.heal(creep);
+// Pool the squad's heal (#276): mend the most-hurt friendly in range (INCLUDING self), so a unit with
+// spare HEAL tops up whoever's taking fire rather than only itself — even one shooter + the rest healing it
+// out-sustains the enemy. heal at range 1 (full 12/part), rangedHeal at 2-3 (4/part). NO movement (the
+// combat act owns positioning); the heal resolves the same tick as incoming damage, pre-absorbing the hit.
+// A no-op without HEAL parts or with nobody hurt in range. (Self is in the in-range pool — covers self-heal.)
+export function groupHeal(creep) {
+  if (creep.getActiveBodyparts(HEAL) === 0) return;
+  const hurt = mostHurtAlly(creep, 3);
+  if (!hurt) return;
+  if (creep.pos.isNearTo(hurt)) creep.heal(hurt);
+  else creep.rangedHeal(hurt);
 }
 
 // Fire on a target: a mass blast at point-blank when there's a crowd to splash (every
@@ -70,10 +79,10 @@ export function closeTo(creep, target, range, opts = {}) {
 
 // Damage a target by body, closing to reach — NO kite. For a target to kill outright rather than
 // fear: a structure (can't move/flee) or a creep you out-range. Melee steps in and hits; ranged
-// closes to KITE_RANGE then fires. Self-heals each tick (a HEAL body soaks incidental damage).
+// closes to KITE_RANGE then fires. Pools heal each tick (a HEAL body mends itself or a hurt mate in reach).
 // The non-kiting counterpart to `skirmish` — reused by raidRoom's raze.
 export function strike(creep, target) {
-  selfHeal(creep);
+  groupHeal(creep);
   if (creep.getActiveBodyparts(ATTACK) > 0) {
     meleeHit(creep, target);
     return;
