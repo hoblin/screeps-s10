@@ -9,7 +9,6 @@ import { ReserveOverlord } from "./overlords/ReserveOverlord.js";
 import { RemoteMiningOverlord } from "./overlords/RemoteMiningOverlord.js";
 import { RemoteWorkOverlord } from "./overlords/RemoteWorkOverlord.js";
 import { RemoteLogisticsOverlord } from "./overlords/RemoteLogisticsOverlord.js";
-import { GuardOverlord } from "./overlords/GuardOverlord.js";
 import { OperationalMilitaryOverlord } from "./overlords/OperationalMilitaryOverlord.js";
 import { DefenseOverlord } from "./overlords/DefenseOverlord.js";
 import { ScoutOverlord } from "./overlords/ScoutOverlord.js";
@@ -86,10 +85,9 @@ export class Colony {
       new RemoteMiningOverlord(this), // one miner per safe remote source
       new RemoteWorkOverlord(this), // builds + maintains each remote source's container (#114)
       new RemoteLogisticsOverlord(this), // one shared fleet hauls them all home
-      new GuardOverlord(this), // clears winnable threats in the remote footprint (#118)
-      // Unified military domain (#259): threat → counter-composition → spawn → lead. First mission:
-      // bust-core (autonomously clears an invader core squatting a remote). Runs ALONGSIDE Guard/Warband
-      // for now — owns only its own "soldier" units; their missions migrate here in follow-ups.
+      // Unified military domain (#259): threat → counter-composition → spawn → lead. Owns all reactive
+      // defence (home / child / clear-remote / retaliate, migrated off the retired GuardOverlord) plus
+      // bust-core. Runs alongside WarbandOverlord until Slice 3 folds the manual offensive in (#263).
       new OperationalMilitaryOverlord(this),
       new DefenseOverlord(this), // places + operates towers (no-op until RCL3)
       new ScoutOverlord(this), // roams cheap scouts to keep map intel fresh (#142)

@@ -35,8 +35,8 @@ export class Engage extends CombatBehaviour {
 
     // Remember the armed attacker's owner for sunk-asset retaliation (#140) — harmless stragglers
     // don't earn revenge, and we don't re-stamp while a retaliation is locked (targetOwner set: the
-    // raidRoom edge), which could invalidate the locked target. Read by GuardOverlord (retaliation
-    // dispatch) and the raidRoom en-route owner-hunt.
+    // raidRoom edge), which could invalidate the locked target. Read by OperationalMilitaryOverlord's
+    // retaliation resolve stage (#262) and the raidRoom en-route owner-hunt.
     if (armed.length && target.owner && !creep.memory.targetOwner) {
       creep.memory.foughtOwner = target.owner.username;
     }
