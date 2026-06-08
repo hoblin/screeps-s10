@@ -292,18 +292,22 @@ export class Colony {
   // home DEMAND" — not a per-source count the freight model long ago outgrew (#272). Cached in Memory keyed
   // on the spawn cap + hauler capacity (the only inputs that move it), recomputed on a deploy.
   freightHaulers() {
+    if (this._freightHaulers !== undefined) return this._freightHaulers; // both consumers call this per tick
     const cap = this.room.energyCapacityAvailable;
     const carry = Hauler.capacityAt(cap);
+    const links = this.sourceLinks().length; // a built source link removes that source's haul demand — key on it
     const cached = Memory.colonyData?.[this.name]?.haulerFleet;
-    if (cached && cached.cap === cap && cached.carry === carry && Number.isFinite(cached.count)) {
-      return cached.count;
+    if (cached && cached.cap === cap && cached.carry === carry && cached.links === links && Number.isFinite(cached.count)) {
+      return (this._freightHaulers = cached.count);
     }
     const count = this.computeFreightHaulers(cap, carry);
-    if (count == null) return this.sources.length; // geometry not ready → baseline, don't cache (retry next tick)
+    // Geometry not ready → one-per-source baseline; memoise for THIS tick (avoids a second path-measure
+    // when the other consumer calls) but DON'T persist, so a fresh instance retries next tick.
+    if (count == null) return (this._freightHaulers = this.sources.length);
     Memory.colonyData ||= {};
     Memory.colonyData[this.name] ||= {};
-    Memory.colonyData[this.name].haulerFleet = { cap, carry, count };
-    return count;
+    Memory.colonyData[this.name].haulerFleet = { cap, carry, links, count };
+    return (this._freightHaulers = count);
   }
 
   // The freight model itself (#84). Returns null when the container geometry isn't known yet (a missing or
@@ -314,6 +318,10 @@ export class Colony {
     const ratePerSource = Miner.harvestRateAt(cap); // one static miner per source (v1)
     let demand = 0; // tonne-tiles/tick
     for (const source of this.sources) {
+      // A LINKED source's output flows into the link network (LinkedMiner → controller link), not via a
+      // hauler — so it adds no haul demand. Counting it would overstate the fleet AND, now that expansion
+      // gates on this number, demand haulers a fully-linked colony doesn't need.
+      if (this.sourceLink(source.id)) continue;
       const containerPos = this.sourceContainerPos(source);
       if (!containerPos) return null;
       const distance = this.pathLength(containerPos, dropoff);
