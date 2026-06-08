@@ -89,10 +89,15 @@ export class Mission {
 
     const slots = [{ body, count, behaviors }];
     // Field dedicated medics ALONGSIDE the skirmishers (the 3:2 warband shape) once the group is ≥2 — the
-    // sustain that wins the heal race against a healing enemy. A lone skirmisher (count 1, a trivial threat)
-    // needs no escort. Medics share the mission tag, so they follow + heal their mission-mates unwired.
-    const medics = count >= 2 ? Math.max(1, Math.round(count * MEDIC_RATIO)) : 0;
-    if (medics) slots.push({ body: healerBody(budget), count: medics, behaviors: MEDIC_BEHAVIORS });
+    // sustain that wins the heal race against a healing enemy. Medics come OUT of the same `sustainable`
+    // budget (don't blow the documented bound, #281 review): at the ceiling the colony can't afford extra
+    // bodies, so a maxed skirmisher group (home under a big threat — towers carry it) fields none, while a
+    // remote op (count < sustainable) gets its escort. A lone skirmisher (count 1, trivial threat) needs none.
+    // Medics share the mission tag, so they follow + heal their mission-mates unwired.
+    const wantMedics = count >= 2 ? Math.max(1, Math.round(count * MEDIC_RATIO)) : 0;
+    const medics = Math.min(wantMedics, Math.max(0, sustainable - count));
+    const medicBody = healerBody(budget);
+    if (medics > 0 && medicBody.length) slots.push({ body: medicBody, count: medics, behaviors: MEDIC_BEHAVIORS });
     return slots;
   }
 }

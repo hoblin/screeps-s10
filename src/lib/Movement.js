@@ -34,6 +34,7 @@ const DANGER_COST = 12; // additive per kill-zone tile — above swamp (5) so a 
 export const KITE_RANGE = 3;
 
 const _spotCache = new Map(); // roomName -> { tick, spots: [{x,y}] }  (armed ranged hostiles)
+const _kiteMatrixCache = new Map(); // roomName -> { tick, matrix }  (shared by every kiter fleeing this room/tick)
 
 export const Movement = {
   // Live positions of armed RANGED hostiles in the room, cached once per room per tick.
@@ -91,8 +92,11 @@ export const Movement = {
 
   // Cost matrix for the kite flee search: hard-block the room-exit ring (#119 — a flee never leaves the
   // room), obstacle structures + enemy ramparts, and every hostile-occupied tile. Natural walls come free
-  // from the engine. Built once per flee call (not per path-callback tick).
+  // from the engine. CACHED per room per tick (#281 review): structures/hostiles are fixed within a tick, so
+  // many kiters/medics fleeing the same room share ONE matrix instead of each rescanning every structure.
   kiteCostMatrix(room) {
+    const cached = _kiteMatrixCache.get(room.name);
+    if (cached && cached.tick === Game.time) return cached.matrix;
     const matrix = new PathFinder.CostMatrix();
     for (let i = 0; i < 50; i++) {
       matrix.set(0, i, 0xff);
@@ -104,6 +108,7 @@ export const Movement = {
       if (this.blocksMovement(s)) matrix.set(s.pos.x, s.pos.y, 0xff);
     }
     for (const c of room.find(FIND_HOSTILE_CREEPS)) matrix.set(c.pos.x, c.pos.y, 0xff);
+    _kiteMatrixCache.set(room.name, { tick: Game.time, matrix });
     return matrix;
   },
 

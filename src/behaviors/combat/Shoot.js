@@ -6,14 +6,16 @@ import { shoot, meleeStrike } from "./atoms/acts.js";
 //  WITHOUT moving (Reposition owns the feet): ranged shoots anything in reach (mass-blast in a crowd),
 //  melee strikes only an adjacent target. A sibling of Reposition under `compound`, so the shot ALWAYS
 //  lands the same tick we step back — the retreat never gates the damage (#280). The target comes from
-//  `ctx` (the composing node's target policy); this leaf never self-selects.
+//  `ctx` (the composing node's target policy); this leaf never self-selects. Returns true only when a hit
+//  was actually emitted — a WEAPONLESS unit (a medic caught in selfDefense) is a no-op, not a fake "acted"
+//  (and never spams rangedAttack with ERR_NO_BODYPART, #281 review).
 // ============================================================================
 export class Shoot extends CombatBehaviour {
   static run(creep, _colony, ctx) {
     const target = ctx?.target;
     if (!target) return false;
     if (creep.getActiveBodyparts(ATTACK) > 0) return meleeStrike(creep, target); // hit if adjacent, no chase
-    shoot(creep, target, ctx?.crowd);
-    return true;
+    if (creep.getActiveBodyparts(RANGED_ATTACK) === 0) return false; // no weapon (e.g. a medic) — nothing to fire
+    return shoot(creep, target, ctx?.crowd); // true only if the target was in reach
   }
 }

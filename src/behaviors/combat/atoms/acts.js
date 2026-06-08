@@ -28,12 +28,20 @@ export function groupHeal(creep) {
   return true;
 }
 
-// Fire on a target: a mass blast at point-blank when there's a crowd to splash (every
-// adjacent enemy takes a hit), else a single aimed shot from within reach. No movement.
+// Fire on a target: a mass blast at point-blank when there's a crowd to splash (every adjacent enemy takes
+// a hit), else a single aimed shot from within reach. No movement. Returns true iff a shot was actually
+// emitted (target in reach) so a composing leaf can report whether it acted.
 export function shoot(creep, target, crowd = false) {
   const range = creep.pos.getRangeTo(target);
-  if (crowd && range <= 1) creep.rangedMassAttack();
-  else if (range <= KITE_RANGE) creep.rangedAttack(target);
+  if (crowd && range <= 1) {
+    creep.rangedMassAttack();
+    return true;
+  }
+  if (range <= KITE_RANGE) {
+    creep.rangedAttack(target);
+    return true;
+  }
+  return false;
 }
 
 // Hold the ideal ranged distance (#188/#280) — the MOVE channel of a kiting ranged unit, decided off the
@@ -42,11 +50,13 @@ export function shoot(creep, target, crowd = false) {
 // self-corners); fire-target drifted OUTSIDE reach → close to it; otherwise hold (settled at reach) and the
 // caller's shot fires the same tick. NO field, no ally-separation — keep distance from the ENEMY, not from
 // our own squad (the spread that broke mutual heal, #185/#276, is gone with the magnet).
-export function kiteStep(creep, target, threats) {
+// `canEngage` false (a WEAPONLESS unit — a medic in selfDefense) drops the close-in branch: it only FLEES a
+// threat in reach, never approaches one it can't hit (#281 review).
+export function kiteStep(creep, target, threats, { canEngage = true } = {}) {
   const nearest = creep.pos.findClosestByRange(threats);
   if (nearest && creep.pos.getRangeTo(nearest) < KITE_RANGE) {
     Movement.kiteAway(creep, threats);
-  } else if (target && creep.pos.getRangeTo(target) > KITE_RANGE) {
+  } else if (canEngage && target && creep.pos.getRangeTo(target) > KITE_RANGE) {
     creep.travelTo(target, { range: KITE_RANGE });
   }
 }

@@ -41,8 +41,11 @@ export function combatBody(energyBudget, profile) {
 }
 
 // The dedicated-medic body — pure [HEAL,MOVE], 1:1 for full road speed with its escort. Single-sourced
-// here so the mission roster and the HealGroup behaviour size the same medic.
+// here so the mission roster and the HealGroup behaviour size the same medic. Below the [HEAL,MOVE] floor
+// bodyFromTemplate would fall back to a worker body, so return [] and let the overlord skip the slot — a
+// HEAL-less "medic" is worse than none (same never-useless guard as antiCoreBody, #281 review).
 export function healerBody(energyBudget) {
+  if (energyBudget < BODYPART_COST[HEAL] + BODYPART_COST[MOVE]) return [];
   return bodyFromTemplate([HEAL, MOVE], { extra: [HEAL, MOVE], max: HEAL_MAX, energy: energyBudget });
 }
 
