@@ -183,8 +183,9 @@ export const RoomHealthCheck = {
   // economy alive and healthy", NOT "is the spawn idle" (the old spawn-idle gate was gamed by the
   // score-scout fleet, #170, which eats every idle cycle — so it read false on a rich colony and
   // starved the remotes). Ready when home PRODUCTION is staffed (a miner on every home source) AND its
-  // OUTPUT is moving (a hauler per un-linked source, or links carry it — a linked source needs no local
-  // hauler, per Yevhenii) AND there's no home crisis AND we can afford the expansion creep. Stateless
+  // OUTPUT is moving (home haulers staffed to the freight DEMAND — Colony.freightHaulers, #272 — not a
+  // per-source count the freight model long ago outgrew) AND there's no home crisis AND we can afford the
+  // expansion creep. Stateless
   // (no latch) — a structural read, not a noisy ratio. The spawn-priority ladder does the rest: remotes
   // sit below the home economy, so the Hatchery (serves the single top-priority request, waits otherwise)
   // only reaches them once home is satisfied.
@@ -193,11 +194,13 @@ export const RoomHealthCheck = {
     const sources = colony.sources.length;
     if (sources === 0) return false;
     const miners = colony.creepsWithRole("miner").filter((c) => !c.spawning).length;
-    const minersStaffed = miners >= sources; // a static miner on every home source
-    // Output moving: only un-linked sources need a hauler (a linked source feeds the link network), so
-    // require ≥1 hauler per un-linked source as the floor.
+    const minersStaffed = miners >= sources; // a static miner on every home source = the miner demand
+    // Output moving: the home haulers are staffed to the room's DEMAND — the freight target the colony sizes
+    // its fleet to (#84) — NOT a per-source count, which over-demanded once one big hauler covers several
+    // sources and stalled expansion entirely (#272). Single-sourced via Colony.freightHaulers so this gate
+    // and LogisticsOverlord can never disagree.
     const haulers = colony.creepsWithRole("hauler").filter((c) => !c.spawning).length;
-    const transportOk = haulers >= Math.max(0, sources - colony.sourceLinks().length);
+    const transportOk = haulers >= colony.freightHaulers();
     const canAffordReserver = room.energyCapacityAvailable >= BODYPART_COST[CLAIM] + BODYPART_COST[MOVE];
     return (
       minersStaffed &&

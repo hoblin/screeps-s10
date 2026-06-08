@@ -16,9 +16,17 @@ import { ClaimOverlord } from "./overlords/ClaimOverlord.js";
 import { FillerOverlord } from "./overlords/FillerOverlord.js";
 import { RoomHealthCheck } from "./lib/RoomHealthCheck.js";
 import { Miner } from "./roles/Miner.js";
+import { Hauler } from "./roles/Hauler.js";
 import { bodyCost } from "./lib/BodyGenerator.js";
 import expansionMap from "./data/expansionMap.json";
 import { log } from "./lib/Logger.js";
+
+// Freight-fleet sizing (#84) lives HERE so the home hauler target is single-sourced — both LogisticsOverlord
+// (it sizes its fleet) and RoomHealthCheck.expansionReadiness (it gates expansion on the home demand being
+// met) read the SAME number, so they can't drift the way the old per-source count drifted from the freight
+// model (#272). One hauler's idealised turnover is C·v/2 (capacity × speed, halved for the empty return leg).
+const HAULER_SPEED = 1; // tiles/tick: a 1:1 CARRY:MOVE body at full speed on roads/plains
+const FREIGHT_MARGIN = 1.3; // headroom over the ideal turnover (load/unload waits, detours, traffic) — #84
 
 // ============================================================================
 //  Colony — everything owned around a single room controller.
@@ -273,6 +281,52 @@ export class Colony {
     if (built) return built.pos;
     const planned = Memory.colonyData?.[this.name]?.controllerContainerPos;
     return planned ? new RoomPosition(planned.x, planned.y, planned.roomName) : null;
+  }
+
+  // The home freight-HAULER target — how many haulers the room's PRODUCTION needs to move its output home
+  // (the #84 freight model: demand = Σ source-rate × container→drop-off distance, ÷ one hauler's turnover).
+  // Owned HERE because the colony owns the geometry (d) the model needs, so LogisticsOverlord sizes its fleet
+  // from it AND expansionReadiness gates on it through ONE number — "are the home haulers staffed to the
+  // home DEMAND" — not a per-source count the freight model long ago outgrew (#272). Cached in Memory keyed
+  // on the spawn cap + hauler capacity (the only inputs that move it), recomputed on a deploy.
+  freightHaulers() {
+    if (this._freightHaulers !== undefined) return this._freightHaulers; // both consumers call this per tick
+    const cap = this.room.energyCapacityAvailable;
+    const carry = Hauler.capacityAt(cap);
+    const links = this.sourceLinks().length; // a built source link removes that source's haul demand — key on it
+    const cached = Memory.colonyData?.[this.name]?.haulerFleet;
+    if (cached && cached.cap === cap && cached.carry === carry && cached.links === links && Number.isFinite(cached.count)) {
+      return (this._freightHaulers = cached.count);
+    }
+    const count = this.computeFreightHaulers(cap, carry);
+    // Geometry not ready → one-per-source baseline; memoise for THIS tick (avoids a second path-measure
+    // when the other consumer calls) but DON'T persist, so a fresh instance retries next tick.
+    if (count == null) return (this._freightHaulers = this.sources.length);
+    Memory.colonyData ||= {};
+    Memory.colonyData[this.name] ||= {};
+    Memory.colonyData[this.name].haulerFleet = { cap, carry, links, count };
+    return (this._freightHaulers = count);
+  }
+
+  // The freight model itself (#84). Returns null when the container geometry isn't known yet (a missing or
+  // unreachable container), so freightHaulers falls back to the one-per-source baseline.
+  computeFreightHaulers(cap, carry) {
+    const dropoff = this.controllerDropoffPos();
+    if (!dropoff || !carry) return null;
+    const ratePerSource = Miner.harvestRateAt(cap); // one static miner per source (v1)
+    let demand = 0; // tonne-tiles/tick
+    for (const source of this.sources) {
+      // A LINKED source's output flows into the link network (LinkedMiner → controller link), not via a
+      // hauler — so it adds no haul demand. Counting it would overstate the fleet AND, now that expansion
+      // gates on this number, demand haulers a fully-linked colony doesn't need.
+      if (this.sourceLink(source.id)) continue;
+      const containerPos = this.sourceContainerPos(source);
+      if (!containerPos) return null;
+      const distance = this.pathLength(containerPos, dropoff);
+      if (!isFinite(distance)) return null;
+      demand += ratePerSource * distance;
+    }
+    return Math.max(1, Math.ceil((demand * FREIGHT_MARGIN) / ((carry * HAULER_SPEED) / 2)));
   }
 
   // A container tile is a source container iff it's adjacent to one of our sources.
