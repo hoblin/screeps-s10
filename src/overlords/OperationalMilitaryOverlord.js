@@ -94,9 +94,21 @@ export class OperationalMilitaryOverlord extends Overlord {
   }
 
   // Drive each mission's stage machine (muster → deploy → execute), then run the creeps. The overlord only
-  // dispatches members to their mission; the mission owns the lead-as-group lifecycle.
+  // dispatches members to their mission; the mission owns the lead-as-group lifecycle. A soldier whose
+  // mission is no longer active (core cleared, or its intel went stale) is stood down — recalled home so a
+  // finished/stranded buster doesn't loiter in a remote ignoring home defence (mirrors WarbandOverlord's
+  // null-objective recall). The mission persists via the reservation proxy through the post-kill garrison,
+  // so this only fires once the remote is truly ours again.
   run() {
-    for (const mission of this.missions()) mission.drive(this.membersOf(mission));
+    const driven = new Set();
+    for (const mission of this.missions()) {
+      const members = this.membersOf(mission);
+      mission.drive(members);
+      for (const creep of members) driven.add(creep.name);
+    }
+    for (const creep of this.assignedCreeps) {
+      if (!driven.has(creep.name)) creep.memory.target = this.colony.name;
+    }
     super.run();
   }
 

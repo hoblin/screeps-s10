@@ -49,7 +49,7 @@ export class BustCoreMission {
     if (core.invulnerableUntil && Game.time < core.invulnerableUntil) return false;
     if (core.collapseAt) {
       const dps = Math.max(1, antiCoreBody(budget).filter((p) => p === ATTACK).length * ATTACK_POWER);
-      const arriveAndGrind = this.travelTicks(colony, room) + core.hits / dps;
+      const arriveAndGrind = this.travelTicks(colony, room) + Math.ceil(core.hits / dps); // ceil: grind is whole ticks, keep the gate conservative
       if (core.collapseAt - Game.time < arriveAndGrind) return false; // dies on its own first
     }
     return true;
