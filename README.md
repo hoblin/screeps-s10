@@ -22,8 +22,8 @@ Kernel        orchestrator (CPU guard, discovers colonies, drives tick)
           ├─ RemoteMiningOverlord    -> RemoteMiner (remote drop-mining)
           ├─ RemoteLogisticsOverlord -> RemoteHauler (remote -> home haul)
           ├─ ScoutOverlord           -> Scout (map intel + score) + Hunter (solo blocker-clearer)
-          ├─ GuardOverlord           -> Guard (clears/denies a contested room; home defence)
-          └─ WarbandOverlord         -> Combatant (flag-commanded offence squad)
+          └─ OperationalMilitaryOverlord -> Soldier (missions: defend/clear/bust-core/raid; fields a
+                                            GROUP — skirmishers + dedicated medics, commanded as one unit)
 ```
 
 - **Overlord** (base) holds shared spawn-request + creep-iteration logic (DRY).
@@ -43,18 +43,21 @@ Kernel        orchestrator (CPU guard, discovers colonies, drives tick)
 
 Combat creeps carry no hardcoded conduct: each is a **thin state machine** whose role just runs
 `BehaviorMachine.run`, with its conduct COMPOSED from a behaviour set in `creep.memory.behaviors`
-(`{ default, nodes }`). The overlord steers a unit purely by stamping `memory.target` /
-`memory.targetOwner` each tick (the `WarbandOverlord.command` pattern) — no role rewrite needed.
+(`{ default, nodes }`). The overlord/mission steers a unit purely by stamping `memory.target` /
+`memory.behaviors` each tick (the command pattern) — no role rewrite needed. Cohesion of a GROUP is
+emergent from SHARED POLICY (deterministic `focusTarget`, medics follow the armed lead, kite off all
+threats), not micro-coordination — the central overlord commands the group as one unit.
 
 - **`BehaviorMachine`** (`src/behaviors/`) — per-creep node selector: a `default` plus override
   `nodes` with `enteredWhen`/`exitWhen` edges (a fallback/priority selector).
 - **Behaviours** (`src/behaviors/combat/`) — composable conduct, contract `run(creep, colony, ctx?) -> bool`:
   `engage` (fight what's here), `holdPoint` (garrison), `holdGround` (#160 post-combat hold),
-  `raidRoom` (deny/raze a room), `freeHunter` (roam remotes + kill), `focusFire`, `healGroup`,
-  `holdPosition`, `killClosest`, … composed via `fallback`/`sequence` combinators.
+  `raidRoom` (deny/raze a room), `freeHunter` (roam remotes + kill), `focusFire`, `healGroup` (dedicated
+  medic), `holdPosition`, … composed via `fallback`/`sequence`/`compound` combinators. The kite conduct is
+  `compound(Shoot, Reposition, GroupHeal)` — fire ⊕ reposition ⊕ heal in ONE tick (#280).
 - **Atoms** (`src/behaviors/combat/atoms/`) — shared `acts` (execution verbs: `shoot`, `meleeHit`,
-  `kiteStep`, `strike`, …) and `selectors` (target policy), plus the magnet
-  **potential-field** steering (`field.js`) for close-combat micro.
+  `kiteStep`, `strike`, …) and `selectors` (target policy). Combat movement is a PathFinder **flee** kite
+  (`Movement.kiteAway`, #188) — full-lookahead, never self-corners (the #190 magnet `field.js` was retired #280).
 - **Danger-aware transit** — `Transit.routeToRoom` (shared with the economy claim/pioneer movers, #230)
   routes via `Routing.towerFreeRoute` (avoid towered and unwinnable hot rooms; a combat unit passes
   THROUGH a winnable hot room, clearing it in passing), one committed swamp-aware engine path, so no

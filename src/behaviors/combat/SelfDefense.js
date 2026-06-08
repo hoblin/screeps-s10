@@ -16,7 +16,7 @@ const SELF_DEFENSE_RANGE = 4; // melee(1) + ranged(3) reach + one enemy step: an
 //  resuming the committed route from wherever the fight left it (routeToRoom re-paths cleanly).
 //
 //  Scoped to TRANSIT (room != destination): at the destination the positional behaviours own the
-//  fight room-wide with their own conduct (holdPosition's magnet field, raidRoom's raze, holdPoint's
+//  fight room-wide with their own conduct (holdPosition's stand-and-fire hold, raidRoom's raze, holdPoint's
 //  garrison) — this node must NOT clobber them. With NO destination (an untasked freeHunter) it stays
 //  off entirely, so a roaming hunter keeps its room-wide engage. Placed FIRST in a role's `nodes` list
 //  = highest priority: self-preservation preempts every mission node, then hands control straight back.
@@ -31,8 +31,8 @@ export class SelfDefense extends CombatBehaviour {
     return !dest || creep.room.name === dest || this.threats(creep).length === 0;
   }
 
-  // Fight the close armed threats via the shared nucleus (self-heal + by-body skirmish + lastEngaged
-  // stamp), passed as ctx.threats so it strikes/kites only the in-range attackers — never drifts after a
+  // Fight the close armed threats via the shared Engage nucleus (fire ⊕ reposition ⊕ heal + lastEngaged
+  // stamp), passed as ctx.threats so it shoots/kites only the in-range attackers — never drifts after a
   // distant lure (the room-wide Engage would; scoping it here is what keeps transit on its leash).
   static run(creep, colony) {
     return Engage.run(creep, colony, { threats: this.threats(creep) });

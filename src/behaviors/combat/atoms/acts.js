@@ -1,5 +1,4 @@
-import { KITE_RANGE } from "../../../lib/Movement.js";
-import { steer, enemyField, separation, APPROACH_RANGE } from "./field.js";
+import { Movement, KITE_RANGE } from "../../../lib/Movement.js";
 import { mostHurtAlly } from "./selectors.js";
 
 // ============================================================================
@@ -19,12 +18,14 @@ import { mostHurtAlly } from "./selectors.js";
 // out-sustains the enemy. heal at range 1 (full 12/part), rangedHeal at 2-3 (4/part). NO movement (the
 // combat act owns positioning); the heal resolves the same tick as incoming damage, pre-absorbing the hit.
 // A no-op without HEAL parts or with nobody hurt in range. (Self is in the in-range pool — covers self-heal.)
+// Returns true if it emitted a heal — the heal-channel leaf reports whether it acted.
 export function groupHeal(creep) {
-  if (creep.getActiveBodyparts(HEAL) === 0) return;
+  if (creep.getActiveBodyparts(HEAL) === 0) return false;
   const hurt = mostHurtAlly(creep, 3);
-  if (!hurt) return;
+  if (!hurt) return false;
   if (creep.pos.isNearTo(hurt)) creep.heal(hurt);
   else creep.rangedHeal(hurt);
+  return true;
 }
 
 // Fire on a target: a mass blast at point-blank when there's a crowd to splash (every
@@ -35,21 +36,19 @@ export function shoot(creep, target, crowd = false) {
   else if (range <= KITE_RANGE) creep.rangedAttack(target);
 }
 
-// Hold the ideal ranged distance. NAVIGATION vs the micro-dance (#196): while the nearest threat is
-// farther than APPROACH_RANGE, APPROACH it by A* (travelTo — paths around walls/geometry, prefers
-// roads, has a stuck-counter; restores the old guard's PathFinder approach the greedy field had
-// dropped). Once close, the magnet FIELD takes over: each threat a body-derived magnet (offence
-// repels, healers attract) plus squad separation — the creep settles at kite range from EVERY threat
-// (never caught in a stacked rangedMassAttack), leans onto enemy healers, never backs into a corner.
-export function kiteStep(creep, threats) {
-  const target = creep.pos.findClosestByRange(threats);
-  if (target && creep.pos.getRangeTo(target) > APPROACH_RANGE) {
+// Hold the ideal ranged distance (#188/#280) — the MOVE channel of a kiting ranged unit, decided off the
+// NEAREST threat so a single shooter breaching reach triggers the retreat even when the fire-target is
+// farther: nearest INSIDE kite range → flee a tile away from EVERY threat (PathFinder full-lookahead, never
+// self-corners); fire-target drifted OUTSIDE reach → close to it; otherwise hold (settled at reach) and the
+// caller's shot fires the same tick. NO field, no ally-separation — keep distance from the ENEMY, not from
+// our own squad (the spread that broke mutual heal, #185/#276, is gone with the magnet).
+export function kiteStep(creep, target, threats) {
+  const nearest = creep.pos.findClosestByRange(threats);
+  if (nearest && creep.pos.getRangeTo(nearest) < KITE_RANGE) {
+    Movement.kiteAway(creep, threats);
+  } else if (target && creep.pos.getRangeTo(target) > KITE_RANGE) {
     creep.travelTo(target, { range: KITE_RANGE });
-    return;
   }
-  // Close in: field micro, with an A* fallback if the field freezes short of kite range (a wall/corner
-  // between us and the target — the field can't detour around it, A* can).
-  steer(creep, [...enemyField(threats), ...separation(creep)], { goal: target, goalRange: KITE_RANGE });
 }
 
 // Melee strike WITHOUT moving — hit the target if it's already adjacent, else a no-op. The melee
@@ -80,7 +79,7 @@ export function closeTo(creep, target, range, opts = {}) {
 // Damage a target by body, closing to reach — NO kite. For a target to kill outright rather than
 // fear: a structure (can't move/flee) or a creep you out-range. Melee steps in and hits; ranged
 // closes to KITE_RANGE then fires. Pools heal each tick (a HEAL body mends itself or a hurt mate in reach).
-// The non-kiting counterpart to `skirmish` — reused by raidRoom's raze.
+// The non-kiting counterpart to the kite tree (`compound(Shoot, Reposition)`) — reused by raidRoom's raze.
 export function strike(creep, target) {
   groupHeal(creep);
   if (creep.getActiveBodyparts(ATTACK) > 0) {
@@ -89,22 +88,6 @@ export function strike(creep, target) {
   }
   if (creep.pos.getRangeTo(target) > KITE_RANGE) closeTo(creep, target, KITE_RANGE);
   shoot(creep, target);
-}
-
-// Fight a resolved target by body while KITING — the move-and-shoot sibling of `strike`'s
-// stand-and-kill, for an enemy that can hit back. Melee closes and strikes; ranged shoots then
-// kites away from `threats` (settling at range from EVERY threat, never caught in stacked fire).
-// Returns "melee"/"ranged" so the composing behavior tags its own note. `opts.crowd` mass-blasts at
-// point-blank; `opts.meleeOpts` forwards to the melee approach (e.g. { priority: 1 } to take the
-// target tile so a squad's burst lands the same tick). The shared body-dispatch for Engage/FocusFire.
-export function skirmish(creep, target, threats, { crowd = false, meleeOpts } = {}) {
-  if (creep.getActiveBodyparts(ATTACK) > 0) {
-    meleeHit(creep, target, meleeOpts);
-    return "melee";
-  }
-  shoot(creep, target, crowd);
-  kiteStep(creep, threats);
-  return "ranged";
 }
 
 // Settle at an anchor: travel to within `range` if beyond it, else hold. Returns true if

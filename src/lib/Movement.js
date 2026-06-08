@@ -17,9 +17,13 @@
 //  so we read them live — once per room per tick, cached (the TrafficManager pattern) so
 //  many creeps pathing the same room share one scan.
 //
-//  KITE_RANGE (RANGED_ATTACK reach) is the shared combat distance the atom layer reads. The
-//  ranged-kite flee-step that used to live here was superseded by the #190 magnet field
-//  (terrain-repulsion keeps a kiter out of the corner without a PathFinder flee).
+//  KITE_RANGE (RANGED_ATTACK reach) is the shared combat distance the atom layer reads.
+//
+//  kiteAway (#188, restored #280) is the ranged-kite flee-step — the shared combat-movement
+//  primitive the kite atom uses to hold reach. The #190 magnet field briefly replaced it, but a
+//  greedy 9-tile local field self-corners (local minima) and bails on fatigue; the PathFinder flee
+//  has FULL lookahead, so it routes away from EVERY threat around walls/chokes without cornering
+//  (the property the field claimed but never had). Reverted to the flee in #280.
 // ============================================================================
 
 const DANGER_REACH = 4; // RANGED reach (3) + 1 for the enemy's own step toward us
@@ -70,5 +74,42 @@ export const Movement = {
     const room = Game.rooms[roomName];
     if (room) this.addDanger(matrix, room);
     return matrix;
+  },
+
+  // Step one tile AWAY from every threat to restore kite distance, without self-cornering (#188/#280):
+  // a real PathFinder flee with full lookahead — it routes away from ALL threats at once around walls
+  // and chokes (a greedy 1-tile field can't, and self-traps in a concave pocket — the #130 lesson).
+  // Executed via creep.travelTo (path cache + stuck-counter + TrafficManager registration), never a raw
+  // move. Empty path (boxed in / already at reach) → no step, the caller fired its shot the same tick.
+  kiteAway(creep, threats) {
+    if (!threats.length) return;
+    const matrix = this.kiteCostMatrix(creep.room); // built once per call, not per callback
+    const goals = threats.map((t) => ({ pos: t.pos, range: KITE_RANGE }));
+    const { path } = PathFinder.search(creep.pos, goals, { flee: true, maxRooms: 1, roomCallback: () => matrix });
+    if (path.length) creep.travelTo(path[0]);
+  },
+
+  // Cost matrix for the kite flee search: hard-block the room-exit ring (#119 — a flee never leaves the
+  // room), obstacle structures + enemy ramparts, and every hostile-occupied tile. Natural walls come free
+  // from the engine. Built once per flee call (not per path-callback tick).
+  kiteCostMatrix(room) {
+    const matrix = new PathFinder.CostMatrix();
+    for (let i = 0; i < 50; i++) {
+      matrix.set(0, i, 0xff);
+      matrix.set(49, i, 0xff);
+      matrix.set(i, 0, 0xff);
+      matrix.set(i, 49, 0xff);
+    }
+    for (const s of room.find(FIND_STRUCTURES)) {
+      if (this.blocksMovement(s)) matrix.set(s.pos.x, s.pos.y, 0xff);
+    }
+    for (const c of room.find(FIND_HOSTILE_CREEPS)) matrix.set(c.pos.x, c.pos.y, 0xff);
+    return matrix;
+  },
+
+  // Does a structure block a creep's tile — an obstacle type, or an enemy rampart (can't stand on it).
+  blocksMovement(structure) {
+    if (structure.structureType === STRUCTURE_RAMPART) return !structure.my && !structure.isPublic;
+    return OBSTACLE_OBJECT_TYPES.includes(structure.structureType);
   },
 };

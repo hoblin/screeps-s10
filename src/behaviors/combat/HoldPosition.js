@@ -1,32 +1,28 @@
 import { CombatBehaviour } from "./CombatBehaviour.js";
-import { shoot, meleeStrike } from "./atoms/acts.js";
+import { shoot, meleeStrike, holdAnchor } from "./atoms/acts.js";
 import { nearestHostile } from "./atoms/selectors.js";
 import { routeToRoom } from "../../lib/Transit.js";
-import { steer, enemyField, separation, attract, PRIORITY_HOLD, APPROACH_RANGE } from "./atoms/field.js";
 
-const HOLD_ZONE = 6; // only hostiles within this of the held point influence the squad — a lure darting
-// beyond it is ignored, so a distant enemy's wide attract can't pull the pin off its ground (lure-proof).
+const HOLD_ZONE = 6; // only hostiles within this of the held point influence the unit — a lure darting
+// beyond it is ignored, so a distant enemy can't pull the pin off its ground (lure-proof).
 
 // ============================================================================
-//  HoldPosition (#190 flagship) — PIN the squad to a point and deny the area, on the
-//  magnet field. Positioning is the SUM of three magnets: a WEAK pull to the held point
-//  (attract), the enemy field under the HOLD priority (offence repels at kite range,
-//  healers/armed lean it onto the priority kill), and SEPARATION from squadmates (≥3 so
-//  one rangedMassAttack can't catch two). It shoots the nearest hostile while the field
-//  keeps it spread and out of stacked fire — holding the GROUND (#184) without standing
-//  in the AOE that wiped the old ceil(sqrt(N)) pin (#185).
+//  HoldPosition — PIN a unit to a point and deny the area. It garrisons the ground (#184): fires anything
+//  that enters the hold zone WITHOUT chasing it, and returns to the post if knocked off — the position,
+//  not a pursuit, sets the feet, so a lure can't drag it away. Body-agnostic: ranged shoots (mass-blast in
+//  a crowd), melee strikes an adjacent intruder.
 //
-//  Pin = memory.point (the flag). Body-agnostic: ranged shoots + field-dances; melee
-//  strikes an adjacent intruder and the field holds it on the tile.
+//  Pin = memory.point (the flag). A denial pin HOLDS its tile and out-heals — it does not give ground or
+//  kite (that's the mobile conduct's job); reach off the magnet field (#190) was retired in #280 in favour
+//  of this simpler stand-and-fire hold.
 // ============================================================================
 export class HoldPosition extends CombatBehaviour {
   static run(creep, _colony) {
     const point = this.holdPos(creep);
     if (!point) return false; // unpinned → nothing to hold
     if (creep.room.name !== point.roomName) {
-      // Danger-aware, swamp-aware transit to the theatre (#197/#230 — route around what we can't beat, one
-      // committed engine path); the field takes over in-room. No safe corridor → hold here rather than walk
-      // blind into a tower/unwinnable room.
+      // Danger-aware, swamp-aware transit to the theatre (#197/#230 — route around what we can't beat). No
+      // safe corridor → hold here rather than walk blind into a tower/unwinnable room.
       if (routeToRoom(creep, point.roomName, { allowUnscouted: false, clearer: creep })) this.note(creep, "hold:to-room");
       else this.note(creep, "hold:blocked");
       return true;
@@ -37,30 +33,21 @@ export class HoldPosition extends CombatBehaviour {
     const melee = creep.getActiveBodyparts(ATTACK) > 0;
     const target = hostiles.length ? nearestHostile(creep, hostiles) : null;
 
-    // Attack without chasing (compound — fires whatever the feet do this tick): ranged shoots anything
-    // in reach; melee strikes only an adjacent intruder. Lure-proof — the position (below), not a
-    // pursuit, sets the feet.
+    // Attack without chasing (fires whatever the feet do this tick): ranged shoots anything in reach; melee
+    // strikes only an adjacent intruder. The position (below), not a pursuit, sets the feet.
     if (target && !melee) {
       this.note(creep, "hold:ranged");
       shoot(creep, target, hostiles.length > 1);
     } else if (target && meleeStrike(creep, target)) {
-      this.note(creep, "hold:melee"); // strike an adjacent intruder; the field (below) keeps the ground
+      this.note(creep, "hold:melee");
     }
 
-    // Position: navigate to the held ground by A* while still FAR from it (#196 — paths around walls,
-    // prefers roads); the magnet field takes over once on station (weak pull to the point ⊕ dodge/
-    // priority off the enemies ⊕ squad spread). Melee body-blockers omit the enemy field (they hold
-    // the tile, not kite).
-    if (creep.pos.getRangeTo(point) > APPROACH_RANGE) {
+    // Hold the GROUND: settle within a tile of the post (range 1 so several holders don't fight for the
+    // exact tile) and return to it if knocked off — a denial pin holds, it does not kite away.
+    if (holdAnchor(creep, point, 1)) {
       if (!target) this.note(creep, "hold:to-post");
-      creep.travelTo(point, { range: 1 });
-    } else {
-      if (!target) this.note(creep, "hold:hold");
-      const magnets = [attract(point), ...separation(creep)];
-      if (!melee) magnets.push(...enemyField(hostiles, PRIORITY_HOLD));
-      // Field micro on station, with an A* fallback if it freezes while still walled off from the held
-      // ground (goalRange ≈ the spread extent, so a creep correctly spread near the point doesn't detour).
-      steer(creep, magnets, { goal: point, goalRange: 3 });
+    } else if (!target) {
+      this.note(creep, "hold:hold");
     }
     return true;
   }
