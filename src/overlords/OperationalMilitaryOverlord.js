@@ -90,10 +90,14 @@ export class OperationalMilitaryOverlord extends Overlord {
     return true;
   }
 
-  // Rough travel time home → room (tower-free hops × tiles/room), for the collapse-timer gate.
+  // Rough travel time home → room (hops × tiles/room), for the collapse-timer gate. No known safe
+  // corridor → DON'T optimistically assume 1 hop (that underestimates the trek and could green-light a
+  // core that self-collapses before a buster could actually arrive). Fall back to the linear room
+  // distance — conservative; the buster's own routeToRoom handles a path that turns out truly blocked.
   travelTicks(room) {
     const route = towerFreeRoute(this.colony.name, room);
-    return (route ? route.length : 1) * TILES_PER_ROOM;
+    const hops = route ? route.length : Game.map.getRoomLinearDistance(this.colony.name, room) + 1;
+    return hops * TILES_PER_ROOM;
   }
 
   // Rooms already held by one of our units whose mission is still active — so we field ONE buster per

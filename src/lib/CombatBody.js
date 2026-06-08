@@ -41,5 +41,10 @@ export function combatBody(energyBudget, profile) {
 // grows into — kite (RANGED+HEAL), pair (attacker+healer) and tower-assisted land in #250's threat-matched
 // sizing. Sized down to the spawn budget like every combat body.
 export function antiCoreBody(energyBudget) {
+  // Never field an UNARMED buster: if the budget can't afford even the [ATTACK,MOVE] base, return an empty
+  // body so the spawn is skipped — bodyFromTemplate would otherwise fall back to the generic worker body.
+  // (The systemic never-weaponless guarantee across ALL combat sizers is #234; this just keeps the new
+  // anti-core path from introducing its own weaponless case.)
+  if (energyBudget < BODYPART_COST[ATTACK] + BODYPART_COST[MOVE]) return [];
   return bodyFromTemplate([ATTACK, MOVE], { extra: [ATTACK, MOVE], max: ANTICORE_MAX, energy: energyBudget });
 }
