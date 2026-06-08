@@ -47,14 +47,19 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { openDb, loadRoom, parseRoom, roomName } from "./db.mjs";
+import { openDb, loadRoom, parseRoom, roomName, resolveWorld } from "./db.mjs";
 
 function arg(name, def) {
   const i = process.argv.indexOf(`--${name}`);
+  if (i !== -1 && (process.argv[i + 1] === undefined || process.argv[i + 1].startsWith("--")))
+    return true; // boolean flag (e.g. --main)
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : def;
 }
-const SHARD = arg("shard", "shardSeason"); // report label only — no API access
-const OUT = arg("out", "tmp/season-region.json");
+// Which world's mirror to score. --main reads tmp/shard2.db; default = Season.
+// The shard is a report label here AND picks the DB file (no API access).
+const W = resolveWorld({ main: arg("main", false) === true, shard: arg("shard", null) });
+const SHARD = W.shard;
+const OUT = arg("out", `tmp/${W.tag}-region.json`);
 const ME = arg("me", null); // our own username/id — excluded from the enemy-threat field (we don't threaten ourselves)
 
 // Data source: the SQLite mirror. Analytics is read-only and 100% offline by
@@ -63,7 +68,7 @@ const ME = arg("me", null); // our own username/id — excluded from the enemy-t
 // the collector first); we never fetch here. Opened lazily so importing this
 // module for its exported model (e.g. heatmap.mjs) has no side effects.
 let _db = null;
-const db = () => (_db ??= openDb());
+const db = () => (_db ??= openDb(W.dbPath));
 
 // ---- tuning constants ------------------------------------------------------
 // Economy core (v1): a source's bankable value, distance-decayed.

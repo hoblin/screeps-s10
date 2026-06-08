@@ -179,5 +179,55 @@
         "sources": 1
       }
     ]
+  },
+  "W55S43": {
+    "generatedAt": "2026-06-08T18:47:47.038Z",
+    "shard": "shard2",
+    "home": "W55S43",
+    "remotes": [
+      {
+        "room": "W56S43",
+        "dir": "W",
+        "controller": {
+          "x": 9,
+          "y": 37
+        },
+        "mineral": "Z",
+        "reservedByOther": false,
+        "score": 16.6,
+        "sources": [
+          {
+            "x": 15,
+            "y": 37,
+            "dist": 88,
+            "value": 16.6,
+            "reachable": true
+          }
+        ]
+      }
+    ],
+    "avoid": [
+      {
+        "room": "W55S42",
+        "reason": "enemyOwned",
+        "owner": "62d0df4f992a4ccb42e172c3",
+        "level": 5
+      },
+      {
+        "room": "W55S44",
+        "reason": "sourceKeeper",
+        "lairs": 4,
+        "sources": 3,
+        "mineral": "U"
+      }
+    ],
+    "excluded": [
+      {
+        "room": "W54S43",
+        "dir": "E",
+        "reason": "unreachable",
+        "sources": 2
+      }
+    ]
   }
 }

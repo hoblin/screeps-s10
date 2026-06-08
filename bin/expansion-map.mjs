@@ -30,16 +30,21 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { openDb, loadRoom, parseRoom } from "./db.mjs";
+import { openDb, loadRoom, parseRoom, resolveWorld } from "./db.mjs";
 import { distField, crossBorderDist, valueOf, orthoNeighbours, BASE_REMOTE } from "./region-score.mjs";
 
 function arg(name, def) {
   const i = process.argv.indexOf(`--${name}`);
+  if (i !== -1 && (process.argv[i + 1] === undefined || process.argv[i + 1].startsWith("--")))
+    return true; // boolean flag (e.g. --main)
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : def;
 }
 const HOME = arg("room", null);
 const OUT = arg("out", "src/data/expansionMap.json");
-const SHARD = arg("shard", "shardSeason"); // label only — no API access
+// --main reads the shard2 mirror (tmp/shard2.db); default = Season. The shard is a
+// map label AND picks the DB file — no API access (the crawler owns that).
+const W = resolveWorld({ main: arg("main", false) === true, shard: arg("shard", null) });
+const SHARD = W.shard; // baked into each home entry as a label
 const round = (n) => (isFinite(n) ? Math.round(n * 10) / 10 : null);
 
 // Build the neighbourhood map for one home room. Returns the per-home entry:
@@ -121,7 +126,7 @@ function main() {
   }
   parseRoom(HOME); // validate the room name early (throws on a bad name)
 
-  const db = openDb();
+  const db = openDb(W.dbPath);
   // Merge into any existing map (keyed by home room) so both home rooms — main
   // (W55S43) and season (E15S7) — can coexist in one bundled artifact.
   let map = {};

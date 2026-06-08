@@ -24,7 +24,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { deflateSync } from "node:zlib";
-import { openDb } from "./db.mjs";
+import { openDb, resolveWorld } from "./db.mjs";
 import { scoreRoom, supportDist } from "./region-score.mjs";
 
 function arg(name, def) {
@@ -33,8 +33,11 @@ function arg(name, def) {
     return true; // boolean flag
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : def;
 }
+// --main maps the shard2 mirror (tmp/shard2.db); default = Season. region-score
+// (imported above for scoreRoom) reads the same argv, so it opens the same DB.
+const W = resolveWorld({ main: arg("main", false) === true, shard: arg("shard", null) });
 const FROM = arg("from", null);
-const PNG_OUT = String(arg("out", "tmp/season-heatmap.png"));
+const PNG_OUT = String(arg("out", `tmp/${W.tag}-heatmap.png`));
 const WANT_PNG = arg("no-png", false) !== true;
 const WANT_ANSI = arg("no-ansi", false) !== true;
 const NEAR = arg("near", null); // reference room (e.g. our main) — annotate the top-N with SAFE connected hops to it
@@ -76,7 +79,7 @@ const C_INVADER = [180, 50, 40]; // invader core (red)
 // ============================================================================
 //  Load scores: either a precomputed region-score JSON, or compute live.
 // ============================================================================
-const db = openDb();
+const db = openDb(W.dbPath);
 
 // every room in the render box that the crawler has reached
 const cells = db.prepare(`

@@ -19,7 +19,43 @@
 // ============================================================================
 import { DatabaseSync } from "node:sqlite";
 
-export const DB_PATH = new URL("../tmp/season.db", import.meta.url).pathname;
+// ---- world registry --------------------------------------------------------
+//  One DB file per shard — terrain & geometry are per-shard, so a Season scan and
+//  a Main (shard2) scan must never share a mirror. The shard name picks the file;
+//  this registry is the single source of truth for the API host + local DB file
+//  backing each world. Default world stays Season (back-compat for the bare CLI).
+export const WORLDS = {
+  shardSeason: { server: "https://screeps.com/season", db: "season.db", tag: "season" },
+  shard2:      { server: "https://screeps.com",        db: "shard2.db", tag: "shard2" },
+};
+
+// Local SQLite path for a shard. Unknown shards fall back to "<shard>.db" so a new
+// shard works without a registry edit; known shards get their canonical filename.
+export function dbPathForShard(shard) {
+  const file = WORLDS[shard]?.db ?? `${shard}.db`;
+  return new URL(`../tmp/${file}`, import.meta.url).pathname;
+}
+
+// Short filesystem-friendly label for a shard, used to prefix per-world output
+// artifacts (tmp/<tag>-region.json, tmp/<tag>-heatmap.png) so a Main run never
+// clobbers Season analysis. shardSeason → "season"; others → the shard name.
+export function worldTag(shard) { return WORLDS[shard]?.tag ?? shard; }
+
+// Resolve {server, shard, dbPath, tag} from CLI intent. `--main` is sugar for the
+// shard2 MMO world; an explicit --shard/--server always wins over the sugar.
+// Default (no flags) = Season, matching the historical behaviour.
+export function resolveWorld({ main = false, shard = null, server = null } = {}) {
+  const sh = shard ?? (main ? "shard2" : "shardSeason");
+  const w = WORLDS[sh] ?? {};
+  return {
+    shard: sh,
+    server: server ?? w.server ?? "https://screeps.com",
+    dbPath: dbPathForShard(sh),
+    tag: worldTag(sh),
+  };
+}
+
+export const DB_PATH = dbPathForShard("shardSeason");
 
 // Current room-scan schema version. Bump when fetchRoom starts capturing new
 // object fields; rooms with a lower `scan_v` (or NULL, the pre-versioned v1

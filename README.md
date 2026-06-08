@@ -114,13 +114,24 @@ SCREEPS_TOKEN=*** node deploy.mjs --server https://screeps.com/season  # -> seas
 Offline tooling to decide **which room to claim**. Scans the whole world once
 into a local SQLite mirror, then runs all analysis with zero API calls.
 
+**Multi-server.** The pipeline mirrors **one shard per DB file** (terrain &
+geometry are per-shard) — Season → `tmp/season.db`, Main shard2 → `tmp/shard2.db`.
+Pass `--main` to any script to target the shard2 MMO world (sugar for
+`--server https://screeps.com --shard shard2`); explicit `--server`/`--shard` still
+override. The world registry in `db.mjs` (`WORLDS` / `resolveWorld` / `dbPathForShard`)
+is the single source of truth, so per-world output files don't collide
+(`tmp/<season|shard2>-region.json`, `…-heatmap.png`). Crawling the MMO needs
+`--center <homeRoom>` since the ±range box defaults to the W0/N0 origin and a
+persistent-world home (e.g. W55S43) sits far from it.
+
 - `scan-season.mjs` — source-count scan of the room grid.
 - `geo-season.mjs` — home-room layout geometry for candidates.
 - `collect.mjs` — resilient background crawler (gap-fills, 429 backoff); the
   **sole API caller in this offline pipeline** (analytics is DB-only — SOLID). Mirrors terrain/sources/controller/mineral plus
   the v2 scout fields (keeper lairs, extractor, invader cores, controller
   owner/level/reservation, mineral density, portals, highway deposits/power
-  banks) into `tmp/season.db`. Run in tmux: `SCREEPS_TOKEN=*** node bin/collect.mjs --range 31`.
+  banks) into the per-shard mirror. Run in tmux: `SCREEPS_TOKEN=*** node bin/collect.mjs --range 31`
+  (Season) or `… --main --center W55S43 --range 10` (Main shard2, boxed around home).
   Rooms scanned before the v2 schema keep those columns NULL — backfill them
   with `node bin/collect.mjs --rescan` (a full ±31 re-crawl, ~840s).
 - `db.mjs` — SQLite schema (auto-migrates v1→v2 columns) + `loadRoom(db,name)`
