@@ -26,14 +26,49 @@
 export const INTEL_FRESH_TICKS = 1000;
 
 export const Threat = {
-  // Lethal combat capability of a hostile creep — parts that can damage OUR creeps.
-  // A MOVE-only scout, a CLAIM reserver, a CARRY/WORK economy creep all score 0:
-  // harmless, so we keep working rather than abandon the room to them.
+  // Lethal combat capability of a hostile creep — its boost-aware effective damage/tick (ATTACK + RANGED,
+  // each × its boost). A MOVE-only scout, a CLAIM reserver, a CARRY/WORK economy creep all score 0:
+  // harmless, so we keep working rather than abandon the room to them. The SINGLE source of per-creep
+  // offence — assess/threatOf and the group model both read it, so a boosted attacker is never under-rated
+  // on the offence term (#268).
   combatPower(creep) {
-    return (
-      creep.getActiveBodyparts(ATTACK) * ATTACK_POWER +
-      creep.getActiveBodyparts(RANGED_ATTACK) * RANGED_ATTACK_POWER
-    );
+    return this.creepCombat(creep).damage;
+  },
+
+  // Boost multiplier on a body part for its OWN combat effect (1× when unboosted) — read straight from the
+  // engine's native BOOSTS table, so new boost tiers need no maintenance here (convention over config). This
+  // only reads what the ENEMY is already boosted with, to size correctly against a boosted force; choosing
+  // OUR own boosts is a later doctrine (#250).
+  boostMult(part) {
+    if (!part.boost) return 1;
+    const effect = BOOSTS[part.type]?.[part.boost];
+    return effect ? effect.attack || effect.rangedAttack || effect.heal || 1 : 1;
+  },
+
+  // A hostile's EFFECTIVE combat output, boost-aware: damage/tick (ATTACK + RANGED, each × its boost) and
+  // heal/tick (HEAL × its boost), plus the part split so the group model can flag a DEDICATED healer. Reads
+  // live body (boost lives per-part), so it needs vision — the group totals are snapshotted into intel.
+  creepCombat(creep) {
+    let damage = 0;
+    let heal = 0;
+    let attack = 0;
+    let ranged = 0;
+    let healParts = 0;
+    for (const part of creep.body) {
+      if (part.hits === 0) continue; // a destroyed part is inactive
+      const mult = this.boostMult(part);
+      if (part.type === ATTACK) {
+        damage += ATTACK_POWER * mult;
+        attack++;
+      } else if (part.type === RANGED_ATTACK) {
+        damage += RANGED_ATTACK_POWER * mult;
+        ranged++;
+      } else if (part.type === HEAL) {
+        heal += HEAL_POWER * mult;
+        healParts++;
+      }
+    }
+    return { damage, heal, attack, ranged, healParts };
   },
 
   // A room's current threat (lethal DAMAGE-PER-TICK, comparable to guardCombatPower): the summed
@@ -87,6 +122,24 @@ export const Threat = {
     return p;
   },
 
+  // The enemy GROUP model (#268): effective group damage/tick and heal/tick (boost-aware), the count of
+  // DEDICATED healers (a creep with more HEAL than offence parts — the focus-fire signal), and the group
+  // size. This is what counter-sizing reads to out-pace their HEALING (a healer makes a group invincible
+  // below a DPS threshold — summed parts can't express that), and the base a future smart group-lead reads
+  // for focus-fire / mass-attack (rangedMassAttack when size ≥ 2 clustered) decisions.
+  group(hostiles) {
+    let damage = 0;
+    let heal = 0;
+    let healers = 0;
+    for (const hostile of hostiles) {
+      const c = this.creepCombat(hostile);
+      damage += c.damage;
+      heal += c.heal;
+      if (c.healParts > c.attack + c.ranged) healers++; // a mostly-HEAL creep — a dedicated healer
+    }
+    return { damage, heal, healers, size: hostiles.length };
+  },
+
   // Record what a creep observes about the room it's standing in. Called for every
   // VISIBLE room each tick (Kernel), so any creep — not just a scout — is a sensor.
   // `tick` is the last-observed time: entries persist (never deleted), so its AGE
@@ -105,6 +158,7 @@ export const Threat = {
       // effectively the guard/hunter force defending the room.
       defense: room.find(FIND_MY_CREEPS).reduce((sum, c) => sum + this.combatPower(c), 0),
       profile: this.profile(room, hostiles),
+      enemy: this.group(hostiles), // #268: boost-aware group damage/heal + dedicated-healer count + size
       tick: Game.time,
       ...this.recon(room),
       // #147 scout-casualty signal: carried across observations (observe overwrites the
@@ -237,6 +291,35 @@ export const Threat = {
     const intel = Memory.roomIntel?.[roomName];
     if (!intel || Game.time - intel.tick > INTEL_FRESH_TICKS) return 0;
     return intel.threat;
+  },
+
+  // The fresh enemy GROUP model for a room (#268), or a zeroed default if stale/unseen. Read paths for
+  // counter-sizing and (future) smart group tactics: how much the enemy heals, how hard it hits, whether it
+  // fields a dedicated healer to focus-fire, and how many bodies it is.
+  enemyGroup(roomName) {
+    const intel = Memory.roomIntel?.[roomName];
+    if (!intel || Game.time - intel.tick > INTEL_FRESH_TICKS || !intel.enemy) {
+      return { damage: 0, heal: 0, healers: 0, size: 0 };
+    }
+    return intel.enemy;
+  },
+
+  // The enemy's effective group HEAL/tick (boost-aware) — the term counter-sizing must out-pace, since a
+  // healer makes a group un-killable below a DPS threshold (#268). 0 if stale/unseen.
+  enemyHeal(roomName) {
+    return this.enemyGroup(roomName).heal;
+  },
+
+  // The enemy's effective group DAMAGE/tick (boost-aware) — the creep-only offence (towers/cores live in
+  // threatOf). Exposed for the data base; counter-sizing still gates on threatOf for the tower/core terms.
+  enemyDamage(roomName) {
+    return this.enemyGroup(roomName).damage;
+  },
+
+  // Count of DEDICATED healers in the room (#268) — the focus-fire signal a future group-lead reads (kill
+  // the healer first; killing the brawler while the healer lives just costs a respawn).
+  enemyHealers(roomName) {
+    return this.enemyGroup(roomName).healers;
   },
 
   // #147 — record that a scout was hurt or killed in a room. The count grows with repeated
