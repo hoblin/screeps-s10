@@ -1,5 +1,5 @@
 import { CombatBehaviour } from "./CombatBehaviour.js";
-import { selfHeal, shoot, kiteStep } from "./atoms/acts.js";
+import { groupHeal, shoot, kiteStep } from "./atoms/acts.js";
 import { armedOf } from "./atoms/selectors.js";
 
 // ============================================================================
@@ -16,7 +16,7 @@ import { armedOf } from "./atoms/selectors.js";
 // ============================================================================
 export class Kite extends CombatBehaviour {
   static run(creep, _colony, ctx) {
-    selfHeal(creep);
+    groupHeal(creep);
     const threats = ctx?.threats ?? creep.room.find(FIND_HOSTILE_CREEPS);
     if (!threats.length) return false; // room clear → caller's fallback runs the next node
 

@@ -20,12 +20,37 @@ export function nearestHostile(creep, hostiles) {
   return creep.pos.findClosestByRange(hostiles);
 }
 
-// The squad's deterministic shared focus: the lowest-hits ARMED hostile, id-tiebroken so
-// every member converges on the SAME kill with no coordinator (FocusFire). Null if none armed.
-export function lowestHitsArmed(hostiles) {
-  const armed = armedOf(hostiles);
-  if (!armed.length) return null;
-  return armed.sort((a, b) => a.hits - b.hits || (a.id < b.id ? -1 : 1))[0];
+// A DEDICATED healer (the #268 test): more HEAL than offence parts — the keystone kill, since it sustains
+// the whole group. Catches a disarmed unit left with only HEAL too (range_attack shot off → it must still
+// die before it heals the squad back up, the live #276 bug).
+const isHealer = (c) => c.healParts > c.attack + c.ranged;
+
+// The squad's deterministic shared focus, HEALER-FIRST (#276): dedicated healers before any attacker (a
+// healer lets the whole group out-live our damage → collapse it first), then WEAKEST-first (finish a unit
+// fast — classic focus-fire), then id-tiebroken so every member converges on the SAME kill with no
+// coordinator. A heal-bearer is a target even at 0 combat parts; pure economy (no offence, no heal) → null
+// (caller mops the nearest). The FIRE-priority twin of the field's HEAL_ATTRACT move-priority — we move
+// toward the healer AND shoot it.
+export function focusTarget(hostiles) {
+  const scored = hostiles
+    .map((h) => ({ h, c: Threat.creepCombat(h) }))
+    .filter((x) => x.c.healParts > 0 || x.c.damage > 0);
+  if (!scored.length) return null;
+  scored.sort((a, b) => isHealer(b.c) - isHealer(a.c) || a.h.hits - b.h.hits || (a.h.id < b.h.id ? -1 : 1));
+  return scored[0].h;
+}
+
+// The most-hurt friendly within `range` of a combat creep (INCLUDING itself), squad-preferring — the heal
+// target for a unit POOLING its heal onto whoever's taking fire (#276). Squad = warband tag OR mission, so
+// a tagless autonomous-defence soldier still mends its mission-mates. Null if nobody (incl. self) is hurt
+// in range.
+export function mostHurtAlly(creep, range = 3) {
+  const pool = creep.pos.findInRange(FIND_MY_CREEPS, range).filter((c) => c.hits < c.hitsMax);
+  if (!pool.length) return null;
+  const squad = creep.memory.warband || creep.memory.mission;
+  const mates = squad ? pool.filter((c) => (c.memory.warband || c.memory.mission) === squad) : [];
+  const choose = mates.length ? mates : pool;
+  return choose.sort((a, b) => a.hits / a.hitsMax - b.hits / b.hitsMax || (a.id < b.id ? -1 : 1))[0];
 }
 
 // The tile to anchor a hold/denial on: the commander's flag point (memory.point), else
@@ -63,8 +88,8 @@ const RAZE_VALUE = {
 // the rampart (which it can't break, #178), not the structure, so targeting them just wastes ticks.
 // `hostiles` is the pre-scanned FIND_HOSTILE_CREEPS list; structures are read live (the creep is on-target).
 export function priorityTarget(creep, hostiles) {
-  const armed = armedOf(hostiles);
-  if (armed.length) return creep.pos.findClosestByRange(armed);
+  const focus = focusTarget(hostiles); // armed creeps + healers, HEALER-FIRST (#276) — same policy everywhere
+  if (focus) return focus;
 
   // A structure is attackable only if no hostile rampart shares its tile (else attacks hit the rampart).
   const rampartTiles = new Set(

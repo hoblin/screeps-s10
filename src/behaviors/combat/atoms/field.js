@@ -252,13 +252,15 @@ export function enemyField(enemies, weights = PRIORITY_ENGAGE) {
   return enemies.map((e) => enemyMagnet(e, weights));
 }
 
-// Spread from in-room squadmates so one AOE can't catch two (#185). Room-local by design.
+// Spread from in-room squadmates so one AOE can't catch two (#185). Room-local by design. Squad = warband
+// tag OR mission — so an autonomous-defence soldier squad (no warband tag, only memory.mission) spreads too;
+// it had NONE before and clustered under one rangedMassAttack (#276). Spread only from co-squad members.
 export function separation(creep) {
-  const tag = creep.memory.warband;
-  if (!tag) return [];
+  const squad = creep.memory.warband || creep.memory.mission;
+  if (!squad) return [];
   return creep.room
     .find(FIND_MY_CREEPS)
-    .filter((c) => c.memory.warband === tag && c.name !== creep.name)
+    .filter((c) => (c.memory.warband || c.memory.mission) === squad && c.name !== creep.name)
     .map((c) => ({ x: c.pos.x, y: c.pos.y, repel: SEP_STRENGTH, attract: 0, range: SEP_RANGE }));
 }
 

@@ -1,6 +1,6 @@
 import { CombatBehaviour } from "./CombatBehaviour.js";
-import { selfHeal, skirmish } from "./atoms/acts.js";
-import { armedOf } from "./atoms/selectors.js";
+import { groupHeal, skirmish } from "./atoms/acts.js";
+import { armedOf, focusTarget } from "./atoms/selectors.js";
 
 // ============================================================================
 //  Engage (#189) — the umbrella combat conduct atom: "fight whatever is here".
@@ -20,7 +20,7 @@ import { armedOf } from "./atoms/selectors.js";
 // ============================================================================
 export class Engage extends CombatBehaviour {
   static run(creep, _colony, ctx) {
-    selfHeal(creep);
+    groupHeal(creep);
     let hostiles = ctx?.threats ?? creep.room.find(FIND_HOSTILE_CREEPS);
     if (ctx?.ownerFilter) hostiles = hostiles.filter((h) => h.owner && h.owner.username === ctx.ownerFilter);
     if (!hostiles.length) return false;
@@ -31,7 +31,9 @@ export class Engage extends CombatBehaviour {
 
     const armed = armedOf(hostiles);
     const engageable = armed.length ? armed : hostiles;
-    const target = ctx?.target ?? creep.pos.findClosestByRange(engageable);
+    // FIRE the healer first (deterministic squad focus, #276); fall back to nearest for pure-economy mop-up.
+    // The kite still settles at range from EVERY armed threat (engageable), so we fire one and dodge all.
+    const target = ctx?.target ?? focusTarget(hostiles) ?? creep.pos.findClosestByRange(engageable);
 
     // Remember the armed attacker's owner for sunk-asset retaliation (#140) — harmless stragglers
     // don't earn revenge, and we don't re-stamp while a retaliation is locked (targetOwner set: the
