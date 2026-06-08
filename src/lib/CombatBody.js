@@ -9,6 +9,8 @@ import { bodyFromTemplate } from "./BodyGenerator.js";
 
 const MELEE_MAX = 9; // max [ATTACK,MOVE] repeats (melee path: core-clearing)
 const RANGED_MAX = 6; // max [RANGED_ATTACK,MOVE] repeats on the ranged body
+const ANTICORE_MAX = 25; // max [ATTACK,MOVE] repeats for a core-buster (~25 ATTACK = 750 dmg/tick →
+// ~134 ticks to grind a 100k-HP L0 core; two halve it). Budget-capped on smaller colonies.
 
 // Which counter to field for an enemy part-profile. Any MOBILE combat (ranged or melee)
 // → "ranged" (kites melee, mirrors+outlasts ranged; melee can't catch an equal-speed
@@ -31,4 +33,13 @@ export function combatBody(energyBudget, profile) {
     max: RANGED_MAX,
     energy: energyBudget,
   });
+}
+
+// Anti-core composition (#259) — a cheap pure-ATTACK burst to grind down an invader core. An L0 remote
+// core has NO tower and NO defenders, so nothing fires back: no HEAL, no TOUGH, just ATTACK + 1:1 MOVE
+// (full speed to reach the remote, then stand and grind). The first of the TYPED compositions counterType
+// grows into — kite (RANGED+HEAL), pair (attacker+healer) and tower-assisted land in #250's threat-matched
+// sizing. Sized down to the spawn budget like every combat body.
+export function antiCoreBody(energyBudget) {
+  return bodyFromTemplate([ATTACK, MOVE], { extra: [ATTACK, MOVE], max: ANTICORE_MAX, energy: energyBudget });
 }

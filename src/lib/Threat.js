@@ -132,6 +132,23 @@ export const Threat = {
         filter: (s) => s.structureType === STRUCTURE_TOWER,
       }).length,
     };
+    // Invader-core intel (#259): an L0 core squatting a remote reserves the controller (kicking our
+    // reserver) and must be busted. Record its HP + timing so the operational overlord can size a buster
+    // and gate dispatch (invulnerable now? collapses before we arrive?) WITHOUT live vision. Timers are
+    // stored ABSOLUTE (Game.time + ticksRemaining) so they stay valid as the intel ages between visits.
+    const core = room.find(FIND_HOSTILE_STRUCTURES, {
+      filter: (s) => s.structureType === STRUCTURE_INVADER_CORE,
+    })[0];
+    // level 0 = reservation core (the cheap pure-ATTACK target); 1-5 = stronghold (towers + boosted
+    // defenders — a different, boosted composition, out of this mission's scope, so the overlord skips it).
+    out.invaderCore = core
+      ? {
+          level: core.level,
+          hits: core.hits,
+          collapseAt: this.effectEndsAt(core, EFFECT_COLLAPSE_TIMER),
+          invulnerableUntil: this.effectEndsAt(core, EFFECT_INVULNERABILITY),
+        }
+      : null;
     // Ground Score objects (Season 10): a creep banks the points by occupying the tile
     // (no structure/carry — see docs/season-10-score-mechanic.md). FIND_SCORES is
     // season-only and the same universal bundle runs on shard2 where it's undefined, so
@@ -145,6 +162,13 @@ export const Threat = {
       }));
     }
     return out;
+  },
+
+  // The absolute game-tick a structure effect (EFFECT_*) expires, or null if absent. Stored absolute
+  // (Game.time + ticksRemaining) so an invader-core timer recorded in intel stays valid as it ages.
+  effectEndsAt(structure, effectType) {
+    const e = (structure.effects || []).find((x) => x.effect === effectType);
+    return e ? Game.time + e.ticksRemaining : null;
   },
 
   // Is a room believed dangerous? True only on a FRESH observation with lethal
@@ -186,6 +210,25 @@ export const Threat = {
   killableProfile(roomName) {
     const p = this.profileFor(roomName);
     return p && p.attack + p.ranged + (p.work || 0) + (p.claim || 0) > 0 ? p : null;
+  },
+
+  // The fresh invader-core intel for a room ({hits, collapseAt, invulnerableUntil}, timers absolute),
+  // or null if no core / stale (#259). The data path the bust-core mission sizes its buster and gates
+  // dispatch on (invulnerable now? self-collapses before we arrive?) without live vision.
+  invaderCore(roomName) {
+    const intel = Memory.roomIntel?.[roomName];
+    if (!intel || Game.time - intel.tick > INTEL_FRESH_TICKS) return null;
+    return intel.invaderCore || null;
+  },
+
+  // Is one of OUR remotes seized by an invader core (#259) — a core present, OR the controller reserved
+  // by "Invader" (the reservation kicks our reserver and kills mining; treat it as seized). Fresh intel
+  // only. The bust-core recogniser; the reservation proxy fires even before recon has captured the core's
+  // HP/timers, so a buster dispatches and confirms the core live on arrival.
+  coreSeized(roomName) {
+    const intel = Memory.roomIntel?.[roomName];
+    if (!intel || Game.time - intel.tick > INTEL_FRESH_TICKS) return false;
+    return !!intel.invaderCore || intel.reserver === "Invader";
   },
 
   // The fresh scalar threat of a room (or 0 if stale/unseen) — so the Guard layer can

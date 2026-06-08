@@ -13,6 +13,7 @@ import { FreeHunter } from "./combat/FreeHunter.js";
 import { RoamNeighbour } from "./combat/RoamNeighbour.js";
 import { HoldGround } from "./combat/HoldGround.js";
 import { SelfDefense } from "./combat/SelfDefense.js";
+import { BustCore } from "./combat/BustCore.js";
 import { RemoteHaul } from "./economy/RemoteHaul.js";
 import { Work } from "./economy/Work.js";
 import { Pioneer } from "./economy/Pioneer.js";
@@ -61,6 +62,9 @@ import { UpgradeController } from "./economy/UpgradeController.js";
 //                  ARMED hostile that gets close enough to hit it (in-range only — defend, don't chase),
 //                  then resumes. Entry/exit edges; scoped to transit so it never clobbers a destination's
 //                  own conduct. Place FIRST in a role's nodes (self-preservation preempts the mission).
+//   • bustCore   — anti-core (#259): travel to the assigned remote, grind down the invader core squatting
+//                  it (respecting its invulnerability window), then garrison the controller to deny re-
+//                  seizure. The OperationalMilitaryOverlord's first mission conduct.
 //
 //  ECONOMY (#204 — the first non-combat behaviors; extend the neutral Behavior base directly):
 //   • remoteHaul — carry a remote source's energy home. Executes the source the
@@ -97,6 +101,7 @@ export const BEHAVIORS = {
   roamNeighbour: RoamNeighbour,
   holdGround: HoldGround,
   selfDefense: SelfDefense,
+  bustCore: BustCore,
   remoteHaul: RemoteHaul,
   work: Work,
   pioneer: Pioneer,
