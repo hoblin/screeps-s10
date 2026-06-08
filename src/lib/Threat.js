@@ -26,14 +26,13 @@
 export const INTEL_FRESH_TICKS = 1000;
 
 export const Threat = {
-  // Lethal combat capability of a hostile creep — parts that can damage OUR creeps.
-  // A MOVE-only scout, a CLAIM reserver, a CARRY/WORK economy creep all score 0:
-  // harmless, so we keep working rather than abandon the room to them.
+  // Lethal combat capability of a hostile creep — its boost-aware effective damage/tick (ATTACK + RANGED,
+  // each × its boost). A MOVE-only scout, a CLAIM reserver, a CARRY/WORK economy creep all score 0:
+  // harmless, so we keep working rather than abandon the room to them. The SINGLE source of per-creep
+  // offence — assess/threatOf and the group model both read it, so a boosted attacker is never under-rated
+  // on the offence term (#268).
   combatPower(creep) {
-    return (
-      creep.getActiveBodyparts(ATTACK) * ATTACK_POWER +
-      creep.getActiveBodyparts(RANGED_ATTACK) * RANGED_ATTACK_POWER
-    );
+    return this.creepCombat(creep).damage;
   },
 
   // Boost multiplier on a body part for its OWN combat effect (1× when unboosted) — read straight from the
