@@ -248,27 +248,43 @@ class Layout {
     const cx = Math.round(served.reduce((s, o) => s + o.x, 0) / served.length);
     const cy = Math.round(served.reduce((s, o) => s + o.y, 0) / served.length);
     const open = this.distanceTransform();
+    // Lower is better: close to what it serves, minus an openness bonus (roomy pockets
+    // fit the core). A served-crowding tile (≤2 from a source/controller) is excluded.
+    const score = (x, y) => {
+      if (served.some((o) => Math.max(Math.abs(o.x - x), Math.abs(o.y - y)) <= 2)) return Infinity;
+      const range = served.reduce((s, o) => s + Math.max(Math.abs(o.x - x), Math.abs(o.y - y)), 0);
+      return range - OPENNESS_WEIGHT * open[idx(x, y)];
+    };
 
+    // Primary: a clear-3×3 tile in the box around the served centroid (keeps the base
+    // near what it serves). Fallback: any clear-3×3 in the whole interior (a winding
+    // room may have none near the centroid). Last resort: the best non-wall interior
+    // tile — so the anchor is NEVER an impossible wall/edge tile.
+    return (
+      this.bestAnchorIn(score, cx - ANCHOR_SEARCH_RADIUS, cx + ANCHOR_SEARCH_RADIUS, cy - ANCHOR_SEARCH_RADIUS, cy + ANCHOR_SEARCH_RADIUS, true) ||
+      this.bestAnchorIn(score, STRUCT_MIN, STRUCT_MAX, STRUCT_MIN, STRUCT_MAX, true) ||
+      this.bestAnchorIn(score, STRUCT_MIN, STRUCT_MAX, STRUCT_MIN, STRUCT_MAX, false) ||
+      { x: cx, y: cy }
+    );
+  }
+
+  // The lowest-`score` tile in the [x0..x1]×[y0..y1] box (clamped to the buildable
+  // interior). `requireClear` demands a clear 3×3 (room for the core); when false any
+  // non-wall tile qualifies (the degenerate last-resort pass).
+  bestAnchorIn(score, x0, x1, y0, y1, requireClear) {
     let best = null;
     let bestScore = Infinity;
-    for (let dy = -ANCHOR_SEARCH_RADIUS; dy <= ANCHOR_SEARCH_RADIUS; dy++) {
-      for (let dx = -ANCHOR_SEARCH_RADIUS; dx <= ANCHOR_SEARCH_RADIUS; dx++) {
-        const x = cx + dx;
-        const y = cy + dy;
-        if (x < STRUCT_MIN || x > STRUCT_MAX || y < STRUCT_MIN || y > STRUCT_MAX) continue;
-        if (!this.clear3x3(x, y)) continue;
-        if (served.some((o) => Math.max(Math.abs(o.x - x), Math.abs(o.y - y)) <= 2)) continue;
-        const range = served.reduce((s, o) => s + Math.max(Math.abs(o.x - x), Math.abs(o.y - y)), 0);
-        const score = range - OPENNESS_WEIGHT * open[idx(x, y)];
-        if (score < bestScore) {
-          bestScore = score;
+    for (let y = Math.max(STRUCT_MIN, y0); y <= Math.min(STRUCT_MAX, y1); y++) {
+      for (let x = Math.max(STRUCT_MIN, x0); x <= Math.min(STRUCT_MAX, x1); x++) {
+        if (requireClear ? !this.clear3x3(x, y) : this.isWall(x, y)) continue;
+        const s = score(x, y);
+        if (s < bestScore) {
+          bestScore = s;
           best = { x, y };
         }
       }
     }
-    // Degenerate room with no clear 3×3 near the centroid: fall back to the
-    // centroid itself (the caller will still log a geometric shortfall downstream).
-    return best || { x: cx, y: cy };
+    return best;
   }
 
   clear3x3(x, y) {
@@ -526,6 +542,10 @@ class Layout {
   }
 
   addRoad(x, y, rcl) {
+    // The road Dijkstra explores the full 0..49 grid, but structures (roads included)
+    // can't sit on the room-edge ring — drop any border tile so the realizer never
+    // retries an unbuildable site forever.
+    if (x < EDGE_MIN || x > EDGE_MAX || y < EDGE_MIN || y > EDGE_MAX) return;
     const k = this.key(x, y);
     const prev = this.roadRcl.get(k);
     if (prev === undefined || rcl < prev) this.roadRcl.set(k, rcl);
@@ -574,8 +594,8 @@ class Layout {
 
   // Dijkstra from (sx,sy) over the 8-neighbourhood; `cost(x,y)` is the step cost
   // ONTO (x,y) (Infinity = impassable). Returns the distance field; `tracePath`
-  // reconstructs a route from the stored predecessors. A plain array PQ with a
-  // linear min-scan — n≤2500 and this runs once at founding, so it's cheap enough.
+  // reconstructs a route from the stored predecessors. Uses the binary MinHeap
+  // (O(E log V)) so the once-per-founding plan stays inside one tick's CPU budget.
   dijkstra(sx, sy, cost) {
     const dist = new Float64Array(SIZE * SIZE).fill(Infinity);
     const prev = new Int32Array(SIZE * SIZE).fill(-1);

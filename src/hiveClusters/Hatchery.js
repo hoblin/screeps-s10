@@ -87,8 +87,12 @@ export class Hatchery extends HiveCluster {
     if (!stageAtLeast(this.colony, "2b:Hauling")) return;
     if (Game.time % ROAD_PLAN_INTERVAL !== 0) return; // periodic backlog refill
     if (!this.colony.health.roadBuildReady) return; // can't afford the lowest-priority backlog yet
+    // Roads have no RCL count cap, so the budget is driven ONLY by maxPending — NOT by
+    // total built roads (a cap of planned-count would subtract legacy/off-plan roads and
+    // could starve the spine to zero in an established colony). Already-built/queued plan
+    // tiles are skipped via the occupancy check, so we never double-place.
     const roads = RoomPlanner.roads(this.colony);
-    StructureRealizer.ensureSites(this.room, STRUCTURE_ROAD, roads, roads.length, {
+    StructureRealizer.ensureSites(this.room, STRUCTURE_ROAD, roads, Infinity, {
       maxPending: MAX_PENDING_ROAD_SITES,
     });
   }
