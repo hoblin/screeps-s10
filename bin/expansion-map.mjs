@@ -61,6 +61,12 @@ function buildMap(db, home) {
   // as region-score), terrain-weighted, reused from the economic model.
   const homeField = distField(homeRoom.g, homeRoom.controller.x, homeRoom.controller.y);
 
+  // OUR user id — derived from the home room (the home is ours by definition), so a
+  // neighbour owned/reserved by US is never mistaken for an enemy. Without this the
+  // map avoided our OWN reserved remotes as "enemyOwned" and the home came out with
+  // no remotes at all (boxed-in by its own reservations).
+  const SELF = homeRoom.owner || null;
+
   const remotes = [];
   const avoid = [];
   // Every neighbour we can't remote-mine, recorded with WHY — no silent drops, so
@@ -77,8 +83,15 @@ function buildMap(db, home) {
       avoid.push({ room, reason: "sourceKeeper", lairs: nb.keeperLairs.length, sources: nb.sources.length, mineral: nb.mineral?.t || null });
       continue;
     }
-    if (nb.owner) {
+    // A room owned by SOMEONE ELSE is enemy territory — avoid. One owned by US is
+    // either our own colony (it mines its own sources — not a remote) or a remote we
+    // already reserve (level 0); the latter falls through to the safe-remote logic.
+    if (nb.owner && nb.owner !== SELF) {
       avoid.push({ room, reason: "enemyOwned", owner: nb.owner, level: nb.controller?.level ?? null });
+      continue;
+    }
+    if (nb.owner === SELF && (nb.controller?.level ?? 0) >= 1) {
+      excluded.push({ room, dir, reason: "ownColony" });
       continue;
     }
     if (nb.invaderCore) {
@@ -112,7 +125,7 @@ function buildMap(db, home) {
       dir,
       controller: { x: nb.controller.x, y: nb.controller.y },
       mineral: nb.mineral?.t || null,
-      reservedByOther: !!nb.reservation?.owner,
+      reservedByOther: !!(nb.reservation?.owner && nb.reservation.owner !== SELF),
       score: round(sources.reduce((a, s) => a + s.value, 0)),
       sources,
     });
