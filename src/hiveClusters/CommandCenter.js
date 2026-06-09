@@ -1,6 +1,6 @@
 import { HiveCluster } from "./HiveCluster.js";
-import { StoragePlanner } from "../lib/StoragePlanner.js";
-import { LinkPlanner } from "../lib/LinkPlanner.js";
+import { RoomPlanner } from "../lib/RoomPlanner.js";
+import { StructureRealizer } from "../lib/StructureRealizer.js";
 import { stageAtLeast } from "../lib/Stages.js";
 
 // A transmit link sends only once nearly full, so the flat 3% transfer loss always
@@ -41,104 +41,32 @@ export class CommandCenter extends HiveCluster {
   }
 
   // --------------------------------------------------------------------------
-  //  Storage placement (relocated from the Hatchery; StoragePlanner unchanged).
-  //  At RCL4 (Stage 3) place the single central Storage — the mid-game buffer.
+  //  Storage placement: realize the planned Storage tile at RCL4 (Stage 3) — the
+  //  mid-game buffer. The unified RoomPlanner (#258) chose the tile at founding.
   // --------------------------------------------------------------------------
   planStorage() {
     if (!stageAtLeast(this.colony, "3:Storage&Links")) return;
-    const rcl = this.colony.controller.level;
-    const cap = (CONTROLLER_STRUCTURES[STRUCTURE_STORAGE] || {})[rcl] || 0;
+    const cap = (CONTROLLER_STRUCTURES[STRUCTURE_STORAGE] || {})[this.colony.controller.level] || 0;
     if (cap === 0) return; // storage not unlocked yet (RCL < 4)
     if (this.room.storage) return; // already built — nothing to place
-    const anchor = this.colony.spawns[0];
-    if (!anchor) return;
-    const position = this.storagePosition(anchor);
-    if (position) StoragePlanner.ensureSite(this.room, position);
-  }
-
-  // The planned storage tile, computed once via StoragePlanner and cached in colony
-  // memory. Null until a central buildable tile is found.
-  storagePosition(anchor) {
-    const cached = this.storagePositionCache;
-    if (cached) return new RoomPosition(cached.x, cached.y, cached.roomName);
-    const position = StoragePlanner.planPosition(this.room, anchor.pos, this.colony.controller.pos);
-    if (position) {
-      this.storagePositionCache = { x: position.x, y: position.y, roomName: position.roomName };
-    }
-    return position;
-  }
-
-  get storagePositionCache() {
-    return Memory.colonyData?.[this.colony.name]?.storagePosition;
-  }
-
-  set storagePositionCache(value) {
-    Memory.colonyData ||= {};
-    Memory.colonyData[this.colony.name] ||= {};
-    Memory.colonyData[this.colony.name].storagePosition = value;
+    StructureRealizer.ensureSites(this.room, STRUCTURE_STORAGE, RoomPlanner.tilesFor(this.colony, STRUCTURE_STORAGE), cap);
   }
 
   // --------------------------------------------------------------------------
-  //  Link placement. Two-axis gate: stage + RCL cap (unlocked) AND
-  //  energyRich && !recovering (can we afford the 5000-energy investment now).
+  //  Link placement: realize the planned link tiles up to the RCL cap. The plan
+  //  (#258) lays the pairs out priority-first — controller link, then source links
+  //  far→near, then the storage link — each hugging its container/hub facing its
+  //  partner (shortest range = shortest cooldown). Two-axis gate: stage + RCL cap
+  //  (unlocked) AND energyRich && !recovering (can we afford the 5000-energy sink now).
+  //  The cap fills the RCL5 controller+source pair first, so a lone link is never queued.
   // --------------------------------------------------------------------------
   planLinks() {
     if (!stageAtLeast(this.colony, "3:Storage&Links")) return;
-    const rcl = this.colony.controller.level;
-    const cap = (CONTROLLER_STRUCTURES[STRUCTURE_LINK] || {})[rcl] || 0;
+    const cap = (CONTROLLER_STRUCTURES[STRUCTURE_LINK] || {})[this.colony.controller.level] || 0;
     if (cap === 0) return; // links not unlocked yet (RCL < 5)
     const health = this.colony.health;
     if (!health.energyRich || health.recovering) return; // can't afford the investment now
-    const layout = this.linkLayout();
-    if (layout.length) LinkPlanner.ensureSites(this.room, layout, cap);
-  }
-
-  // Priority-ordered desired link tiles: the controller link (receiver) + a source
-  // link (sender) on the source FARTHEST from the controller — the RCL5 cap-2 pair,
-  // killing the longest haul leg. Both anchors must exist (controller dropoff known,
-  // the linked source's container tile cached) — returns [] until then. Each tile is
-  // chosen adjacent to its hub, facing its partner (shortest link range = shortest
-  // cooldown). Cached: deterministic from the anchors.
-  linkLayout() {
-    const cached = this.linkLayoutCache;
-    if (cached) {
-      return cached.map((e) => ({ role: e.role, sourceId: e.sourceId, pos: new RoomPosition(e.x, e.y, e.roomName) }));
-    }
-    const ctrlPos = this.colony.controllerDropoffPos();
-    const sources = this.colony.sources;
-    if (!ctrlPos || !sources.length) return [];
-    // The source whose haul to the controller is longest → most haul saved by linking.
-    const ctrl = this.colony.controller;
-    const linked = sources.reduce((far, s) =>
-      s.pos.getRangeTo(ctrl) > far.pos.getRangeTo(ctrl) ? s : far
-    );
-    const srcContainer = this.colony.sourceContainerPos(linked);
-    if (!srcContainer) return []; // mining position not cached yet
-    const ctrlTile = LinkPlanner.linkTile(this.room, ctrlPos, srcContainer);
-    const srcTile = LinkPlanner.linkTile(this.room, srcContainer, ctrlPos);
-    // Commit only the FULL RCL5 pair. A lone link is useless — a 5000-energy sink with
-    // no partner to transfer to — and a lone controller link wouldn't be discoverable
-    // via Colony.controllerLink() until cached. Wait until BOTH tiles resolve, so
-    // planLinks never queues a single unpaired link (#133 review).
-    if (!ctrlTile || !srcTile) return [];
-    const layout = [
-      { role: "controller", pos: ctrlTile },
-      { role: "source", sourceId: linked.id, pos: srcTile },
-    ];
-    this.linkLayoutCache = layout.map((e) => ({
-      role: e.role, sourceId: e.sourceId, x: e.pos.x, y: e.pos.y, roomName: e.pos.roomName,
-    }));
-    return layout;
-  }
-
-  get linkLayoutCache() {
-    return Memory.colonyData?.[this.colony.name]?.linkPositions;
-  }
-
-  set linkLayoutCache(value) {
-    Memory.colonyData ||= {};
-    Memory.colonyData[this.colony.name] ||= {};
-    Memory.colonyData[this.colony.name].linkPositions = value;
+    StructureRealizer.ensureSites(this.room, STRUCTURE_LINK, RoomPlanner.tilesFor(this.colony, STRUCTURE_LINK), cap);
   }
 
   // --------------------------------------------------------------------------

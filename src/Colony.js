@@ -15,6 +15,7 @@ import { ScoutOverlord } from "./overlords/ScoutOverlord.js";
 import { ClaimOverlord } from "./overlords/ClaimOverlord.js";
 import { FillerOverlord } from "./overlords/FillerOverlord.js";
 import { RoomHealthCheck } from "./lib/RoomHealthCheck.js";
+import { RoomPlanner } from "./lib/RoomPlanner.js";
 import { Miner } from "./roles/Miner.js";
 import { Hauler } from "./roles/Hauler.js";
 import { bodyCost } from "./lib/BodyGenerator.js";
@@ -250,7 +251,7 @@ export class Colony {
   }
 
   // The controller container: a non-source container within range 3 of the
-  // controller (ContainerPlanner places it ≤3 tiles short). The colony owns this
+  // controller (the RoomPlanner places it ≤3 tiles short). The colony owns this
   // structure query — roles/overlords ask it rather than re-scanning the room.
   // Memoized on the per-tick Colony instance (like `health`): Hauler.deliver hits
   // this twice per hauler per tick, so we scan the room at most once per tick. The
@@ -275,12 +276,12 @@ export class Colony {
   }
 
   // Drop-off the haulers feed for the controller: the live container if built, else
-  // its planned tile — so the freight fleet can be sized before it finishes (#84).
+  // its planned tile (#258 RoomPlanner) — so the freight fleet can be sized before it
+  // finishes (#84).
   controllerDropoffPos() {
     const built = this.controllerContainer();
     if (built) return built.pos;
-    const planned = Memory.colonyData?.[this.name]?.controllerContainerPos;
-    return planned ? new RoomPosition(planned.x, planned.y, planned.roomName) : null;
+    return RoomPlanner.tileForRole(this, STRUCTURE_CONTAINER, "controller");
   }
 
   // The home freight-HAULER target — how many haulers the room's PRODUCTION needs to move its output home
@@ -344,17 +345,20 @@ export class Colony {
     return !!cache && pos.x === cache.x && pos.y === cache.y && pos.roomName === cache.roomName;
   }
 
-  // The CommandCenter-planned links (#17), resolved from the cached layout to live
-  // structures (null until built). The controller link is the upgrade receiver; the
-  // source links are the LinkedMiner-fed senders.
+  // The RoomPlanner-laid links (#258), resolved from the plan to live structures
+  // (null until built). The controller link is the upgrade receiver; the source links
+  // are the LinkedMiner-fed senders.
   controllerLink() {
     return this.linkByRole("controller");
   }
 
   // The built source link for a given source id (the LinkedMiner transfers into it),
-  // or null. Keyed by source so a per-source overlord/role can find its own link.
+  // or null. The plan tags source links by source INDEX (it has no ids — the pure
+  // core is id-free), so map this source's id to its position in the ordered list.
   sourceLink(sourceId) {
-    const entry = this.linkEntries().find((e) => e.role === "source" && e.sourceId === sourceId);
+    const i = this.sources.findIndex((s) => s.id === sourceId);
+    if (i < 0) return null;
+    const entry = this.linkEntries().find((e) => e.role === "source" && e.source === `source${i}`);
     return entry ? this.linkAt(entry) : null;
   }
 
@@ -367,7 +371,7 @@ export class Colony {
   }
 
   linkEntries() {
-    return Memory.colonyData?.[this.name]?.linkPositions || [];
+    return RoomPlanner.plan(this)?.structures?.[STRUCTURE_LINK] || [];
   }
 
   linkByRole(role) {
@@ -375,11 +379,11 @@ export class Colony {
     return entry ? this.linkAt(entry) : null;
   }
 
-  // The live link structure on a cached layout tile, or null if not built yet. A
+  // The live link structure on a planned layout tile, or null if not built yet. A
   // single-tile lookFor — cheap enough to skip per-tick memoization.
   linkAt(entry) {
     return (
-      new RoomPosition(entry.x, entry.y, entry.roomName)
+      new RoomPosition(entry.x, entry.y, this.name)
         .lookFor(LOOK_STRUCTURES)
         .find((s) => s.structureType === STRUCTURE_LINK) || null
     );

@@ -1,5 +1,6 @@
 import { Overlord } from "./Overlord.js";
-import { TowerPlanner } from "../lib/TowerPlanner.js";
+import { RoomPlanner } from "../lib/RoomPlanner.js";
+import { StructureRealizer } from "../lib/StructureRealizer.js";
 import { RoomLog } from "../lib/RoomLog.js";
 
 // ============================================================================
@@ -133,49 +134,14 @@ export class DefenseOverlord extends Overlord {
   }
 
   // --------------------------------------------------------------------------
-  //  Placement: keep tower construction sites alive on central tiles (covering
-  //  spawn + controller), up to the current RCL cap (RCL3 = 1, RCL5 = 2, ...).
+  //  Placement: realize the planned tower tiles up to the current RCL cap (RCL3 = 1,
+  //  RCL5 = 2, RCL7 = 3, RCL8 = 6). The unified RoomPlanner (#258) placed them
+  //  central to the base at founding.
   // --------------------------------------------------------------------------
   planTowers() {
-    const anchor = this.colony.spawns[0];
-    if (!anchor) return; // no spawn to anchor the layout (pre-bootstrap)
-
-    const rcl = this.colony.controller.level;
-    const cap = (CONTROLLER_STRUCTURES[STRUCTURE_TOWER] || {})[rcl] || 0;
+    const cap = (CONTROLLER_STRUCTURES[STRUCTURE_TOWER] || {})[this.colony.controller.level] || 0;
     if (cap === 0) return; // towers not unlocked yet (RCL < 3)
-
-    TowerPlanner.ensureSites(this.room, this.towerLayout(anchor), cap);
-  }
-
-  // The planned tower tiles, computed once via TowerPlanner and cached in colony
-  // memory (mirrors Hatchery.extensionLayout). Deterministic from terrain + the
-  // spawn/controller anchors, so caching keeps the spiral scan off the per-tick
-  // budget. We plan for the RCL8 maximum up front so the layout never shifts as
-  // RCL climbs — only the cap we fill it to grows.
-  towerLayout(anchor) {
-    const cached = this.towerLayoutCache;
-    if (cached) {
-      return cached.map((p) => new RoomPosition(p.x, p.y, p.roomName));
-    }
-    const maxTowers = CONTROLLER_STRUCTURES[STRUCTURE_TOWER][8];
-    const center = TowerPlanner.centerTile(anchor.pos, this.colony.controller.pos);
-    const planned = TowerPlanner.planPositions(this.room, center, anchor.pos, maxTowers);
-    this.towerLayoutCache = planned.map((p) => ({
-      x: p.x,
-      y: p.y,
-      roomName: p.roomName,
-    }));
-    return planned;
-  }
-
-  get towerLayoutCache() {
-    return Memory.colonyData?.[this.colony.name]?.towerPositions;
-  }
-
-  set towerLayoutCache(value) {
-    Memory.colonyData ||= {};
-    Memory.colonyData[this.colony.name] ||= {};
-    Memory.colonyData[this.colony.name].towerPositions = value;
+    StructureRealizer.ensureSites(this.room, STRUCTURE_TOWER, RoomPlanner.tilesFor(this.colony, STRUCTURE_TOWER), cap);
   }
 
   // --------------------------------------------------------------------------

@@ -64,13 +64,14 @@ export const STAGES = [
     // `stageAtLeast("1:Bootstrap")` would wrongly read true with no spawn. As an override, `spawns
     // .length === 0` forces the machine to the bottom regardless of RCL, so that predicate reliably
     // means "has a spawn". The only job here: stand up the first spawn — the Hatchery places its site
-    // (SpawnPlanner), pioneers from the main colony build it; everything else (containers, miners) gates
-    // off until a spawn exists. Checked BEFORE Recovery: no spawn is the more fundamental crisis (you
-    // can't refill a spawn that doesn't exist), so a spawnless room founds rather than "recovers".
+    // at the RoomPlanner's anchor tile (#258), pioneers from the main colony build it; everything else
+    // (containers, miners) gates off until a spawn exists. Checked BEFORE Recovery: no spawn is the more
+    // fundamental crisis (you can't refill a spawn that doesn't exist), so a spawnless room founds rather
+    // than "recovers".
     key: "0:Founding",
     override: true,
     enteredWhen: (colony) => colony.spawns.length === 0,
-    provides: ["first spawn construction site (SpawnPlanner) + pioneers build it"],
+    provides: ["first spawn construction site (RoomPlanner anchor) + pioneers build it"],
     // Cosmetic (the override latch controls it); we leave the instant the first spawn stands.
     readyForNextWhen: (colony) => colony.spawns.length > 0,
   },

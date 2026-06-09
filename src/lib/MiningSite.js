@@ -1,4 +1,5 @@
 import { ContainerPlanner } from "./ContainerPlanner.js";
+import { RoomPlanner } from "./RoomPlanner.js";
 
 // ============================================================================
 //  MiningSite — the shared container-mining-site lifecycle (#19), extracted from MiningOverlord once
@@ -27,21 +28,17 @@ export class MiningSite {
     this.label = label;
   }
 
-  // The cached mining tile, or null until a reachable one is computed + cached.
+  // The mining tile — the planned container tile adjacent to this target (#258). Read
+  // from the unified RoomPlanner and cached in `miningPos` so MiningOverlord can layer
+  // the JIT-relief `dist` onto the same object and Colony.sourceContainerPos /
+  // mineralContainer keep reading it. Null if the plan placed no container for this
+  // target (a source walled off from the base).
   get position() {
     const cache = this.cache;
     if (cache) return new RoomPosition(cache.x, cache.y, cache.roomName);
-    const anchor = this.colony.spawns[0] || this.colony.controller;
-    if (!anchor) return null;
-    const { position, reachedByPath } = ContainerPlanner.bestContainerTile(
-      this.room,
-      this.target.pos,
-      anchor.pos
-    );
-    if (position && reachedByPath) {
-      this.cache = { x: position.x, y: position.y, roomName: position.roomName };
-    }
-    return position;
+    const tile = RoomPlanner.containerTileFor(this.colony, this.target.pos);
+    if (tile) this.cache = { x: tile.x, y: tile.y, roomName: tile.roomName };
+    return tile;
   }
 
   // Keep a container (or its construction site) alive on the mining tile. No container without a spawn
