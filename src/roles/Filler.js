@@ -29,13 +29,12 @@ export class Filler extends Role {
   }
 
   static run(creep, colony) {
-    const storage = colony.room.storage;
-
-    // Empty → load from storage (or idle by the spawn if there's nothing to pump).
+    // Empty → load from the best source (or idle by the spawn if there's nothing to pump).
     if (creep.store[RESOURCE_ENERGY] === 0) {
-      if (!storage || storage.store[RESOURCE_ENERGY] === 0) return this.idleBySpawn(creep, colony);
+      const source = this.loadSource(colony);
+      if (!source) return this.idleBySpawn(creep, colony);
       this.note(creep, "fill:load");
-      if (creep.withdraw(storage, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) creep.travelTo(storage, { range: 1 });
+      if (creep.withdraw(source, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) creep.travelTo(source, { range: 1 });
       return;
     }
 
@@ -54,6 +53,19 @@ export class Filler extends Role {
 
     // Cluster full → wait by the spawn HOLDING the load, ready to top the next drain instantly.
     this.idleBySpawn(creep, colony);
+  }
+
+  // Where the filler draws from: storage first (the mid-game buffer it exists to pump).
+  // But when storage runs DRY (an economy drought — the very moment spawn-fill matters
+  // most), fall back to the controller link: the link network teleports source energy
+  // into it, bypassing the broken hauling, so it's the one pool reliably refilled. Only
+  // each source returned if it actually holds energy (else null → the filler idles).
+  static loadSource(colony) {
+    const storage = colony.room.storage;
+    if (storage && storage.store[RESOURCE_ENERGY] > 0) return storage;
+    const link = colony.controllerLink();
+    if (link && link.store[RESOURCE_ENERGY] > 0) return link;
+    return null;
   }
 
   // Park within reach of the spawn cluster so the next fill is one step away.
