@@ -84,8 +84,9 @@ must rebuild the spawn before anything else.) Stage 0 is the formal contract for
   **override** — it preempts the RCL-derived progression, so a spawnless room can't be leap-frogged by
   a later stage whose trigger is RCL/container-based (e.g. pioneers upgrading the controller to RCL 2
   before the spawn is built). That's what makes the spawn gate reliable.
-- **provides:** the first spawn — the `Hatchery` places its construction site (`SpawnPlanner`, computed
-  live from terrain) and **pioneers** from the main colony build it. **Nothing else** runs: source
+- **provides:** the first spawn — the `Hatchery` places its construction site at the `RoomPlanner`'s
+  anchor tile (#258, the whole layout computed once at founding) and **pioneers** from the main colony
+  build it. **Nothing else** runs: source
   containers and static miners are gated off (useless without a spawn, and placing them early just
   steals the pioneers' build effort from the spawn — the container-before-spawn bug, #228).
 - **next trigger:** `spawns.length > 0` → Stage 1. The instant the spawn stands, the colony spawns its
@@ -123,21 +124,21 @@ false while spawnless and the pre-spawn-suppressed behaviours hold off.
 - `LogisticsOverlord` + `Hauler` role: container → spawn/extensions → tower →
   controller-container → storage. Activates ONLY on the trigger above; before it,
   workers self-serve and 0 haulers spawn.
-- **Controller container:** `UpgradeOverlord` plans a container **two tiles short
-  of the controller** on the source→controller approach (shared `ContainerPlanner`
-  geometry — the source case hugs its anchor, this one offsets so the hauler drops
-  off at the edge of the upgrader cluster, not its centre) and keeps its site
+- **Controller container:** `UpgradeOverlord` realizes the `RoomPlanner`'s
+  controller-container tile — **two tiles short of the controller** on the
+  source→controller approach (so the hauler drops off at the edge of the upgrader
+  cluster, not its centre) — and keeps its site
   alive. Haulers fill it (deliver priority 3); upgraders park on/beside it,
   withdrawing at range 1 and upgrading the controller at range 3 — the
   static-miner trick, inverted, turning the upgrader into a near-zero-walk static
   upgrader. The RCL-5 controller link later replaces hauler delivery to this same
   parking spot (link→link, zero hauling).
-- **Roads on hot paths:** the `Hatchery` (base anchor) plans roads along each
-  source↔spawn and spawn↔controller route via the shared `RoadPlanner`, after
-  extensions so the layout weaves through the final base shape. Roads halve move
-  cost (1 fatigue vs 2/10), so hauler round trips shorten and bodies need fewer
-  MOVE parts. Built below extensions, above repair; queued in waves to spare the
-  global 100-site cap.
+- **Roads:** the `Hatchery` realizes the `RoomPlanner`'s road network (#258) — a
+  swamp-NEUTRAL spine from the anchor to every container/controller (roads spear
+  straight through swamps rather than detouring, #257) plus a one-tile access lane
+  to each structure. Roads halve move cost (1 fatigue vs 2/10), so hauler round
+  trips shorten and bodies need fewer MOVE parts. Built below extensions, above
+  repair; queued in waves to spare the global 100-site cap.
 - **Hauler fleet sizing:** count comes from the freight-turnover model driven by
   `RoomHealthCheck` (see "the second axis"), not one-hauler-per-source — sized
   feed-forward to production so energy never piles up.
@@ -168,8 +169,8 @@ A `MiningSite` HiveCluster (source + container + link) is the Overmind pattern.
 
 **Architecture add:** `ReserveOverlord` + `RemoteMiningOverlord` +
 `RemoteLogisticsOverlord` ✅ done. `CommandCenter` HiveCluster ✅ **done** (#16
-Storage + #17 Links shipped): `StoragePlanner` places the RCL-4 buffer, `LinkPlanner`
-the RCL-5 controller+source link pair, and `CommandCenter.operateLinks` runs the
+Storage + #17 Links shipped): the `RoomPlanner` lays out the RCL-4 buffer + the
+RCL-5 controller+source link pair (#258), `CommandCenter` realizes them and runs the
 source→controller transfer (a `LinkedMiner` feeds the source link) — both two-axis
 gated (RCL cap + `energyRich && !recovering`). Stage 3 is fully shipped and operating
 live on E15S7. **Deferred:** Overmind's greedy `LinkNetwork` matcher, until a 2nd

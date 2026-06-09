@@ -3,6 +3,7 @@ import { Upgrader } from "../roles/Upgrader.js";
 import { behaviorClass } from "../behaviors/index.js";
 import { stageAtLeast } from "../lib/Stages.js";
 import { ContainerPlanner } from "../lib/ContainerPlanner.js";
+import { RoomPlanner } from "../lib/RoomPlanner.js";
 
 // Surplus-proportional upgrader scaling (#137, generalised to pre-storage in #251). The controller
 // is the only meaningful energy SINK before a 2nd spawn (RCL7) lets us expand, so banked surplus
@@ -127,63 +128,13 @@ export class UpgradeOverlord extends Overlord {
   }
 
   // --------------------------------------------------------------------------
-  //  Controller-container position: the tile a hauler fills and an upgrader
-  //  parks beside. Computed once via the shared ContainerPlanner and cached in
-  //  colony memory, mirroring MiningOverlord.miningPosition.
+  //  Controller-container position: the tile a hauler fills and an upgrader parks
+  //  beside — two tiles short of the controller on the source→controller approach,
+  //  so the hauler drops at the edge of the upgrader cluster. The unified RoomPlanner
+  //  (#258) chose the tile at founding; we just read it.
   // --------------------------------------------------------------------------
   get controllerContainerPosition() {
-    const cache = this.controllerContainerPositionCache;
-    if (cache) {
-      return new RoomPosition(cache.x, cache.y, cache.roomName);
-    }
-    const { position, reachedByPath } = this.computeControllerContainerPosition();
-    // Only cache a tile we genuinely reached by path — a transient pathing
-    // failure shouldn't become the permanent answer.
-    if (position && reachedByPath) {
-      this.controllerContainerPositionCache = {
-        x: position.x,
-        y: position.y,
-        roomName: position.roomName,
-      };
-    }
-    return position;
-  }
-
-  get controllerContainerPositionCache() {
-    return Memory.colonyData?.[this.colony.name]?.controllerContainerPos;
-  }
-
-  set controllerContainerPositionCache(value) {
-    Memory.colonyData ||= {};
-    Memory.colonyData[this.colony.name] ||= {};
-    Memory.colonyData[this.colony.name].controllerContainerPos = value;
-  }
-
-  // Two tiles short of the controller on the hauler's approach (NOT hugging it):
-  // the hauler drops off before entering the upgrader cluster, and upgraders
-  // still pull from range — see ContainerPlanner.controllerContainerTile.
-  computeControllerContainerPosition() {
-    const controller = this.colony.controller;
-    if (!controller) return { position: null, reachedByPath: false };
-    return ContainerPlanner.controllerContainerTile(
-      this.room,
-      controller.pos,
-      this.haulerAnchor().pos
-    );
-  }
-
-  // Where the hauler comes from: the nearest source container (the real trip
-  // origin), else the first spawn, else the controller itself. We minimise the
-  // controller container's distance to this anchor.
-  haulerAnchor() {
-    const sourceContainers = this.colony.sourceContainers();
-    if (sourceContainers.length > 0) {
-      return (
-        this.colony.controller.pos.findClosestByPath(sourceContainers) ||
-        sourceContainers[0]
-      );
-    }
-    return this.colony.spawns[0] || this.colony.controller;
+    return RoomPlanner.tileForRole(this.colony, STRUCTURE_CONTAINER, "controller");
   }
 
   // Keep the controller-container site alive once hauling is active.
