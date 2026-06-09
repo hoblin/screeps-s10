@@ -8,10 +8,12 @@ Clean modern JS (no TypeScript), bundled with esbuild and uploaded to Screeps.
 - **`STRATEGY.md`** — the game plan: the stage-machine doctrine ("prepare ahead, don't firefight"), per-stage triggers (Stage 1 Bootstrap → 2 StaticMining → 2b Hauling → 3 Storage&Links → 4 Industry → 5 Endgame), and the architecture roadmap. **Every gameplay/feature decision must be justified against STRATEGY.md.**
 
 **`bin/` is offline scout tooling, NOT bot runtime** — it scans the world into a
-local SQLite mirror (`tmp/season.db`) and scores spawn candidates (`region-score.mjs`,
-`heatmap.mjs`). The code is never bundled into `dist/main.js`; the one bundled
-*output* is `expansion-map.mjs`'s `src/data/expansionMap.json` (the remote-mining
-neighbour map). The crawler (`collect.mjs`) is the sole API caller; analytics is
+per-shard SQLite mirror (`tmp/<season|shard2>.db`) and scores spawn candidates
+(`region-score.mjs`, `heatmap.mjs`). The code is never bundled into `dist/main.js`;
+the one bundled *output* is `expansion-map.mjs`'s per-server remote-mining map
+(`src/data/expansionMap.<shard>.json` — `build.mjs` inlines the one matching the
+build flag, so each server ships only its own homes). The crawler (`collect.mjs`)
+is the sole API caller (`--main` targets shard2, `--center` boxes a far home); analytics is
 DB-only (SOLID). **Terrain is standard row-major** `terrain[y*50+x]` (matches the
 engine's `getTerrain().get(x,y)`) and room adjacency is standard pos-space — the
 earlier "transposed `x*50+y`" belief (#96/#97) was a false-premise mistake (natural
@@ -55,11 +57,12 @@ bin/sapi log read <creepName>               # dump that entity's ring (TOON), de
 - Container lifecycle pattern lives in `MiningOverlord` (`computeMiningPosition` / `ensureContainerSite` / `walkableTilesAround`, cached in `Memory.colonyData[colony.name]`). **Mirror or extract-and-share this pattern — don't copy-paste it.**
 
 ## Build / deploy
-- `npm run build` — esbuild bundle → `dist/main.js`. esbuild only **bundles** (this is plain JS, not TS — no type-check), so it catches little: don't rebuild after every edit. Run it **once before opening a PR** as a bundle-sanity check (a typo'd import / syntax slip would crash the live bot, since the bundle ships straight to master→both servers). Quality comes from reading the diff + reasoning through edge cases, not from the build.
-- `npm run watch` — rebuild on change. `npm run deploy` — upload to the MAIN server (`deploy.mjs`).
+- `npm run build` — esbuild bundle → `dist/main.js` (Season map). esbuild only **bundles** (this is plain JS, not TS — no type-check), so it catches little: don't rebuild after every edit. Run it **once before opening a PR** as a bundle-sanity check (a typo'd import / syntax slip would crash the live bot, since the bundle ships straight to master→both servers). Quality comes from reading the diff + reasoning through edge cases, not from the build.
+- **Per-server bundle:** the build inlines `src/data/expansionMap.<shard>.json` by flag — `npm run build` = Season (`shardSeason`), `npm run build:main` = shard2 — so each server carries only its own remote map. **Never `npm run deploy` a stale bundle for the other server**; use the build+deploy scripts below.
+- `npm run watch` — rebuild on change (Season map). `npm run deploy` — raw upload of the CURRENT `dist/` to the MAIN server (no rebuild — prefer `deploy:main`).
+- `npm run deploy:main` (build:main → upload to main) / `npm run deploy:season` (build → upload to season). Each rebuilds with the correct map first; CI uses these.
 - `deploy.mjs` POSTs the built modules directly to `${server}/api/user/code`
-  (default `--server https://screeps.com`, `--branch default`). For season:
-  `node deploy.mjs --server https://screeps.com/season`. **Do NOT switch back to
+  (default `--server https://screeps.com`, `--branch default`). **Do NOT switch back to
   the screeps-api client's `code.set()`** — it caches its host and ignores the
   `--server` override, silently deploying to main while reporting `{ok:1}`
   (this left season empty; fixed in PR #43). A real success = `{ok:1}` AND the
@@ -68,11 +71,12 @@ bin/sapi log read <creepName>               # dump that entity's ring (TOON), de
 - The bundle is built with esbuild `charset: "utf8"` (keeps unicode raw). Don't switch it back to ascii: esbuild's ascii output emits `\u{...}` escapes that Screeps rejects as invalid JSON on upload (learned the hard way — PR #2 set ascii, PR #3 reverted to utf8).
 
 ## Deploy pipeline — ONLY master deploys, to TWO servers
-`push to master → GitHub Actions (.github/workflows/deploy.yml, on: push: branches:[master]) → npm run build → deploy to the `default` branch on BOTH servers`:
-- **Main** (`https://screeps.com`, shard2 `W55S43`) via `npm run deploy`.
-- **Season** (`https://screeps.com/season`, shardSeason `E15S7`) via `node deploy.mjs --server https://screeps.com/season`.
+`push to master → GitHub Actions (.github/workflows/deploy.yml, on: push: branches:[master]) → a SEPARATE build+deploy per server (each with its own expansion map) to the `default` branch on BOTH servers`:
+- **Main** (`https://screeps.com`, shard2 `W55S43`) via `npm run deploy:main` (build `--main` → shard2 map).
+- **Season** (`https://screeps.com/season`, shardSeason `E15S7`) via `npm run deploy:season` (build → season map).
 
-The same universal bot runs on both; one `SCREEPS_TOKEN` works for each.
+The same universal **code** runs on both; only the bundled remote map differs per
+server. One `SCREEPS_TOKEN` works for each.
 Feature branches NEVER touch the live game until their PR merges to master.
 
 ## Git flow (strict)

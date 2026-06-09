@@ -124,6 +124,12 @@ is the single source of truth, so per-world output files don't collide
 `--center <homeRoom>` since the ±range box defaults to the W0/N0 origin and a
 persistent-world home (e.g. W55S43) sits far from it.
 
+**Each server ships only its own remote map.** `expansion-map.mjs` writes a
+per-server file (`src/data/expansionMap.<shard>.json`); `build.mjs` inlines the
+matching one (`build` → `shardSeason`, `build --main` → `shard2`) so the bundle a
+server gets carries only its homes. `deploy:main` / `deploy:season` rebuild with
+the right map before uploading — never `npm run deploy` a stale bundle.
+
 - `scan-season.mjs` — source-count scan of the room grid.
 - `geo-season.mjs` — home-room layout geometry for candidates.
 - `collect.mjs` — resilient background crawler (gap-fills, 429 backoff); the
@@ -145,12 +151,13 @@ persistent-world home (e.g. W55S43) sits far from it.
   per-room feature glyphs + legend, an enriched `tmp/season-heatmap.png` (score
   tint, distinct hues for owned/SK/highway, feature marker dots), and a top-10
   table with neighbour context (SK adjacency, nearest enemy RCL).
-- `expansion-map.mjs` — bakes the home room's orthogonal-neighbour map into
-  `src/data/expansionMap.json` (the ONE `bin/` output bundled into the bot): safe
-  remotes (controller + per-source haul-distance/value + `reservedByOther`), an
-  `avoid` list (SK/enemy/invader-core), and an `excluded` audit (why a neighbour was
-  dropped). Drives remote mining (#18). Re-run after a re-scan:
-  `node bin/expansion-map.mjs --room E15S7`.
+- `expansion-map.mjs` — bakes the home room's orthogonal-neighbour map into the
+  per-server `src/data/expansionMap.<shard>.json` (the `bin/` output bundled into the
+  bot — `build.mjs` picks the file by build flag): safe remotes (controller +
+  per-source haul-distance/value + `reservedByOther`), an `avoid` list
+  (SK/enemy/invader-core), and an `excluded` audit (why a neighbour was dropped).
+  Drives remote mining (#18). Re-run after a re-scan: `node bin/expansion-map.mjs
+  --room E15S7` (season) / `--main --room W55S43` (shard2).
 
 > **Standard terrain encoding.** Offline tooling decodes room terrain as the
 > standard row-major `terrain[y*50+x]`, matching the engine's `getTerrain().get(x,y)`,

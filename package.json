@@ -6,8 +6,11 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
+    "build:main": "node build.mjs --main",
     "watch": "node build.mjs --watch",
     "deploy": "node deploy.mjs",
+    "deploy:main": "npm run build:main && node deploy.mjs",
+    "deploy:season": "npm run build && node deploy.mjs --server https://screeps.com/season",
     "lint": "echo \"(no linter yet)\""
   },
   "author": "hoblin",
