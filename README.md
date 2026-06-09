@@ -136,16 +136,23 @@ the right map before uploading — never `npm run deploy` a stale bundle.
   **sole API caller in this offline pipeline** (analytics is DB-only — SOLID). Mirrors terrain/sources/controller/mineral plus
   the v2 scout fields (keeper lairs, extractor, invader cores, controller
   owner/level/reservation, mineral density, portals, highway deposits/power
-  banks) into the per-shard mirror. Run in tmux: `SCREEPS_TOKEN=*** node bin/collect.mjs --range 31`
-  (Season) or `… --main --center W55S43 --range 10` (Main shard2, boxed around home).
+  banks) into the per-shard mirror. The `--owners` map-stats sweep also records each
+  room's **novice / respawn-area deadlines** (epoch-ms — when the veteran-lockout
+  protection ends), not a "had one ever" boolean: on the persistent MMO these reach
+  back years, so "is the zone active" is a live `> now` test at analysis time. Run in
+  tmux: `SCREEPS_TOKEN=*** node bin/collect.mjs --range 31` (Season) or
+  `… --main --center W55S43 --range 10` (Main shard2, boxed around home).
   Rooms scanned before the v2 schema keep those columns NULL — backfill them
   with `node bin/collect.mjs --rescan` (a full ±31 re-crawl, ~840s).
-- `db.mjs` — SQLite schema (auto-migrates v1→v2 columns) + `loadRoom(db,name)`
-  + single-sourced `parseTerrain`. `SCAN_V` gates the rescan.
+- `db.mjs` — SQLite schema (auto-migrates v1→v2 room columns + ownership novice/respawn
+  deadlines) + `loadRoom(db,name)` + `zoneActive(end)` + single-sourced `parseTerrain`. `SCAN_V` gates the rescan.
 - `region-score.mjs` — full economic valuation (terrain-weighted haul cost,
   cross-border remote mining, mineral bonus) plus additive v2 terms with
   documented weights: SK-neighbour value, RCL-scaled enemy penalty,
-  reserved-remote discount, choke defensibility, highway access.
+  reserved-remote discount, choke defensibility, highway access. A candidate in an
+  **active novice/respawn zone** has its veteran-threat neutralised (risk forced to 1
+  — the engine locks rivals out of the zone), flagged `PROTECTED <days>` with the raw
+  threat kept visible (the protection is a bootstrap head-start, not permanent safety).
   **DB-only, no API** (SOLID: crawler fills the DB, analytics is read-only).
 - `heatmap.mjs` — scores the whole grid offline, renders an ANSI heat map with
   per-room feature glyphs + legend, an enriched `tmp/season-heatmap.png` (score

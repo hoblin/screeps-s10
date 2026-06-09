@@ -121,6 +121,14 @@ if (owned.size === 0) {
   console.log("note: ownership table empty — all rooms render as unowned (run `collect.mjs --owners`)");
 }
 
+// Rooms in an ACTIVE novice/respawn zone (veterans locked out NOW) — the safe-haven
+// overlay for a fresh base. A live `> now` test, so an old scan still reads correctly.
+const nowMs = Date.now();
+const protectedRooms = new Set(
+  db.prepare(`SELECT name FROM ownership WHERE novice_end > ? OR respawn_end > ?`).all(nowMs, nowMs).map((r) => r.name),
+);
+if (protectedRooms.size) console.log(`${protectedRooms.size} rooms in an ACTIVE novice/respawn zone (veteran-free)`);
+
 const score = new Map();  // name -> total
 const detail = new Map(); // name -> full score result (for the enriched top-N)
 const remember = (r) => {
@@ -298,8 +306,9 @@ function renderPng() {
   // Feature markers PNG can't render as glyphs: colour-coded corner dots +
   // a source-count tick row along the bottom edge.
   const M_SK = [235, 120, 255], M_INV = [255, 70, 50], M_PORTAL = [90, 230, 235];
-  const M_MIN = [235, 235, 235], M_SRC = [250, 220, 90];
+  const M_MIN = [235, 235, 235], M_SRC = [250, 220, 90], M_PROT = [80, 245, 130]; // bright green = protected zone
   const markers = (cx, cy, nm) => {
+    if (protectedRooms.has(nm)) dot(cx, cy, 0, BLK - MK, MK, MK, M_PROT); // bottom-left = active novice/respawn zone
     const f = feat.get(nm);
     if (!f) return;
     if (f.keeper_lairs > 0) dot(cx, cy, 0, 0, MK, MK, M_SK);          // top-left = SK
@@ -363,7 +372,13 @@ for (const [nm, v] of top) {
   const home = d.homeSources?.length || 0;
   const rem = (d.remoteSources || []).filter((s) => s.reachable).length;
   const exits = (d.neighbours || []).map((n) => `${n.dir}=${n.type}${n.srcs ? `·${n.srcs}` : ""}`).join("  ") || "(none)";
-  const threatStr = tr ? `  threat ${tr.player}·L${tr.mainRcl}@${tr.dist}` : "";
+  // An active novice/respawn zone locks veterans out → flag it (days left) in place of the
+  // rival threat, since risk is forced to 1 while protected. This is the headline signal for
+  // a FRESH base: a safe haven to bootstrap in, even amid veterans.
+  const protUntil = d.protected ? (d.protected.respawn ?? d.protected.novice) : null;
+  const threatStr = protUntil
+    ? `  PROTECTED ${Math.round((protUntil - Date.now()) / 86400000)}d`
+    : tr ? `  threat ${tr.player}·L${tr.mainRcl}@${tr.dist}` : "";
   const hops = homeDist?.get(nm);
   const distStr = NEAR ? `  ${NEAR}→${hops ?? ">60"}h` : "";
   const scoreStr = NEAR
