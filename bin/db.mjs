@@ -120,7 +120,15 @@ export function openDb(path = DB_PATH) {
       owner     TEXT,              -- user id or NULL
       owner_name TEXT,
       level     INTEGER,           -- controller level if known
-      respawn   INTEGER,           -- 1 if still respawn-eligible
+      respawn   INTEGER,           -- LEGACY: old boolean (mere presence of a respawnArea
+                                   -- field — true even for zones expired years ago on the
+                                   -- MMO). Superseded by respawn_end; kept for back-compat.
+      novice_end   INTEGER,        -- epoch ms when NOVICE protection ends (NULL = never had one).
+                                   -- ACTIVE iff > now: veterans are locked out until then.
+      respawn_end  INTEGER,        -- epoch ms when RESPAWN-area protection ends (NULL = none).
+                                   -- ACTIVE iff > now. These are absolute deadlines, not booleans:
+                                   -- on the persistent MMO they span years, so "is it active" is a
+                                   -- live comparison to now, computed at analysis time — never frozen.
       seen_at   INTEGER
     );
 
@@ -143,6 +151,7 @@ export function openDb(path = DB_PATH) {
       id, minX, maxX, minY, maxY );`);
   } catch { /* rtree unavailable -> rely on idx_rooms_xy */ }
   migrateRooms(db);
+  migrateOwnership(db);
   return db;
 }
 
@@ -153,6 +162,22 @@ function migrateRooms(db) {
   const have = new Set(db.prepare(`PRAGMA table_info(rooms)`).all().map((c) => c.name));
   for (const [col, type] of V2_COLUMNS)
     if (!have.has(col)) db.exec(`ALTER TABLE rooms ADD COLUMN ${col} ${type}`);
+}
+
+// Backfill the novice/respawn-area deadline columns onto an ownership table that
+// predates them (same ADD-COLUMN-IF-MISSING pattern as migrateRooms). NULL means
+// "not re-swept since the schema bump"; the next `collect.mjs --owners` fills them.
+function migrateOwnership(db) {
+  const have = new Set(db.prepare(`PRAGMA table_info(ownership)`).all().map((c) => c.name));
+  for (const [col, type] of [["novice_end", "INTEGER"], ["respawn_end", "INTEGER"]])
+    if (!have.has(col)) db.exec(`ALTER TABLE ownership ADD COLUMN ${col} ${type}`);
+}
+
+// Is a protection deadline (epoch ms) currently active? A zone protects a room only
+// while its end time is still in the future. `now` is injected so analysis is
+// reproducible and the same scan reads correctly whenever it's queried.
+export function zoneActive(endMs, now = Date.now()) {
+  return endMs != null && endMs > now;
 }
 
 // ---- terrain ---------------------------------------------------------------
@@ -176,7 +201,9 @@ export function parseTerrain(str) {
 //      mineral:{x,y,t,density}|null, owner,
 //      keeperLairs:[{x,y}], extractor, invaderCore:{level}|null,
 //      reservation:{owner,end}|null, safeMode, portals:[{x,y,dest}],
-//      deposit:{type}|null, powerBank, scanV }
+//      deposit:{type}|null, powerBank, noviceEnd, respawnEnd, scanV }
+//    noviceEnd/respawnEnd are epoch-ms protection deadlines (NULL = none); use
+//    zoneActive() to test whether the protection is still in force right now.
 //
 export function loadRoom(db, name) {
   const row = db.prepare(`
@@ -214,7 +241,9 @@ export function loadRoom(db, name) {
   // ownership is mutable and refreshed separately; absent until --owners runs.
   // The room-objects scan also captures the controller owner inline; prefer the
   // ownership table (fresher) but fall back to the scanned controller owner.
-  const own = db.prepare(`SELECT owner FROM ownership WHERE name = ?`).get(name);
+  // novice_end/respawn_end are the protection deadlines (epoch ms); pass them up
+  // raw so analysis decides "active" against the current time, not the scan time.
+  const own = db.prepare(`SELECT owner, novice_end, respawn_end FROM ownership WHERE name = ?`).get(name);
   const owner = own?.owner ?? row.controller_owner ?? null;
 
   return {
@@ -227,6 +256,8 @@ export function loadRoom(db, name) {
     portals,
     deposit,
     powerBank: !!row.power_bank,
+    noviceEnd: own?.novice_end ?? null,
+    respawnEnd: own?.respawn_end ?? null,
     scanV: row.scan_v ?? 1,
   };
 }
@@ -270,13 +301,13 @@ export function upsertRoom(db, r) {
 
 export function upsertOwnership(db, o) {
   db.prepare(`
-    INSERT INTO ownership (name,owner,owner_name,level,respawn,seen_at)
-    VALUES (?,?,?,?,?,?)
+    INSERT INTO ownership (name,owner,owner_name,level,novice_end,respawn_end,seen_at)
+    VALUES (?,?,?,?,?,?,?)
     ON CONFLICT(name) DO UPDATE SET
-      owner=excluded.owner, owner_name=excluded.owner_name,
-      level=excluded.level, respawn=excluded.respawn, seen_at=excluded.seen_at
-  `).run(o.name, o.owner ?? null, o.owner_name ?? null,
-         o.level ?? null, o.respawn ? 1 : 0, o.seen_at ?? Date.now());
+      owner=excluded.owner, owner_name=excluded.owner_name, level=excluded.level,
+      novice_end=excluded.novice_end, respawn_end=excluded.respawn_end, seen_at=excluded.seen_at
+  `).run(o.name, o.owner ?? null, o.owner_name ?? null, o.level ?? null,
+         o.noviceEnd ?? null, o.respawnEnd ?? null, o.seen_at ?? Date.now());
 }
 
 // stable positive id for an rtree point from signed coords

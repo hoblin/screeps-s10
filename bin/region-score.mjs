@@ -47,7 +47,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { openDb, loadRoom, parseRoom, roomName, resolveWorld } from "./db.mjs";
+import { openDb, loadRoom, parseRoom, roomName, resolveWorld, zoneActive } from "./db.mjs";
 
 function arg(name, def) {
   const i = process.argv.indexOf(`--${name}`);
@@ -496,7 +496,17 @@ async function scoreRoom(nm) {
   const { threat, contributors } = enemyThreat(nm, land().profiles);
   const oneSrc = home.sources.length >= 2 ? 1 : ONE_SOURCE_PENALTY;
   const economy = (homeValue + remoteValue) * oneSrc;
-  const risk = Math.max(THREAT_FLOOR, 1 - threat / THREAT_FULL);
+  // Novice/respawn-area PROTECTION: while a zone is active the engine locks veterans OUT
+  // of it, so the proximity-threat from outside rivals simply does not apply during the
+  // window — exactly the safe-bootstrap haven a FRESH base wants. So an active zone floors
+  // the risk discount at 1 (full economy), regardless of who sits one room away. We keep
+  // the raw threat/contributors in the output so the POST-expiry danger stays visible: the
+  // protection is a head-start, not permanent safety. Respawn-area is the placement-relevant
+  // one (a respawning player can seed there); novice equally bars veterans.
+  const protectedRespawn = zoneActive(home.respawnEnd);
+  const protectedNovice = zoneActive(home.noviceEnd);
+  const isProtected = protectedRespawn || protectedNovice;
+  const risk = isProtected ? 1 : Math.max(THREAT_FLOOR, 1 - threat / THREAT_FULL);
   const total = round(economy * risk + mineralBonus + choke + highwayBonus);
 
   return {
@@ -511,7 +521,10 @@ async function scoreRoom(nm) {
     mineral: home.mineral?.t || null,
     enemyNeighbours,
     threat: round(threat),
-    risk: round(risk, 2), // resource-value multiplier in [THREAT_FLOOR, 1] (1 = safe)
+    risk: round(risk, 2), // resource-value multiplier in [THREAT_FLOOR, 1] (1 = safe; forced to 1 while protected)
+    protected: isProtected
+      ? { respawn: protectedRespawn ? home.respawnEnd : null, novice: protectedNovice ? home.noviceEnd : null }
+      : null, // active veteran-lockout window (epoch-ms deadline) — null when unprotected
     threats: contributors, // top rival contributors: { player, mainRcl, empire, dist, threat }
     neighbours, // per-ortho-exit classification: free/mine/resv/sk/base/invader/empty/highway/?
     reservedNeighbours,
@@ -554,7 +567,11 @@ async function main() {
     const tr = reach.slice(0, 3).map((s) => `${s.room}:${s.dist}`).join(" ") + (cut ? `  (+${cut} walled)` : "");
     const src = `${r.homeSources.length}+${reach.length}`; // home source nodes + reachable remote source nodes
     const top = r.threats?.[0];
-    const threatStr = `${r.threat || 0}${top ? ` ${top.player}·L${top.mainRcl}@${top.dist}` : ""}`;
+    // An active novice/respawn zone neutralises the threat for now → flag it (with days left)
+    // instead of the rival, since risk is forced to 1 while the lockout holds.
+    const protUntil = r.protected ? (r.protected.respawn ?? r.protected.novice) : null;
+    const protStr = protUntil ? `PROTECTED ${Math.round((protUntil - Date.now()) / 86400000)}d` : null;
+    const threatStr = protStr || `${r.threat || 0}${top ? ` ${top.player}·L${top.mainRcl}@${top.dist}` : ""}`;
     console.log(
       `${r.room.padEnd(8)}  ${String(r.total).padEnd(6)}  ${src.padEnd(5)}  ${String(r.homeValue).padEnd(5)}  ${String(r.remoteValue).padEnd(6)}  ` +
       `${String(r.skValue).padEnd(5)}  ${String(r.chokeBonus).padEnd(5)}  ${String(r.highwayBonus).padEnd(3)}  ` +

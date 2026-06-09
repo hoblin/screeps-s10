@@ -88,7 +88,8 @@ function chunk(a, n) { const o = []; for (let i = 0; i < a.length; i += n) o.pus
 
 async function refreshOwners(db) {
   const rooms = gridRooms(RANGE);
-  let claimed = 0, scanned = 0;
+  const now = Date.now();
+  let claimed = 0, scanned = 0, activeNovice = 0, activeRespawn = 0;
   const players = new Map();
   for (const batch of chunk(rooms, 400)) {
     const r = await api("/game/map-stats", {
@@ -100,7 +101,17 @@ async function refreshOwners(db) {
       const owner = s.own?.user || null;
       if (owner) { claimed++; players.set(owner, (players.get(owner) || 0) + 1); }
       const uname = owner ? r.users?.[owner]?.username || null : null;
-      upsertOwnership(db, { name, owner, owner_name: uname, level: s.own?.level ?? null, respawn: !!s.respawnArea });
+      // novice/respawnArea are ABSOLUTE epoch-ms deadlines (when the protection ends),
+      // present only when the room ever had a zone — on the MMO they reach back years, so
+      // we store the raw timestamp (not a "has a value" boolean) and judge "active" later.
+      // openTime (when the room first opened) is captured opportunistically as novice's
+      // fallback origin but isn't a protection signal; only novice/respawnArea gate veterans.
+      if (s.novice > now) activeNovice++;
+      if (s.respawnArea > now) activeRespawn++;
+      upsertOwnership(db, {
+        name, owner, owner_name: uname, level: s.own?.level ?? null,
+        noviceEnd: s.novice ?? null, respawnEnd: s.respawnArea ?? null,
+      });
     }
     await sleep(500);
   }
@@ -110,7 +121,8 @@ async function refreshOwners(db) {
                 ON CONFLICT(id) DO UPDATE SET room_count=excluded.room_count, seen_at=excluded.seen_at`)
       .run(id, count, Date.now());
   }
-  console.log(`owners refreshed: ${scanned} normal rooms, ${claimed} claimed, ${players.size} players`);
+  console.log(`owners refreshed: ${scanned} normal rooms, ${claimed} claimed, ${players.size} players` +
+    `, ${activeRespawn} in an ACTIVE respawn area, ${activeNovice} in an active novice area`);
 }
 
 // Parse a room-objects payload into the snake_case row that upsertRoom expects.
