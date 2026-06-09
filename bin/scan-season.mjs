@@ -25,18 +25,23 @@
 // ============================================================================
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { resolveWorld } from "./db.mjs";
 
 function arg(name, def) {
   const i = process.argv.indexOf(`--${name}`);
+  if (i !== -1 && (process.argv[i + 1] === undefined || process.argv[i + 1].startsWith("--")))
+    return true; // boolean flag (e.g. --main)
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : def;
 }
 
-const SERVER = arg("server", "https://screeps.com/season");
-const SHARD = arg("shard", "shardSeason");
+// --main targets shard2 on the MMO root; explicit --server/--shard override. Default = Season.
+const W = resolveWorld({ main: arg("main", false) === true, shard: arg("shard", null), server: arg("server", null) });
+const SERVER = W.server;
+const SHARD = W.shard;
 const RANGE = parseInt(arg("range", "30"), 10); // half-width of scan box per quadrant
 const TOP = parseInt(arg("top", "15"), 10);
 const CONC = parseInt(arg("concurrency", "6"), 10);
-const OUT = arg("out", "tmp/season-scan.json");
+const OUT = arg("out", `tmp/${W.tag}-scan.json`);
 const TOKEN = process.env.SCREEPS_TOKEN;
 
 if (!TOKEN) {

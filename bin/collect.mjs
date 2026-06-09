@@ -17,6 +17,9 @@
 //    SCREEPS_TOKEN=*** node bin/collect.mjs --owners   # refresh ownership only
 //    SCREEPS_TOKEN=*** node bin/collect.mjs --rescan   # re-crawl v1 rooms for v2 fields
 //    flags: --range 35  --conc 2  --server URL  --shard shardSeason
+//           --main   (sugar: crawl shard2 on https://screeps.com into tmp/shard2.db)
+//           --center W55S43  (box the ±range crawl around home, not the origin —
+//                             required on the MMO where home is far from W0/N0)
 //
 //  --rescan: the v2 scan captures keeper lairs, extractor, invader cores,
 //  controller owner/level/reservation, mineral density, portals and highway
@@ -25,7 +28,7 @@
 //  `scan_v` is below the current SCAN_V to backfill them (a full ±31 re-crawl is
 //  ~840s — same cost as the first crawl, since it re-hits room-objects).
 // ============================================================================
-import { openDb, upsertRoom, upsertOwnership, parseRoom, roomName, SCAN_V } from "./db.mjs";
+import { openDb, upsertRoom, upsertOwnership, parseRoom, roomName, resolveWorld, SCAN_V } from "./db.mjs";
 
 function arg(name, def) {
   const i = process.argv.indexOf(`--${name}`);
@@ -33,9 +36,18 @@ function arg(name, def) {
     return true; // boolean flag
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : def;
 }
-const SERVER = String(arg("server", "https://screeps.com/season")).replace(/\/$/, "");
-const SHARD = String(arg("shard", "shardSeason"));
+// World selection: --main targets shard2 on the MMO root; explicit --server/--shard
+// override. The resolved shard also picks the per-shard DB file (no cross-shard mix).
+const MAIN = arg("main", false) === true;
+const W = resolveWorld({ main: MAIN, shard: arg("shard", null), server: arg("server", null) });
+const SERVER = String(W.server).replace(/\/$/, "");
+const SHARD = W.shard;
 const RANGE = parseInt(arg("range", "35"), 10);
+// Crawl box CENTRE. Season's playable map hugs the W0/N0 origin, so the default
+// box is centred there. The MMO (shard2) is a vast persistent world and our home
+// (e.g. W55S43) sits far from origin — pass --center <ROOM> to box the crawl
+// around home instead, so the ±range window actually covers our neighbourhood.
+const CENTER = arg("center", null);
 const CONC = parseInt(arg("conc", "2"), 10);
 const OWNERS = arg("owners", false) === true;
 const RESCAN = arg("rescan", false) === true;
@@ -63,10 +75,13 @@ async function api(path, opts = {}) {
   }
 }
 
+// Enumerate the ±range room box. Centred on origin by default; --center <ROOM>
+// shifts the box to box a far-from-origin home (the MMO case).
+const CENTER_XY = CENTER ? parseRoom(CENTER) : { sx: 0, sy: 0 };
 function gridRooms(range) {
   const out = [];
   for (let sx = -range; sx < range; sx++)
-    for (let sy = -range; sy < range; sy++) out.push(roomName(sx, sy));
+    for (let sy = -range; sy < range; sy++) out.push(roomName(CENTER_XY.sx + sx, CENTER_XY.sy + sy));
   return out;
 }
 function chunk(a, n) { const o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; }
@@ -186,7 +201,7 @@ async function fetchRoom(db, name) {
 }
 
 async function main() {
-  const db = openDb();
+  const db = openDb(W.dbPath);
   if (OWNERS) { await refreshOwners(db); db.close(); return; }
 
   const all = gridRooms(RANGE);

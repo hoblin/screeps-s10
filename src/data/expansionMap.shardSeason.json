@@ -1,97 +1,40 @@
 {
   "E15S7": {
-    "generatedAt": "2026-06-04T14:56:09.633Z",
+    "generatedAt": "2026-06-09T04:44:47.679Z",
     "shard": "shardSeason",
     "home": "E15S7",
-    "remotes": [
-      {
-        "room": "E16S7",
-        "dir": "E",
-        "controller": {
-          "x": 40,
-          "y": 14
-        },
-        "mineral": "Z",
-        "reservedByOther": false,
-        "score": 23.1,
-        "sources": [
-          {
-            "x": 27,
-            "y": 29,
-            "dist": 62,
-            "value": 9.2,
-            "reachable": true
-          },
-          {
-            "x": 3,
-            "y": 42,
-            "dist": 37,
-            "value": 13.9,
-            "reachable": true
-          }
-        ]
-      },
+    "remotes": [],
+    "avoid": [
       {
         "room": "E14S7",
-        "dir": "W",
-        "controller": {
-          "x": 23,
-          "y": 22
-        },
-        "mineral": "Z",
-        "reservedByOther": false,
-        "score": 21.5,
-        "sources": [
-          {
-            "x": 29,
-            "y": 3,
-            "dist": 47,
-            "value": 11.6,
-            "reachable": true
-          },
-          {
-            "x": 35,
-            "y": 19,
-            "dist": 57,
-            "value": 9.9,
-            "reachable": true
-          }
-        ]
+        "reason": "enemyOwned",
+        "owner": "5769228928c61a1f4c2aa30a",
+        "level": 0
       },
       {
-        "room": "E15S8",
-        "dir": "S",
-        "controller": {
-          "x": 41,
-          "y": 36
-        },
-        "mineral": "Z",
-        "reservedByOther": false,
-        "score": 17.4,
-        "sources": [
-          {
-            "x": 11,
-            "y": 7,
-            "dist": 27,
-            "value": 17.4,
-            "reachable": true
-          }
-        ]
-      }
-    ],
-    "avoid": [
+        "room": "E16S7",
+        "reason": "enemyOwned",
+        "owner": "5769228928c61a1f4c2aa30a",
+        "level": 0
+      },
       {
         "room": "E15S6",
         "reason": "sourceKeeper",
         "lairs": 4,
         "sources": 3,
         "mineral": "Z"
+      },
+      {
+        "room": "E15S8",
+        "reason": "enemyOwned",
+        "owner": "5769228928c61a1f4c2aa30a",
+        "level": 0
       }
     ],
     "excluded": []
   },
   "E12S5": {
-    "generatedAt": "2026-06-06T19:59:46.369Z",
+    "generatedAt": "2026-06-09T04:44:47.736Z",
     "shard": "shardSeason",
     "home": "E12S5",
     "remotes": [

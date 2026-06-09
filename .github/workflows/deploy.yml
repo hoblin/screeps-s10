@@ -21,15 +21,15 @@ jobs:
       - name: Install deps
         run: npm ci || npm install
 
-      - name: Build bundle
-        run: npm run build
-
-      - name: Deploy to Screeps (main / shard2)
-        run: npm run deploy
+      # Each server gets its OWN bundle — the deploy:* scripts rebuild with that
+      # server's expansion map (build --main => shard2 map, build => season map)
+      # before uploading, so neither server ever carries the other's remote map.
+      - name: Build + deploy to Screeps (main / shard2)
+        run: npm run deploy:main
         env:
           SCREEPS_TOKEN: ${{ secrets.SCREEPS_TOKEN }}
 
-      - name: Deploy to Screeps (season)
-        run: node deploy.mjs --branch default --server https://screeps.com/season
+      - name: Build + deploy to Screeps (season)
+        run: npm run deploy:season
         env:
           SCREEPS_TOKEN: ${{ secrets.SCREEPS_TOKEN }}

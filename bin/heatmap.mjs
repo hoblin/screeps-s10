@@ -5,10 +5,10 @@
 //  region-score's economic model (scoreRoom) over every claimable room the
 //  crawler has reached, then paints the grid.
 //
-//  The playable world is a 62x62 grid: W30..E00..E30 (columns, west→east) by
-//  N30..N00..S30 (rows, north→south) = 3844 rooms. We render exactly that box;
-//  rooms outside it, un-collected rooms, non-claimable rooms (highway/center/
-//  source-keeper) and owned rooms are drawn distinctly.
+//  The render box AUTO-FITS the bounding box of the collected rooms (read from
+//  the DB at startup, +1 pad), so it covers whatever region was scanned on any
+//  shard — Season's near-origin map or a far MMO box around W55S43. Un-collected,
+//  non-claimable (highway/center/source-keeper) and owned rooms are drawn distinctly.
 //
 //  Output:
 //    1. an ANSI terminal grid (24-bit colour ramp by score, labelled axes)
@@ -24,7 +24,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { deflateSync } from "node:zlib";
-import { openDb } from "./db.mjs";
+import { openDb, resolveWorld } from "./db.mjs";
 import { scoreRoom, supportDist } from "./region-score.mjs";
 
 function arg(name, def) {
@@ -33,8 +33,11 @@ function arg(name, def) {
     return true; // boolean flag
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : def;
 }
+// --main maps the shard2 mirror (tmp/shard2.db); default = Season. region-score
+// (imported above for scoreRoom) reads the same argv, so it opens the same DB.
+const W = resolveWorld({ main: arg("main", false) === true, shard: arg("shard", null) });
 const FROM = arg("from", null);
-const PNG_OUT = String(arg("out", "tmp/season-heatmap.png"));
+const PNG_OUT = String(arg("out", `tmp/${W.tag}-heatmap.png`));
 const WANT_PNG = arg("no-png", false) !== true;
 const WANT_ANSI = arg("no-ansi", false) !== true;
 const NEAR = arg("near", null); // reference room (e.g. our main) — annotate the top-N with SAFE connected hops to it
@@ -42,12 +45,10 @@ const NEAR = arg("near", null); // reference room (e.g. our main) — annotate t
                                 // trade-off (supportability vs new-territory coverage) is visible and honest
 const TOPN = parseInt(String(arg("top", "10")), 10);
 
-// Playable grid: signed coords. west = negative sx, north = positive sy.
-const SX_MIN = -31, SX_MAX = 30; // W30 .. E30
-const SY_MIN = -30, SY_MAX = 31; // S30 .. N30
-const NCOL = SX_MAX - SX_MIN + 1; // 62
-const NROW = SY_MAX - SY_MIN + 1; // 62
-
+// Grid coords: west = negative sx, north = positive sy. The render box AUTO-FITS
+// the collected region (bounds computed from the DB just after it opens, below),
+// so the same heatmap works for any shard — Season hugs the W0/N0 origin, the MMO
+// (shard2) sits far from it. These label helpers are bounds-independent.
 const ewLabel = (sx) => (sx < 0 ? `W${-sx - 1}` : `E${sx}`);
 const nsLabel = (sy) => (sy > 0 ? `N${sy - 1}` : `S${-sy}`);
 const roomAt = (sx, sy) => `${ewLabel(sx)}${nsLabel(sy)}`;
@@ -76,7 +77,18 @@ const C_INVADER = [180, 50, 40]; // invader core (red)
 // ============================================================================
 //  Load scores: either a precomputed region-score JSON, or compute live.
 // ============================================================================
-const db = openDb();
+const db = openDb(W.dbPath);
+
+// Auto-fit the render box to the collected rooms (+1 pad for edge context), so a
+// far-from-origin MMO scan (e.g. ±10 around W55S43) is covered without flags.
+// Falls back to the origin region (W30..E30 / S30..N30) when the mirror is empty.
+const b = db.prepare(`SELECT MIN(sx) mnx, MAX(sx) mxx, MIN(sy) mny, MAX(sy) mxy
+  FROM rooms WHERE terrain IS NOT NULL`).get();
+const PAD = 1;
+const SX_MIN = (b?.mnx ?? -31) - PAD, SX_MAX = (b?.mxx ?? 30) + PAD;
+const SY_MIN = (b?.mny ?? -30) - PAD, SY_MAX = (b?.mxy ?? 31) + PAD;
+const NCOL = SX_MAX - SX_MIN + 1;
+const NROW = SY_MAX - SY_MIN + 1;
 
 // every room in the render box that the crawler has reached
 const cells = db.prepare(`

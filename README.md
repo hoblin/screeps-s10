@@ -114,13 +114,30 @@ SCREEPS_TOKEN=*** node deploy.mjs --server https://screeps.com/season  # -> seas
 Offline tooling to decide **which room to claim**. Scans the whole world once
 into a local SQLite mirror, then runs all analysis with zero API calls.
 
+**Multi-server.** The pipeline mirrors **one shard per DB file** (terrain &
+geometry are per-shard) — Season → `tmp/season.db`, Main shard2 → `tmp/shard2.db`.
+Pass `--main` to any script to target the shard2 MMO world (sugar for
+`--server https://screeps.com --shard shard2`); explicit `--server`/`--shard` still
+override. The world registry in `db.mjs` (`WORLDS` / `resolveWorld` / `dbPathForShard`)
+is the single source of truth, so per-world output files don't collide
+(`tmp/<season|shard2>-region.json`, `…-heatmap.png`). Crawling the MMO needs
+`--center <homeRoom>` since the ±range box defaults to the W0/N0 origin and a
+persistent-world home (e.g. W55S43) sits far from it.
+
+**Each server ships only its own remote map.** `expansion-map.mjs` writes a
+per-server file (`src/data/expansionMap.<shard>.json`); `build.mjs` inlines the
+matching one (`build` → `shardSeason`, `build --main` → `shard2`) so the bundle a
+server gets carries only its homes. `deploy:main` / `deploy:season` rebuild with
+the right map before uploading — never `npm run deploy` a stale bundle.
+
 - `scan-season.mjs` — source-count scan of the room grid.
 - `geo-season.mjs` — home-room layout geometry for candidates.
 - `collect.mjs` — resilient background crawler (gap-fills, 429 backoff); the
   **sole API caller in this offline pipeline** (analytics is DB-only — SOLID). Mirrors terrain/sources/controller/mineral plus
   the v2 scout fields (keeper lairs, extractor, invader cores, controller
   owner/level/reservation, mineral density, portals, highway deposits/power
-  banks) into `tmp/season.db`. Run in tmux: `SCREEPS_TOKEN=*** node bin/collect.mjs --range 31`.
+  banks) into the per-shard mirror. Run in tmux: `SCREEPS_TOKEN=*** node bin/collect.mjs --range 31`
+  (Season) or `… --main --center W55S43 --range 10` (Main shard2, boxed around home).
   Rooms scanned before the v2 schema keep those columns NULL — backfill them
   with `node bin/collect.mjs --rescan` (a full ±31 re-crawl, ~840s).
 - `db.mjs` — SQLite schema (auto-migrates v1→v2 columns) + `loadRoom(db,name)`
@@ -134,12 +151,13 @@ into a local SQLite mirror, then runs all analysis with zero API calls.
   per-room feature glyphs + legend, an enriched `tmp/season-heatmap.png` (score
   tint, distinct hues for owned/SK/highway, feature marker dots), and a top-10
   table with neighbour context (SK adjacency, nearest enemy RCL).
-- `expansion-map.mjs` — bakes the home room's orthogonal-neighbour map into
-  `src/data/expansionMap.json` (the ONE `bin/` output bundled into the bot): safe
-  remotes (controller + per-source haul-distance/value + `reservedByOther`), an
-  `avoid` list (SK/enemy/invader-core), and an `excluded` audit (why a neighbour was
-  dropped). Drives remote mining (#18). Re-run after a re-scan:
-  `node bin/expansion-map.mjs --room E15S7`.
+- `expansion-map.mjs` — bakes the home room's orthogonal-neighbour map into the
+  per-server `src/data/expansionMap.<shard>.json` (the `bin/` output bundled into the
+  bot — `build.mjs` picks the file by build flag): safe remotes (controller +
+  per-source haul-distance/value + `reservedByOther`), an `avoid` list
+  (SK/enemy/invader-core), and an `excluded` audit (why a neighbour was dropped).
+  Drives remote mining (#18). Re-run after a re-scan: `node bin/expansion-map.mjs
+  --room E15S7` (season) / `--main --room W55S43` (shard2).
 
 > **Standard terrain encoding.** Offline tooling decodes room terrain as the
 > standard row-major `terrain[y*50+x]`, matching the engine's `getTerrain().get(x,y)`,

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // ============================================================================
 //  expansion-map.mjs — bake the bot's static neighbourhood map from the SQLite
-//  mirror into a build artifact (src/data/expansionMap.json).
+//  mirror into a per-server build artifact (src/data/expansionMap.<shard>.json).
 //
 //  WHY: a neighbour room's GEOMETRY (sources, terrain, controller) and its
 //  KEEPER LAIRS are static — known the moment the crawler scans them. So we bake
@@ -24,22 +24,30 @@
 //  owner). Run the crawler first; un-scanned neighbours are simply omitted.
 //
 //  Usage:
-//    node bin/expansion-map.mjs --room E15S7
-//    node bin/expansion-map.mjs --room W55S43 --out src/data/expansionMap.json
+//    node bin/expansion-map.mjs --room E15S7           -> src/data/expansionMap.shardSeason.json
+//    node bin/expansion-map.mjs --main --room W55S43   -> src/data/expansionMap.shard2.json
 // ============================================================================
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { openDb, loadRoom, parseRoom } from "./db.mjs";
+import { openDb, loadRoom, parseRoom, resolveWorld } from "./db.mjs";
 import { distField, crossBorderDist, valueOf, orthoNeighbours, BASE_REMOTE } from "./region-score.mjs";
 
 function arg(name, def) {
   const i = process.argv.indexOf(`--${name}`);
+  if (i !== -1 && (process.argv[i + 1] === undefined || process.argv[i + 1].startsWith("--")))
+    return true; // boolean flag (e.g. --main)
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : def;
 }
 const HOME = arg("room", null);
-const OUT = arg("out", "src/data/expansionMap.json");
-const SHARD = arg("shard", "shardSeason"); // label only — no API access
+// --main reads the shard2 mirror (tmp/shard2.db); default = Season. The shard is a
+// map label AND picks the DB file — no API access (the crawler owns that).
+const W = resolveWorld({ main: arg("main", false) === true, shard: arg("shard", null) });
+const SHARD = W.shard; // baked into each home entry as a label
+// One map file PER SERVER: the build inlines src/data/expansionMap.<shard>.json
+// into the bundle it ships to that server, so Season and Main never carry each
+// other's remote maps. Home rooms on the SAME server still merge into one file.
+const OUT = arg("out", `src/data/expansionMap.${SHARD}.json`);
 const round = (n) => (isFinite(n) ? Math.round(n * 10) / 10 : null);
 
 // Build the neighbourhood map for one home room. Returns the per-home entry:
@@ -116,14 +124,15 @@ function buildMap(db, home) {
 
 function main() {
   if (!HOME) {
-    console.error("Usage: node bin/expansion-map.mjs --room <ROOM> [--out src/data/expansionMap.json] [--shard shardSeason]");
+    console.error("Usage: node bin/expansion-map.mjs --room <ROOM> [--main] [--out src/data/expansionMap.<shard>.json]");
     process.exit(1);
   }
   parseRoom(HOME); // validate the room name early (throws on a bad name)
 
-  const db = openDb();
-  // Merge into any existing map (keyed by home room) so both home rooms — main
-  // (W55S43) and season (E15S7) — can coexist in one bundled artifact.
+  const db = openDb(W.dbPath);
+  // Merge into this server's existing map (keyed by home room) so multiple home
+  // rooms ON THE SAME SERVER coexist in one file (e.g. season E15S7 + E12S5).
+  // Cross-server separation is by FILE (expansionMap.<shard>.json), not by key.
   let map = {};
   try { map = JSON.parse(readFileSync(OUT, "utf8")); } catch { /* fresh file */ }
   map[HOME] = buildMap(db, HOME);

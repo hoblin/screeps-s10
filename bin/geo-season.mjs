@@ -25,16 +25,20 @@
 // ============================================================================
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { parseTerrain } from "./db.mjs"; // single-sourced terrain decoder
+import { parseTerrain, resolveWorld } from "./db.mjs"; // single-sourced terrain decoder + world registry
 
 function arg(name, def) {
   const i = process.argv.indexOf(`--${name}`);
+  if (i !== -1 && (process.argv[i + 1] === undefined || process.argv[i + 1].startsWith("--")))
+    return true; // boolean flag (e.g. --main)
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : def;
 }
-const SERVER = arg("server", "https://screeps.com/season").replace(/\/$/, "");
-const SHARD = arg("shard", "shardSeason");
+// --main targets shard2 on the MMO root; explicit --server/--shard override. Default = Season.
+const W = resolveWorld({ main: arg("main", false) === true, shard: arg("shard", null), server: arg("server", null) });
+const SERVER = W.server.replace(/\/$/, "");
+const SHARD = W.shard;
 const TOKEN = process.env.SCREEPS_TOKEN;
-const OUT = arg("out", "tmp/season-geo.json");
+const OUT = arg("out", `tmp/${W.tag}-geo.json`);
 
 if (!TOKEN) {
   console.error("ERROR: SCREEPS_TOKEN env var is not set");
